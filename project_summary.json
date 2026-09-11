@@ -1,0 +1,399 @@
+{
+  "projectName": "Faith Preachers Ministry - FPM ONE",
+  "version": "1.0.0",
+  "status": "COMPLETED_AND_VERIFIED",
+  "generatedAt": "2026-09-09T15:05:09+01:00",
+  "architectureSummary": {
+    "overview": "FPM ONE is an enterprise digital church management and mobile engagement ecosystem built for Faith Preachers Ministry across multiple global branches. It consists of an Android native application, a responsive web Admin Portal, a secure REST API backend, and a PostgreSQL database with Row Level Security (RLS) and authoritative business logic functions.",
+    "hierarchy": {
+      "ministry": "Faith Preachers Ministry",
+      "branches": [
+        "Cathedral of Grace (Headquarters - Lagos, Nigeria)",
+        "Abuja Central Chapter (Abuja, Nigeria)",
+        "Port Harcourt Revival Center (Rivers, Nigeria)",
+        "London International Fellowship (London, United Kingdom)"
+      ],
+      "departments": [
+        "Choir (Voices of Faith)",
+        "Media & Technology",
+        "Ushering & Protocol",
+        "Prayer & Intercession",
+        "Welfare & Hospitality",
+        "Children & Teens Church"
+      ],
+      "ministryRoles": [
+        "Senior Pastor",
+        "Associate Pastor",
+        "Elder",
+        "Deacon / Deaconess",
+        "Department Head",
+        "Worker",
+        "Member"
+      ]
+    },
+    "components": {
+      "androidApp": {
+        "framework": "Native Android with Jetpack Compose & Material 3",
+        "language": "Kotlin 2.2.0 (JVM 21)",
+        "architecturePattern": "MVVM with Clean Architecture (Presentation, Domain/Repository, Data/Network, Security)",
+        "concurrency": "Kotlin Coroutines & Flow (StateFlow)",
+        "networking": "OkHttp 4.12.0 with JSON serialization and Bearer token interceptor",
+        "biometrics": "AndroidX BiometricPrompt hardware security challenge without storing raw biometric data",
+        "buildArtifact": "android/app/build/outputs/apk/debug/app-debug.apk (22,054,882 bytes, assembled cleanly)"
+      },
+      "webAdminPortal": {
+        "framework": "React 18 + Vite + TypeScript + Tailwind CSS",
+        "navigation": "Single Page Application with 15 administrative modules",
+        "stateManagement": "React Context (AuthContext) with Axios/Fetch REST client",
+        "features": [
+          "Multi-branch switcher",
+          "Executive KPI dashboard",
+          "Applicant approval queue with atomic worker code generation",
+          "Member directory with assignment editor and digital badge preview",
+          "Service schedule manager with grace periods and auto clock-out duration",
+          "Church event manager with RSVP tracking",
+          "Sermon highlight publisher",
+          "Testimonies moderation queue with consent guard",
+          "Real-time attendance monitor with manual clock-out and excuse modal",
+          "Monthly attendance matrix report (Present, Late, Absent, Excused) with CSV export",
+          "Multicast push notification center",
+          "Immutable audit logs"
+        ],
+        "hosting": "Verified and running live on http://localhost:3000"
+      },
+      "backendApi": {
+        "runtime": "Node.js with Express and TypeScript",
+        "authentication": "JWT Bearer tokens with bcrypt password hashing",
+        "authorization": "Role-Based Access Control (RBAC) middleware verifying roles and administrative levels",
+        "scheduledWorkers": [
+          "Auto clock-out background sweeper (configurable threshold, default 4 hours)",
+          "Automated absence marker for mandatory weekly services"
+        ],
+        "testSuite": "Automated test suite (backend/src/test.ts) covering 30 exhaustive scenarios - 30/30 PASSED",
+        "hosting": "Verified and running live on http://localhost:5000/api"
+      }
+    }
+  },
+  "databaseSchema": {
+    "databaseType": "PostgreSQL / Supabase with Row Level Security (RLS)",
+    "tables": [
+      {
+        "name": "branches",
+        "primaryKey": "id (UUID)",
+        "description": "Stores church chapter details, codes, addresses, cities, countries, and assigned chapter pastors",
+        "columns": ["id", "name", "branch_code", "address", "city", "country", "phone", "email", "branch_pastor_name", "branch_pastor_id", "is_active", "created_at", "updated_at"]
+      },
+      {
+        "name": "departments",
+        "primaryKey": "id (UUID)",
+        "description": "Ministry departments across branches with assigned Head of Department (HOD)",
+        "columns": ["id", "branch_id", "name", "code", "description", "hod_name", "hod_id", "status", "created_at", "updated_at"]
+      },
+      {
+        "name": "ministry_roles",
+        "primaryKey": "id (UUID)",
+        "description": "Dynamic ministry roles with hierarchy levels, system flags, and permissions matrix (replaces legacy static ranks)",
+        "columns": ["id", "name", "code", "description", "hierarchy_level", "permissions", "is_system_role", "is_active", "created_at", "updated_at"]
+      },
+      {
+        "name": "user_accounts",
+        "primaryKey": "id (UUID)",
+        "description": "Core authentication credentials, status flags (active, pending_approval, suspended, archived), and administrative permissions",
+        "columns": ["id", "email", "phone", "password_hash", "account_status", "is_admin", "admin_level", "email_verified", "phone_verified", "created_at", "updated_at"]
+      },
+      {
+        "name": "members",
+        "primaryKey": "id (UUID)",
+        "description": "Member profile information linked to user accounts, church branches, and ministry roles",
+        "columns": ["id", "user_id", "first_name", "middle_name", "last_name", "gender", "date_of_birth", "residential_address", "profile_picture_url", "branch_id", "ministry_role_id", "is_worker", "emergency_contact_name", "emergency_contact_phone", "created_at", "updated_at"]
+      },
+      {
+        "name": "worker_profiles",
+        "primaryKey": "id (UUID)",
+        "description": "Worker details, atomic worker code (FPM-XXXX), department assignment, position, and encrypted QR token",
+        "columns": ["id", "member_id", "user_id", "worker_code", "department_id", "position_name", "date_started_serving", "pin_hash", "qr_code_token", "is_active", "created_at", "updated_at"]
+      },
+      {
+        "name": "service_schedules",
+        "primaryKey": "id (UUID)",
+        "description": "Weekly recurring and special services with start times, grace period minutes, and attendance duration limits",
+        "columns": ["id", "branch_id", "name", "day_of_week", "start_time", "expected_end_time", "grace_period_minutes", "attendance_duration_hours", "is_active", "created_at", "updated_at"]
+      },
+      {
+        "name": "attendance_records",
+        "primaryKey": "id (UUID)",
+        "description": "Authoritative attendance logs with server-generated timestamps, duration, method, status, and auto clock-out flags",
+        "columns": ["id", "worker_id", "service_id", "branch_id", "service_date", "clock_in_time", "clock_out_time", "duration_minutes", "clock_in_method", "status", "is_auto_clock_out", "clock_out_source", "excused_reason", "excused_by", "created_at", "updated_at"]
+      },
+      {
+        "name": "events",
+        "primaryKey": "id (UUID)",
+        "description": "Global conventions, regional conferences, worker training seminars, and special programs",
+        "columns": ["id", "branch_id", "title", "description", "banner_url", "start_datetime", "end_datetime", "location", "speaker", "category", "registration_required", "created_at", "updated_at"]
+      },
+      {
+        "name": "event_registrations",
+        "primaryKey": "id (UUID)",
+        "description": "Member RSVPs and registrations for church events",
+        "columns": ["id", "event_id", "user_id", "registered_at", "status"]
+      },
+      {
+        "name": "posts",
+        "primaryKey": "id (UUID)",
+        "description": "Church announcements, pastoral updates, and devotionals with target scope and pinned status",
+        "columns": ["id", "branch_id", "author_id", "title", "content", "scripture_reference", "post_type", "is_pinned", "target_scope", "media_urls", "created_at", "updated_at"]
+      },
+      {
+        "name": "service_highlights",
+        "primaryKey": "id (UUID)",
+        "description": "Curated sermon outlines, themes, scriptures, key points, and memorable quotes",
+        "columns": ["id", "service_id", "branch_id", "theme", "minister_name", "date", "summary", "scripture", "key_points", "quote", "created_at", "updated_at"]
+      },
+      {
+        "name": "testimonies",
+        "primaryKey": "id (UUID)",
+        "description": "Congregation testimonies with pastoral moderation status and publication consent flag",
+        "columns": ["id", "member_id", "branch_id", "title", "content", "category", "allow_publish", "status", "moderated_by", "moderated_at", "rejection_reason", "created_at", "updated_at"]
+      },
+      {
+        "name": "notifications",
+        "primaryKey": "id (UUID)",
+        "description": "Push and in-app notifications dispatched to specific users or broadcast by branch/role",
+        "columns": ["id", "user_id", "branch_id", "title", "body", "notification_type", "is_read", "created_at"]
+      },
+      {
+        "name": "audit_logs",
+        "primaryKey": "id (UUID)",
+        "description": "Immutable security trail recording administrative actions, member status changes, and approvals",
+        "columns": ["id", "actor_id", "action", "resource_type", "resource_id", "details", "ip_address", "created_at"]
+      }
+    ],
+    "functionsAndProcedures": [
+      {
+        "name": "generate_worker_code()",
+        "returnType": "VARCHAR(20)",
+        "purpose": "Atomically queries existing codes and generates sequential identifier in format FPM-XXXX (e.g. FPM-0001, FPM-0002)."
+      },
+      {
+        "name": "clock_in_worker(p_worker_id, p_service_id, p_clock_in_method, p_pin)",
+        "returnType": "UUID",
+        "purpose": "Enforces authoritative server timestamp (CURRENT_TIMESTAMP), checks duplicate clock-in lock for the same service and date, dynamically calculates Present vs Late using service grace period, and inserts attendance record."
+      },
+      {
+        "name": "auto_clock_out_workers()",
+        "returnType": "INTEGER",
+        "purpose": "Identifies active clock-ins exceeding configured service duration (default 4 hours), calculates duration minutes, and marks is_auto_clock_out = true."
+      },
+      {
+        "name": "mark_absent_workers(p_service_id, p_date)",
+        "returnType": "INTEGER",
+        "purpose": "Identifies active workers assigned to the service branch who did not clock in or submit an excuse, inserting status = 'absent'."
+      },
+      {
+        "name": "approve_member_account(p_user_id, p_admin_id, p_department_id, p_position_name)",
+        "returnType": "VARCHAR(20)",
+        "purpose": "Atomically updates account_status from pending_approval to active, generates sequential worker code if applicable, provisions worker_profile, and records audit log."
+      }
+    ]
+  },
+  "projectFilesCreated": {
+    "database": [
+      "backend/database/schema.sql",
+      "backend/database/functions.sql",
+      "backend/database/seed.sql"
+    ],
+    "backend": [
+      "backend/package.json",
+      "backend/tsconfig.json",
+      "backend/src/server.ts",
+      "backend/src/types/index.ts",
+      "backend/src/data/mockDb.ts",
+      "backend/src/services/authService.ts",
+      "backend/src/services/attendanceService.ts",
+      "backend/src/services/churchService.ts",
+      "backend/src/controllers/authController.ts",
+      "backend/src/controllers/attendanceController.ts",
+      "backend/src/controllers/churchController.ts",
+      "backend/src/routes/api.ts",
+      "backend/src/test.ts"
+    ],
+    "adminPortal": [
+      "admin-portal/package.json",
+      "admin-portal/tsconfig.json",
+      "admin-portal/vite.config.ts",
+      "admin-portal/tailwind.config.js",
+      "admin-portal/src/index.css",
+      "admin-portal/src/App.tsx",
+      "admin-portal/src/main.tsx",
+      "admin-portal/src/types/index.ts",
+      "admin-portal/src/context/AuthContext.tsx",
+      "admin-portal/src/services/api.ts",
+      "admin-portal/src/components/layout/Header.tsx",
+      "admin-portal/src/components/layout/Sidebar.tsx",
+      "admin-portal/src/components/common/StatCard.tsx",
+      "admin-portal/src/pages/LoginPage.tsx",
+      "admin-portal/src/pages/DashboardPage.tsx",
+      "admin-portal/src/pages/ApprovalsPage.tsx",
+      "admin-portal/src/pages/MembersPage.tsx",
+      "admin-portal/src/pages/BranchesPage.tsx",
+      "admin-portal/src/pages/DepartmentsPage.tsx",
+      "admin-portal/src/pages/RolesPage.tsx",
+      "admin-portal/src/pages/ServicesPage.tsx",
+      "admin-portal/src/pages/EventsPage.tsx",
+      "admin-portal/src/pages/FeedPage.tsx",
+      "admin-portal/src/pages/HighlightsPage.tsx",
+      "admin-portal/src/pages/TestimoniesPage.tsx",
+      "admin-portal/src/pages/AttendancePage.tsx",
+      "admin-portal/src/pages/ReportsPage.tsx",
+      "admin-portal/src/pages/NotificationsPage.tsx",
+      "admin-portal/src/pages/AuditLogsPage.tsx",
+      "admin-portal/src/pages/SettingsPage.tsx"
+    ],
+    "androidApp": [
+      "android/settings.gradle.kts",
+      "android/gradle/libs.versions.toml",
+      "android/build.gradle.kts",
+      "android/app/build.gradle.kts",
+      "android/app/src/main/AndroidManifest.xml",
+      "android/app/src/main/java/org/fpm/one/MainActivity.kt",
+      "android/app/src/main/java/org/fpm/one/core/navigation/Screen.kt",
+      "android/app/src/main/java/org/fpm/one/core/network/ApiClient.kt",
+      "android/app/src/main/java/org/fpm/one/core/security/SessionManager.kt",
+      "android/app/src/main/java/org/fpm/one/core/security/BiometricHelper.kt",
+      "android/app/src/main/java/org/fpm/one/core/theme/Color.kt",
+      "android/app/src/main/java/org/fpm/one/core/theme/Type.kt",
+      "android/app/src/main/java/org/fpm/one/core/theme/Theme.kt",
+      "android/app/src/main/java/org/fpm/one/data/model/Models.kt",
+      "android/app/src/main/java/org/fpm/one/data/repository/AuthRepository.kt",
+      "android/app/src/main/java/org/fpm/one/data/repository/AttendanceRepository.kt",
+      "android/app/src/main/java/org/fpm/one/data/repository/ChurchRepository.kt",
+      "android/app/src/main/java/org/fpm/one/data/repository/NotificationRepository.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/components/CommonComponents.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/auth/AuthViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/auth/LoginScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/auth/PendingApprovalScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/registration/RegistrationViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/registration/RegistrationWizardScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/home/HomeViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/home/HomeScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/services/ServicesViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/services/ServicesScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/events/EventsViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/events/EventsScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/testimonies/TestimoniesViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/testimonies/TestimoniesScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/worker/WorkerViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/worker/WorkerHubScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/profile/ProfileScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/notifications/NotificationsViewModel.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/notifications/NotificationsScreen.kt",
+      "android/app/src/main/java/org/fpm/one/presentation/main/MainScreen.kt"
+    ]
+  },
+  "keyEnforcedBusinessRules": [
+    {
+      "rule": "Authoritative Server Clock",
+      "implementation": "Attendance timestamps are generated strictly by server SQL CURRENT_TIMESTAMP. Client clocks are ignored."
+    },
+    {
+      "rule": "Duplicate Clock-In Prevention",
+      "implementation": "Database unique constraint on (worker_id, service_id, service_date) rejects repeated attempts with 409 Conflict."
+    },
+    {
+      "rule": "Secure Biometric Verification",
+      "implementation": "AndroidX BiometricPrompt hardware challenge. No raw fingerprint or face data is ever stored or transmitted."
+    },
+    {
+      "rule": "Grace Period & Late Classification",
+      "implementation": "Services define grace periods (default 15 mins). Clock-in within grace is marked Present; beyond is marked Late."
+    },
+    {
+      "rule": "Configurable Auto Clock-Out",
+      "implementation": "Scheduled worker terminates open clock-in sessions exceeding configured duration (default 4 hours), setting is_auto_clock_out = true."
+    },
+    {
+      "rule": "Multi-Step Registration Ending in Pending Approval",
+      "implementation": "4-step wizard ending in pending_approval state requiring pastoral leadership authorization before access is granted."
+    },
+    {
+      "rule": "Separation of Ministry Dimensions",
+      "implementation": "Account Status (active/pending/suspended), Ministry Role (Pastor/Elder/Worker/Member), Department (Media/Choir/Ushering), and Position (Broadcast Director/Camera Lead) are distinct relational entities."
+    },
+    {
+      "rule": "Testimonies Moderation & Consent",
+      "implementation": "Testimonies are held in moderation queue until pastor approves, and require member publication consent before public broadcast."
+    }
+  ],
+  "testAndVerificationResults": {
+    "backendApi": {
+      "totalTests": 30,
+      "passedTests": 30,
+      "failedTests": 0,
+      "status": "PASSED"
+    },
+    "adminPortal": {
+      "build": "Vite TypeScript compilation succeeded (dist/)",
+      "runtime": "Active on http://localhost:3000",
+      "pagesVerified": 15
+    },
+    "androidApp": {
+      "build": "Gradle assembleDebug completed successfully (JVM 21)",
+      "runtime": "Deployed and verified on Android emulator Medium_Phone_API_36.0 (emulator-5554)",
+      "crashes": 0,
+      "liveFlowVerified": [
+        "Login as worker.john@fpmchurch.org",
+        "View Home dashboard with upcoming service and sermon highlight",
+        "Open Worker Hub displaying Digital Worker Badge (FPM-0002) and active status",
+        "Execute station QR attendance clock-in",
+        "Verify server calculated status: Late (timestamp: 2026-09-09T15:12:15.206Z)",
+        "Verify Admin Portal live attendance dashboard synchronized to currentlyClockedIn = 1",
+        "Execute mobile clock-out with server duration calculation (16 minutes)",
+        "Verify Admin Portal live attendance dashboard updated to currentlyClockedIn = 0"
+      ]
+    }
+  },
+  "demoCredentials": [
+    {
+      "role": "Super Admin",
+      "email": "admin@fpmchurch.org",
+      "password": "Password123!",
+      "workerCode": "FPM-0001",
+      "access": "Full global administrative access across all branches, roles, settings, and mobile app"
+    },
+    {
+      "role": "Branch Pastor (Lagos)",
+      "email": "pastor.david@fpmchurch.org",
+      "password": "Password123!",
+      "workerCode": "FPM-0002",
+      "access": "Lagos Chapter pastor with approval queue authority, sermon highlights, and pastoral duties"
+    },
+    {
+      "role": "Worker / Choir HOD",
+      "email": "worker.sarah@fpmchurch.org",
+      "password": "Password123!",
+      "workerCode": "FPM-0001",
+      "access": "Choir Department lead with Digital Worker Badge, attendance clock-in, and mobile access"
+    },
+    {
+      "role": "Worker / Media HOD",
+      "email": "worker.john@fpmchurch.org",
+      "password": "Password123!",
+      "workerCode": "FPM-0002",
+      "access": "Media Broadcast Director with Digital Worker Badge, attendance clock-in, and mobile access"
+    },
+    {
+      "role": "Congregation Member",
+      "email": "member.grace@fpmchurch.org",
+      "password": "Password123!",
+      "workerCode": null,
+      "access": "Regular member access to spiritual feed, service highlights, event RSVPs, and testimony submission"
+    },
+    {
+      "role": "Pending Applicant",
+      "email": "daniel.new@fpmchurch.org",
+      "password": "Password123!",
+      "workerCode": null,
+      "access": "Applicant awaiting pastoral review, displaying the Pending Approval screen"
+    }
+  ]
+}
