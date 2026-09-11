@@ -20,7 +20,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -153,29 +157,35 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
         }
       }
 
-      // Main List
-      if (state.isLoading && state.testimonies.isEmpty()) {
-        LoadingSpinner(modifier = Modifier.fillMaxSize())
-      } else if (filteredTestimonies.isEmpty()) {
-        EmptyStateView(
-          icon = Icons.Default.FavoriteBorder,
-          title = "No Testimonies Found",
-          subtitle = if (selectedCategory != "All") "No testimonies in '$selectedCategory' category yet." else "Be the first to share what the Lord has done!",
-          actionLabel = "Share Testimony",
-          onAction = { showSubmitDialog = true },
-          modifier = Modifier.fillMaxSize()
-        )
-      } else {
-        LazyColumn(
-          modifier = Modifier.fillMaxSize(),
-          contentPadding = PaddingValues(16.dp),
-          verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-          items(filteredTestimonies) { testimony ->
-            TestimonyCard(testimony = testimony)
-          }
-          item {
-            Spacer(modifier = Modifier.height(72.dp)) // Fab padding
+      // Main List with Pull-to-Refresh
+      PullToRefreshBox(
+        isRefreshing = state.isLoading && state.testimonies.isNotEmpty(),
+        onRefresh = { viewModel.loadTestimonies() },
+        modifier = Modifier.fillMaxSize()
+      ) {
+        if (state.isLoading && state.testimonies.isEmpty()) {
+          LoadingSpinner(modifier = Modifier.fillMaxSize())
+        } else if (filteredTestimonies.isEmpty()) {
+          EmptyStateView(
+            icon = Icons.Default.FavoriteBorder,
+            title = "No Testimonies Found",
+            subtitle = if (selectedCategory != "All") "No testimonies in '$selectedCategory' category yet." else "Be the first to share what the Lord has done!",
+            actionLabel = "Share Testimony",
+            onAction = { showSubmitDialog = true },
+            modifier = Modifier.fillMaxSize()
+          )
+        } else {
+          LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+          ) {
+            items(filteredTestimonies) { testimony ->
+              TestimonyCard(testimony = testimony)
+            }
+            item {
+              Spacer(modifier = Modifier.height(72.dp)) // Fab padding
+            }
           }
         }
       }
@@ -244,25 +254,20 @@ fun TestimonyCard(testimony: TestimonyItem) {
       )
 
       if (!testimony.photoUrl.isNullOrBlank()) {
-        Spacer(modifier = Modifier.height(8.dp))
-        Surface(
-          color = FpmSlateBg,
-          shape = RoundedCornerShape(8.dp),
-          modifier = Modifier.fillMaxWidth()
+        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(FpmSlateBg)
         ) {
-          Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = FpmGold, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-              text = "Photo Proof Attached",
-              fontSize = 11.sp,
-              fontWeight = FontWeight.SemiBold,
-              color = FpmNavy
-            )
-          }
+          AsyncImage(
+            model = testimony.photoUrl,
+            contentDescription = "Testimony Photo",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+          )
         }
       }
 
@@ -347,7 +352,7 @@ fun SubmitTestimonyDialog(
   var photoFileName by remember { mutableStateOf<String?>(null) }
 
   val photoPickerLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.GetContent()
+    contract = ActivityResultContracts.PickVisualMedia()
   ) { uri ->
     if (uri != null) {
       photoFileName = uri.lastPathSegment ?: "testimony_photo.jpg"
@@ -355,10 +360,26 @@ fun SubmitTestimonyDialog(
       error = null
       coroutineScope.launch {
         try {
+          val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+          if (!mime.startsWith("image/")) {
+            error = "Only photo and image files (JPEG, PNG, WEBP) are permitted."
+            isUploading = false
+            return@launch
+          }
+
           val inputStream = context.contentResolver.openInputStream(uri)
           val bytes = inputStream?.readBytes() ?: throw Exception("Unable to read image data.")
           inputStream.close()
-          val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+
+          // Strict 1MB ceiling enforcement (1,048,576 bytes)
+          val maxBytes = 1024 * 1024
+          if (bytes.size > maxBytes) {
+            val sizeKb = bytes.size / 1024
+            error = "Selected photo exceeds 1MB limit (${sizeKb} KB). Please select an image under 1MB."
+            isUploading = false
+            return@launch
+          }
+
           val result = onUploadPhoto(bytes, photoFileName ?: "photo.jpg", mime)
           result.fold(
             onSuccess = { responseJson ->
@@ -479,20 +500,36 @@ fun SubmitTestimonyDialog(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
           ) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = "Photo Proof / Media",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary
-              )
-              Text(
-                text = if (isUploading) "Uploading to Supabase Storage..."
-                       else if (uploadedPhotoUrl != null) (photoFileName ?: "Photo attached")
-                       else "Attach medical report or blessing photo (optional)",
-                fontSize = 10.sp,
-                color = if (uploadedPhotoUrl != null) FpmSuccess else FpmTextSecondary
-              )
+            Row(
+              modifier = Modifier.weight(1f),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              if (uploadedPhotoUrl != null) {
+                AsyncImage(
+                  model = uploadedPhotoUrl,
+                  contentDescription = "Uploaded photo preview",
+                  modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                  contentScale = ContentScale.Crop
+                )
+              }
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Photo Proof / Media",
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = FpmTextPrimary
+                )
+                Text(
+                  text = if (isUploading) "Uploading to Supabase Storage..."
+                         else if (uploadedPhotoUrl != null) (photoFileName ?: "Photo attached (< 1MB)")
+                         else "Attach medical report or blessing photo (Max 1MB)",
+                  fontSize = 10.sp,
+                  color = if (uploadedPhotoUrl != null) FpmSuccess else FpmTextSecondary
+                )
+              }
             }
             if (isUploading) {
               CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = FpmNavy)
@@ -505,13 +542,17 @@ fun SubmitTestimonyDialog(
               }
             } else {
               OutlinedButton(
-                onClick = { photoPickerLauncher.launch("image/*") },
+                onClick = {
+                  photoPickerLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                  )
+                },
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
               ) {
                 Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Pick", fontSize = 11.sp)
+                Text("Pick Photo", fontSize = 11.sp)
               }
             }
           }

@@ -49,6 +49,7 @@ fun WorkerHubScreen(
   val state by viewModel.state.collectAsState()
   val context = LocalContext.current
   var showClockInDialog by remember { mutableStateOf(false) }
+  var showQrScannerModal by remember { mutableStateOf(false) }
 
   Scaffold(
     topBar = {
@@ -280,7 +281,29 @@ fun WorkerHubScreen(
         }
       },
       onQrClockIn = {
-        viewModel.clockIn(method = "qr_scan") {
+        showQrScannerModal = true
+      }
+    )
+  }
+
+  if (showQrScannerModal) {
+    QrCodeScannerModal(
+      onDismiss = { showQrScannerModal = false },
+      onQrCodeScanned = { rawQrPayload ->
+        showQrScannerModal = false
+        showClockInDialog = false
+        var extractedServiceId: String? = null
+        val trimmed = rawQrPayload.trim()
+        if (trimmed.startsWith("FPM-SVC:")) {
+          extractedServiceId = trimmed.substring("FPM-SVC:".length).trim()
+        } else if (trimmed.startsWith("FPM-SVC-")) {
+          extractedServiceId = trimmed.substring("FPM-SVC-".length).trim()
+        }
+        viewModel.clockIn(
+          method = "qr_scan",
+          scannedPayload = rawQrPayload,
+          targetServiceId = extractedServiceId
+        ) {
           showClockInDialog = false
         }
       }

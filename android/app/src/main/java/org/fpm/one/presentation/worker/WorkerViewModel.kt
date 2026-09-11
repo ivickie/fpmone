@@ -82,6 +82,8 @@ class WorkerViewModel(
   fun clockIn(
     method: String,
     pin: String? = null,
+    scannedPayload: String? = null,
+    targetServiceId: String? = null,
     onSuccess: () -> Unit = {}
   ) {
     val user = _state.value.user
@@ -93,7 +95,7 @@ class WorkerViewModel(
       return
     }
 
-    val serviceId = service?.id ?: "srv-001"
+    val serviceId = targetServiceId ?: service?.id ?: "srv-001"
 
     _state.value = _state.value.copy(isLoading = true, error = null)
     viewModelScope.launch {
@@ -101,7 +103,8 @@ class WorkerViewModel(
         workerIdentifier = workerIdentifier,
         serviceId = serviceId,
         method = method,
-        pin = pin
+        pin = pin,
+        scannedPayload = scannedPayload
       )
       result.fold(
         onSuccess = { record ->

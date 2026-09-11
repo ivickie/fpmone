@@ -10,6 +10,7 @@ import {
   Branch, Department, DepartmentPosition, EventItem, PostItem,
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem
 } from '../types';
+import { persistService } from '../db/sync';
 
 // =============================================================================
 // AUTH CONTROLLER
@@ -822,17 +823,38 @@ export const updateWorkerHandler = (req: Request, res: Response) => {
 // =============================================================================
 export const clockInHandler = async (req: Request, res: Response) => {
   try {
-    const { workerIdentifier, serviceId, method, pin } = req.body;
+    const { workerIdentifier, serviceId, method, pin, qrCodeToken, scannedPayload } = req.body;
     // If workerIdentifier not supplied in body, default to logged in worker's ID
     const resolvedIdentifier = workerIdentifier || req.user?.workerDetails?.workerId;
-    if (!resolvedIdentifier || !serviceId || !method) {
+
+    let resolvedServiceId = serviceId;
+    if (!resolvedServiceId && (scannedPayload || qrCodeToken)) {
+      const raw = ((scannedPayload || qrCodeToken) as string).trim();
+      if (raw.startsWith('FPM-SVC:')) {
+        resolvedServiceId = raw.substring('FPM-SVC:'.length).trim();
+      } else if (raw.startsWith('FPM-SVC-')) {
+        resolvedServiceId = raw.substring('FPM-SVC-'.length).trim();
+      } else if (raw.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(raw);
+          resolvedServiceId = parsed.serviceId || parsed.id;
+        } catch (_) {}
+      } else {
+        const svc = db.services.find(s => s.id === raw || s.qrCodeToken === raw);
+        if (svc) resolvedServiceId = svc.id;
+      }
+    }
+
+    if (!resolvedIdentifier || !resolvedServiceId || !method) {
       return res.status(400).json({ success: false, error: 'Worker identifier, service ID, and clock-in method are required.' });
     }
     const record = await AttendanceService.clockIn({
       workerIdentifier: resolvedIdentifier,
-      serviceId,
+      serviceId: resolvedServiceId,
       method,
-      pin
+      pin,
+      qrCodeToken,
+      scannedPayload
     });
     return res.status(201).json({ success: true, record });
   } catch (err: any) {
@@ -972,8 +994,9 @@ export const createServiceHandler = (req: Request, res: Response) => {
       return res.status(403).json({ success: false, error: 'Branch isolation violation: You can only create services for your assigned branch.' });
     }
 
+    const serviceId = uuidv4();
     const newService: ServiceSchedule = {
-      id: uuidv4(),
+      id: serviceId,
       branchId,
       name,
       dayOfWeek,
@@ -982,11 +1005,13 @@ export const createServiceHandler = (req: Request, res: Response) => {
       gracePeriodMinutes: gracePeriodMinutes || 15,
       earliestClockInMinutes: earliestClockInMinutes || 60,
       attendanceDurationHours: attendanceDurationHours || 4.0,
+      qrCodeToken: `FPM-SVC-${serviceId}`,
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     db.services.push(newService);
+    persistService(newService);
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'SERVICE_CREATED', 'service', newService.id, req.user?.userId, null, newService);
     return res.status(201).json(newService);
   } catch (err: any) {

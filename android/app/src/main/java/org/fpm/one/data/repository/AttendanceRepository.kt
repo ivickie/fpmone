@@ -11,7 +11,8 @@ class AttendanceRepository {
     workerIdentifier: String,
     serviceId: String,
     method: String,
-    pin: String? = null
+    pin: String? = null,
+    scannedPayload: String? = null
   ): Result<AttendanceRecordItem> = withContext(Dispatchers.IO) {
     try {
       val payload = buildString {
@@ -21,6 +22,9 @@ class AttendanceRepository {
         append("\"method\":\"$method\"")
         if (pin != null) {
           append(",\"pin\":\"$pin\"")
+        }
+        if (scannedPayload != null) {
+          append(",\"scannedPayload\":\"$scannedPayload\"")
         }
         append("}")
       }

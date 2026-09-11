@@ -16,10 +16,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import org.fpm.one.core.theme.*
 import org.fpm.one.presentation.components.FpmCard
 import org.fpm.one.presentation.components.LoadingSpinner
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServicesScreen(viewModel: ServicesViewModel) {
   val state by viewModel.state.collectAsState()
@@ -68,14 +70,19 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
       }
     }
 
-    if (state.isLoading) {
-      LoadingSpinner(message = "Loading Service Information...")
-    } else {
-      LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-      ) {
+    PullToRefreshBox(
+      isRefreshing = state.isLoading && (state.services.isNotEmpty() || state.highlights.isNotEmpty()),
+      onRefresh = { viewModel.loadServices() },
+      modifier = Modifier.fillMaxSize()
+    ) {
+      if (state.isLoading && state.services.isEmpty() && state.highlights.isEmpty()) {
+        LoadingSpinner(message = "Loading Service Information...")
+      } else {
+        LazyColumn(
+          modifier = Modifier.fillMaxSize(),
+          contentPadding = PaddingValues(16.dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         if (activeTab == 0) {
           items(state.services) { svc ->
             FpmCard(modifier = Modifier.fillMaxWidth()) {
@@ -212,4 +219,5 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
       }
     }
   }
+}
 }

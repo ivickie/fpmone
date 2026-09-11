@@ -2,7 +2,7 @@ export type AccountStatus = 'pending' | 'active' | 'suspended' | 'rejected' | 'a
 export type AdminLevel = 'none' | 'branch_admin' | 'church_admin' | 'super_admin';
 export type MinistryRoleCode = 'SUPER_ADMIN' | 'BRANCH_PASTOR' | 'ASSOCIATE_PASTOR' | 'PASTOR' | 'HOD' | 'WORKER' | 'MEMBER';
 export type AttendanceStatus = 'present' | 'late' | 'absent' | 'excused';
-export type ClockInMethod = 'pin' | 'qr' | 'biometric' | 'manual_admin';
+export type ClockInMethod = 'pin' | 'qr' | 'qr_scan' | 'biometric' | 'manual_admin';
 export type ClockOutSource = 'manual' | 'automatic' | 'admin';
 export type PostVisibility = 'all' | 'branch' | 'department' | 'workers_only' | 'role';
 export type TestimonyStatus = 'pending_review' | 'approved' | 'rejected' | 'changes_requested';
@@ -124,6 +124,7 @@ export interface ServiceSchedule {
   earliestClockInMinutes: number; // default 60
   attendanceDurationHours: number; // default 4.0
   applicableDepartmentIds?: string[];
+  qrCodeToken?: string;
   status: 'active' | 'inactive' | 'archived';
   createdAt: string;
   updatedAt: string;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, Calendar, AlertCircle, Edit2, Trash2 } from 'lucide-react';
+import QRCode from 'qrcode';
+import { Clock, Plus, Calendar, AlertCircle, Edit2, Trash2, QrCode, Printer, Download, X } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -15,8 +16,30 @@ export const ServicesPage: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrService, setQrService] = useState<any>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [selectedService, setSelectedService] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const openQrModal = async (s: any) => {
+    setQrService(s);
+    try {
+      const payload = s.qrCodeToken || `FPM-SVC-${s.id}`;
+      const url = await QRCode.toDataURL(payload, {
+        width: 400,
+        margin: 2,
+        color: {
+          dark: '#0F172A',
+          light: '#FFFFFF'
+        }
+      });
+      setQrDataUrl(url);
+      setQrModalOpen(true);
+    } catch (err) {
+      console.error('Failed to generate QR code:', err);
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -91,7 +114,7 @@ export const ServicesPage: React.FC = () => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await api.createService({
+      const created = await api.createService({
         ...formData,
         startTime: `${formData.startTime}:00`,
         expectedEndTime: `${formData.expectedEndTime}:00`,
@@ -100,6 +123,9 @@ export const ServicesPage: React.FC = () => {
       });
       setCreateModalOpen(false);
       await fetchServices();
+      if (created) {
+        await openQrModal(created);
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to create service schedule');
     } finally {
@@ -209,21 +235,31 @@ export const ServicesPage: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                   <button
-                    onClick={() => openEditModal(s)}
-                    className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded-lg transition"
-                    title="Edit Service"
+                    onClick={() => openQrModal(s)}
+                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                    title="View / Print Service Attendance QR Code"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>QR Badge</span>
                   </button>
-                  <button
-                    onClick={() => openArchiveDialog(s)}
-                    className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition"
-                    title="Archive / Delete Service"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => openEditModal(s)}
+                      className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded-lg transition"
+                      title="Edit Service"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => openArchiveDialog(s)}
+                      className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition"
+                      title="Archive / Delete Service"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -485,6 +521,73 @@ export const ServicesPage: React.FC = () => {
         onConfirm={handleArchiveOrDelete}
         onClose={() => setConfirmArchiveOpen(false)}
       />
+
+      {/* Service Attendance QR Code Modal */}
+      {qrModalOpen && qrService && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-slate-100 text-center relative">
+            <button
+              onClick={() => setQrModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header with Church Logo */}
+            <div className="flex flex-col items-center space-y-2 pt-2">
+              <img src="/church-logo.png" alt="FPM Logo" className="w-16 h-16 object-contain drop-shadow-xs" />
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                  Service Attendance QR Badge
+                </span>
+                <h2 className="text-xl font-black text-slate-900 mt-2">{qrService.name}</h2>
+                <p className="text-xs font-semibold text-blue-600">
+                  {qrService.dayOfWeek}s • {qrService.startTime?.substring(0, 5)} - {qrService.expectedEndTime?.substring(0, 5)} (Grace: {qrService.gracePeriodMinutes}m)
+                </p>
+              </div>
+            </div>
+
+            {/* Large QR Display */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 inline-block shadow-inner">
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="Service Attendance QR Code" className="w-56 h-56 mx-auto rounded-xl shadow-xs" />
+              ) : (
+                <div className="w-56 h-56 flex items-center justify-center text-xs text-slate-400">
+                  Generating QR Code...
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs text-slate-500 space-y-1">
+              <p className="font-bold text-slate-700">Display at Church Entrance Station or Terminal</p>
+              <p className="text-[11px] text-slate-400">
+                Workers scan this QR code with the FPM ONE app to verify their attendance and punctuality.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Badge</span>
+              </button>
+              {qrDataUrl && (
+                <a
+                  href={qrDataUrl}
+                  download={`FPM_Attendance_QR_${(qrService.name || 'Service').replace(/\s+/g, '_')}.png`}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-xs cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download PNG</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

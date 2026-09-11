@@ -23,10 +23,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.UserSession
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import org.fpm.one.presentation.components.FpmCard
 import org.fpm.one.presentation.components.LoadingSpinner
 import org.fpm.one.presentation.components.OfflineBanner
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
   viewModel: HomeViewModel,
@@ -113,14 +115,19 @@ fun HomeScreen(
 
     OfflineBanner(isOffline = state.isOffline)
 
-    if (state.isLoading) {
-      LoadingSpinner(message = "Fetching Church Announcements & Word...")
-    } else {
-      LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-      ) {
+    PullToRefreshBox(
+      isRefreshing = state.isLoading && (state.posts.isNotEmpty() || state.nextService != null),
+      onRefresh = { viewModel.loadHomeData() },
+      modifier = Modifier.fillMaxSize()
+    ) {
+      if (state.isLoading && state.posts.isEmpty() && state.nextService == null) {
+        LoadingSpinner(message = "Fetching Church Announcements & Word...")
+      } else {
+        LazyColumn(
+          modifier = Modifier.fillMaxSize(),
+          contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         // 1. Next Service Card
         if (state.nextService != null) {
           item {
@@ -337,4 +344,5 @@ fun HomeScreen(
       }
     }
   }
+}
 }

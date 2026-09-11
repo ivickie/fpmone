@@ -10,6 +10,8 @@ export interface ClockInParams {
   serviceId: string;
   method: ClockInMethod;
   pin?: string;
+  qrCodeToken?: string;
+  scannedPayload?: string;
   overrideTimestamp?: Date;
 }
 
@@ -69,6 +71,20 @@ export class AttendanceService {
     if (member.primaryBranchId !== service.branchId) {
       const workerBranch = db.branches.find(b => b.id === member.primaryBranchId);
       throw new Error(`Branch mismatch: Worker is assigned to ${workerBranch?.name || 'another branch'} and cannot clock in for ${service.name}.`);
+    }
+
+    // Validate QR code match if method is qr/qr_scan and token/payload provided
+    if ((params.method === 'qr' || params.method === 'qr_scan') && (params.qrCodeToken || params.scannedPayload)) {
+      const payload = (params.scannedPayload || params.qrCodeToken || '').trim();
+      const isValid = 
+        payload === service.id ||
+        payload === `FPM-SVC:${service.id}` ||
+        payload === `FPM-SVC-${service.id}` ||
+        (service.qrCodeToken && payload === service.qrCodeToken) ||
+        (payload.includes(service.id));
+      if (!isValid && service.qrCodeToken) {
+        throw new Error(`Scanned QR badge does not match schedule for ${service.name}.`);
+      }
     }
 
     // 5. Prevent Duplicate Clock-in
