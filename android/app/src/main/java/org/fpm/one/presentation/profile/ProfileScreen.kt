@@ -2,10 +2,9 @@ package org.fpm.one.presentation.profile
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.res.painterResource
-import org.fpm.one.R
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,17 +15,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.fpm.one.R
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.UserSession
 import org.fpm.one.presentation.components.FpmButton
 import org.fpm.one.presentation.components.FpmCard
+import org.fpm.one.presentation.components.FpmTopBar
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
   onNavigateToWorkerHub: () -> Unit,
@@ -38,30 +41,9 @@ fun ProfileScreen(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-          ) {
-            Image(
-              painter = painterResource(id = R.drawable.church_logo),
-              contentDescription = "Faith Preachers Ministry",
-              modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-            )
-            Text(
-              text = "My Profile & Ministry",
-              fontSize = 18.sp,
-              fontWeight = FontWeight.Bold,
-              color = FpmSurfaceWhite
-            )
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = FpmNavy
-        )
+      FpmTopBar(
+        title = "My Profile & Ministry",
+        subtitle = "Account Details & Ministry Assignment"
       )
     }
   ) { paddingValues ->
@@ -73,12 +55,12 @@ fun ProfileScreen(
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-      // User Profile Header Card
+      // 1. User Profile Header Card
       item {
         ProfileHeaderCard(user = user)
       }
 
-      // Worker Hub Quick Access (for workers or pastors)
+      // 2. Worker Hub Quick Access (for workers or pastors)
       if (user?.isWorker == true || user?.isAdmin == true) {
         item {
           WorkerHubEntryBanner(
@@ -89,12 +71,12 @@ fun ProfileScreen(
         }
       }
 
-      // Ministry Details Card
+      // 3. Ministry Details Card
       item {
         MinistryDetailsCard(user = user)
       }
 
-      // General Options & Quick Navigation
+      // 4. General Options & Quick Navigation
       item {
         OptionsGroupCard(
           items = listOf(
@@ -107,7 +89,7 @@ fun ProfileScreen(
             ProfileOptionItem(
               icon = Icons.Default.Security,
               title = "Biometrics & Security",
-              subtitle = "Device fingerprint & local credentials encryption",
+              subtitle = "Device fingerprint & attendance credentials encryption",
               onClick = {}
             ),
             ProfileOptionItem(
@@ -120,7 +102,7 @@ fun ProfileScreen(
         )
       }
 
-      // App Version & Logout
+      // 5. App Version & Logout
       item {
         Column(
           modifier = Modifier.fillMaxWidth(),
@@ -130,18 +112,29 @@ fun ProfileScreen(
             text = "Log Out from FPM ONE",
             onClick = { showLogoutConfirm = true },
             containerColor = FpmCrimson,
+            icon = Icons.Default.Logout,
             modifier = Modifier.fillMaxWidth()
           )
 
-          Spacer(modifier = Modifier.height(18.dp))
+          Spacer(modifier = Modifier.height(24.dp))
 
-          Image(
-            painter = painterResource(id = R.drawable.church_logo),
-            contentDescription = "Faith Preachers Ministry Emblem",
+          Box(
             modifier = Modifier
-              .size(52.dp)
+              .size(56.dp)
               .clip(CircleShape)
-          )
+              .background(FpmGold.copy(alpha = 0.15f))
+              .border(1.5.dp, FpmGold.copy(alpha = 0.5f), CircleShape)
+              .padding(4.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Image(
+              painter = painterResource(id = R.drawable.church_logo),
+              contentDescription = "Faith Preachers Ministry Emblem",
+              modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+            )
+          }
 
           Spacer(modifier = Modifier.height(8.dp))
 
@@ -149,7 +142,8 @@ fun ProfileScreen(
             text = "FAITH PREACHERS MINISTRIES INT'L",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = FpmTextPrimary
+            color = FpmTextPrimary,
+            letterSpacing = 0.5.sp
           )
           Text(
             text = "Jeremiah 1:8 • FPM ONE Platform v1.0.0",
@@ -166,8 +160,9 @@ fun ProfileScreen(
     AlertDialog(
       onDismissRequest = { showLogoutConfirm = false },
       containerColor = FpmSurfaceWhite,
+      shape = RoundedCornerShape(18.dp),
       title = { Text("Confirm Sign Out", fontWeight = FontWeight.Bold) },
-      text = { Text("Are you sure you want to log out of your FPM ONE account?") },
+      text = { Text("Are you sure you want to log out of your FPM ONE account on this device?") },
       confirmButton = {
         Button(
           onClick = {
@@ -175,7 +170,8 @@ fun ProfileScreen(
             SessionManager.clearSession()
             onLogout()
           },
-          colors = ButtonDefaults.buttonColors(containerColor = FpmCrimson)
+          colors = ButtonDefaults.buttonColors(containerColor = FpmCrimson),
+          shape = RoundedCornerShape(10.dp)
         ) {
           Text("Sign Out")
         }
@@ -198,14 +194,19 @@ fun ProfileHeaderCard(user: UserSession?) {
     ) {
       Box(
         modifier = Modifier
-          .size(64.dp)
+          .size(68.dp)
           .clip(CircleShape)
-          .background(FpmNavy),
+          .background(
+            Brush.linearGradient(
+              colors = listOf(FpmNavyDark, FpmRoyalBlue)
+            )
+          )
+          .border(2.dp, FpmGold, CircleShape),
         contentAlignment = Alignment.Center
       ) {
         Text(
           text = (user?.firstName?.take(1) ?: "F") + (user?.lastName?.take(1) ?: "P"),
-          fontSize = 22.sp,
+          fontSize = 24.sp,
           fontWeight = FontWeight.Black,
           color = FpmGoldLight
         )
@@ -214,18 +215,12 @@ fun ProfileHeaderCard(user: UserSession?) {
       Spacer(modifier = Modifier.width(16.dp))
 
       Column(modifier = Modifier.weight(1f)) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = user?.fullName ?: "Faith Preachers Member",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = FpmTextPrimary
-          )
-        }
+        Text(
+          text = user?.fullName ?: "Faith Preachers Member",
+          fontSize = 17.sp,
+          fontWeight = FontWeight.Black,
+          color = FpmTextPrimary
+        )
 
         Spacer(modifier = Modifier.height(2.dp))
 
@@ -240,19 +235,25 @@ fun ProfileHeaderCard(user: UserSession?) {
           color = FpmTextMuted
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Surface(
           color = FpmSuccessBg,
           shape = RoundedCornerShape(6.dp)
         ) {
-          Text(
-            text = "ACCOUNT: ${user?.accountStatus?.uppercase() ?: "ACTIVE"}",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = FpmSuccess,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-          )
+          Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+          ) {
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = FpmSuccess, modifier = Modifier.size(12.dp))
+            Text(
+              text = "STATUS: ${user?.accountStatus?.uppercase() ?: "ACTIVE"}",
+              fontSize = 10.sp,
+              fontWeight = FontWeight.Bold,
+              color = FpmSuccess
+            )
+          }
         }
       }
     }
@@ -266,43 +267,56 @@ fun WorkerHubEntryBanner(
   onClick: () -> Unit
 ) {
   Surface(
-    color = FpmNavy,
-    shape = RoundedCornerShape(12.dp),
+    shape = RoundedCornerShape(14.dp),
     modifier = Modifier
       .fillMaxWidth()
-      .clickable(onClick = onClick)
+      .clip(RoundedCornerShape(14.dp))
+      .clickable(onClick = onClick),
+    color = Color.Transparent
   ) {
-    Row(
-      modifier = Modifier.padding(16.dp),
-      verticalAlignment = Alignment.CenterVertically
+    Box(
+      modifier = Modifier
+        .background(
+          Brush.linearGradient(
+            colors = listOf(FpmNavy, Color(0xFF1E3A8A))
+          )
+        )
+        .border(1.dp, FpmGold.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+        .padding(16.dp)
     ) {
-      Box(
-        modifier = Modifier
-          .size(44.dp)
-          .clip(CircleShape)
-          .background(FpmGold.copy(alpha = 0.2f)),
-        contentAlignment = Alignment.Center
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
       ) {
-        Icon(Icons.Default.Badge, contentDescription = null, tint = FpmGoldLight, modifier = Modifier.size(24.dp))
+        Box(
+          modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(FpmGold.copy(alpha = 0.2f))
+            .border(1.dp, FpmGold.copy(alpha = 0.5f), CircleShape),
+          contentAlignment = Alignment.Center
+        ) {
+          Icon(Icons.Default.Badge, contentDescription = null, tint = FpmGoldLight, modifier = Modifier.size(24.dp))
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = "Worker Attendance & Digital ID",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = FpmSurfaceWhite
+          )
+          Text(
+            text = "Badge: $workerCode • $department",
+            fontSize = 12.sp,
+            color = FpmGoldLight
+          )
+        }
+
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = FpmSurfaceWhite)
       }
-
-      Spacer(modifier = Modifier.width(14.dp))
-
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = "Worker Attendance & Digital Badge",
-          fontSize = 14.sp,
-          fontWeight = FontWeight.Bold,
-          color = FpmSurfaceWhite
-        )
-        Text(
-          text = "ID: $workerCode • $department",
-          fontSize = 12.sp,
-          color = FpmGoldLight
-        )
-      }
-
-      Icon(Icons.Default.ChevronRight, contentDescription = null, tint = FpmSurfaceWhite)
     }
   }
 }
@@ -311,16 +325,22 @@ fun WorkerHubEntryBanner(
 fun MinistryDetailsCard(user: UserSession?) {
   FpmCard(modifier = Modifier.fillMaxWidth()) {
     Column {
-      Text(
-        text = "Ministry Assignment",
-        fontSize = 15.sp,
-        fontWeight = FontWeight.Bold,
-        color = FpmTextPrimary
-      )
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+      ) {
+        Icon(Icons.Default.Church, contentDescription = null, tint = FpmRoyalBlue, modifier = Modifier.size(18.dp))
+        Text(
+          text = "Ministry Assignment",
+          fontSize = 15.sp,
+          fontWeight = FontWeight.Bold,
+          color = FpmTextPrimary
+        )
+      }
 
       Spacer(modifier = Modifier.height(12.dp))
 
-      MinistryDetailRow(label = "Church Branch", value = user?.branchName ?: "Lagos Main Chapter")
+      MinistryDetailRow(label = "Church Branch", value = user?.branchName ?: "Lagos Cathedral HQ")
       Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
 
       MinistryDetailRow(label = "Ministry Role", value = user?.roleName ?: "Member")
@@ -333,7 +353,7 @@ fun MinistryDetailsCard(user: UserSession?) {
         MinistryDetailRow(label = "Position", value = user.workerDetails?.positionName ?: "Member")
         Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
 
-        MinistryDetailRow(label = "Worker Code", value = user.workerDetails?.workerCode ?: "FPM-0001")
+        MinistryDetailRow(label = "Worker ID Code", value = user.workerDetails?.workerCode ?: "FPM-0001")
       } else {
         MinistryDetailRow(label = "Worker Status", value = "Regular Congregation Member")
       }
@@ -356,7 +376,7 @@ fun MinistryDetailRow(label: String, value: String) {
     Text(
       text = value,
       fontSize = 13.sp,
-      fontWeight = FontWeight.SemiBold,
+      fontWeight = FontWeight.Bold,
       color = FpmTextPrimary
     )
   }
@@ -378,26 +398,26 @@ fun OptionsGroupCard(items: List<ProfileOptionItem>) {
           modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = item.onClick)
-            .padding(vertical = 6.dp),
+            .padding(vertical = 8.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
           Box(
             modifier = Modifier
-              .size(36.dp)
+              .size(38.dp)
               .clip(CircleShape)
               .background(FpmSlateBg),
             contentAlignment = Alignment.Center
           ) {
-            Icon(item.icon, contentDescription = null, tint = FpmNavy, modifier = Modifier.size(18.dp))
+            Icon(item.icon, contentDescription = null, tint = FpmRoyalBlue, modifier = Modifier.size(20.dp))
           }
 
-          Spacer(modifier = Modifier.width(12.dp))
+          Spacer(modifier = Modifier.width(14.dp))
 
           Column(modifier = Modifier.weight(1f)) {
             Text(
               text = item.title,
               fontSize = 13.sp,
-              fontWeight = FontWeight.SemiBold,
+              fontWeight = FontWeight.Bold,
               color = FpmTextPrimary
             )
             Text(
@@ -411,7 +431,7 @@ fun OptionsGroupCard(items: List<ProfileOptionItem>) {
         }
 
         if (index < items.size - 1) {
-          Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 6.dp))
+          Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 4.dp))
         }
       }
     }

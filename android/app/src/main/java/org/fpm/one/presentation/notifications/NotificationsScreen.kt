@@ -10,17 +10,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.NotificationItem
 import org.fpm.one.presentation.components.EmptyStateView
-import org.fpm.one.presentation.components.LoadingSpinner
+import org.fpm.one.presentation.components.FpmCard
+import org.fpm.one.presentation.components.FpmCardSkeleton
+import org.fpm.one.presentation.components.FpmTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,39 +36,37 @@ fun NotificationsScreen(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            text = "Notification Center",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = FpmSurfaceWhite
-          )
-        },
-        navigationIcon = {
-          IconButton(onClick = onBackClick) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = FpmSurfaceWhite)
-          }
-        },
+      FpmTopBar(
+        title = "Notification Center",
+        subtitle = "Church Broadcasts & Ministry Alerts",
+        onNavigateBack = onBackClick,
         actions = {
           IconButton(onClick = { viewModel.loadNotifications() }) {
             Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = FpmGold)
           }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = FpmNavy
-        )
+        }
       )
     }
   ) { paddingValues ->
-    Box(
+    PullToRefreshBox(
+      isRefreshing = state.isLoading && state.notifications.isNotEmpty(),
+      onRefresh = { viewModel.loadNotifications() },
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
         .background(FpmSlateBg)
     ) {
       if (state.isLoading && state.notifications.isEmpty()) {
-        LoadingSpinner(modifier = Modifier.fillMaxSize())
+        Column(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          FpmCardSkeleton()
+          FpmCardSkeleton()
+          FpmCardSkeleton()
+        }
       } else if (state.notifications.isEmpty()) {
         EmptyStateView(
           icon = Icons.Default.NotificationsNone,
@@ -95,31 +97,30 @@ fun NotificationItemCard(
   item: NotificationItem,
   onClick: () -> Unit
 ) {
-  Surface(
-    color = if (item.isRead) FpmSurfaceWhite else FpmNavy.copy(alpha = 0.05f),
-    shape = RoundedCornerShape(12.dp),
-    shadowElevation = if (item.isRead) 0.5.dp else 1.dp,
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable(onClick = onClick)
+  FpmCard(
+    modifier = Modifier.fillMaxWidth(),
+    backgroundColor = if (item.isRead) FpmSurfaceWhite else Color(0xFFF1F5F9),
+    borderColor = if (item.isRead) FpmCardBorder else FpmRoyalBlue.copy(alpha = 0.3f),
+    elevation = if (item.isRead) 0.5.dp else 1.5.dp,
+    onClick = onClick
   ) {
     Row(
-      modifier = Modifier.padding(14.dp),
+      modifier = Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.Top
     ) {
-      // Icon
-      val (icon, tint) = when (item.notificationType.lowercase()) {
-        "attendance" -> Icons.Default.CheckCircle to FpmSuccess
-        "reminder" -> Icons.Default.Alarm to FpmGoldDark
-        "urgent" -> Icons.Default.Warning to FpmCrimson
-        else -> Icons.Default.Campaign to FpmNavy
+      // Themed Icon based on notification type
+      val (icon, tint, bg) = when (item.notificationType.lowercase()) {
+        "attendance" -> Triple(Icons.Default.CheckCircle, FpmSuccess, FpmSuccessBg)
+        "reminder" -> Triple(Icons.Default.Alarm, FpmGoldDark, FpmAmberLight)
+        "urgent" -> Triple(Icons.Default.Warning, FpmCrimson, FpmErrorBg)
+        else -> Triple(Icons.Default.Campaign, FpmRoyalBlue, Color(0xFFE0E7FF))
       }
 
       Box(
         modifier = Modifier
-          .size(38.dp)
+          .size(40.dp)
           .clip(CircleShape)
-          .background(tint.copy(alpha = 0.12f)),
+          .background(bg),
         contentAlignment = Alignment.Center
       ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
@@ -136,12 +137,14 @@ fun NotificationItemCard(
           Text(
             text = item.title,
             fontSize = 14.sp,
-            fontWeight = if (item.isRead) FontWeight.SemiBold else FontWeight.Bold,
-            color = FpmTextPrimary
+            fontWeight = if (item.isRead) FontWeight.SemiBold else FontWeight.Black,
+            color = FpmTextPrimary,
+            modifier = Modifier.weight(1f)
           )
           if (!item.isRead) {
             Box(
               modifier = Modifier
+                .padding(start = 6.dp)
                 .size(8.dp)
                 .clip(CircleShape)
                 .background(FpmCrimson)

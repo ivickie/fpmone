@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,17 +60,26 @@ fun WorkerHubScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
           ) {
-            Image(
-              painter = painterResource(id = R.drawable.church_logo),
-              contentDescription = "FPM Emblem",
+            Box(
               modifier = Modifier
-                .size(32.dp)
+                .size(34.dp)
                 .clip(CircleShape)
+                .background(FpmGold.copy(alpha = 0.2f))
                 .border(1.dp, FpmGold, CircleShape)
-            )
+                .padding(2.dp),
+              contentAlignment = Alignment.Center
+            ) {
+              Image(
+                painter = painterResource(id = R.drawable.church_logo),
+                contentDescription = "FPM Emblem",
+                modifier = Modifier
+                  .size(28.dp)
+                  .clip(CircleShape)
+              )
+            }
             Column {
               Text(
-                text = "Worker Portal & Attendance",
+                text = "Worker Attendance Portal",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = FpmSurfaceWhite
@@ -126,7 +136,7 @@ fun WorkerHubScreen(
                 text = msg,
                 color = FpmSuccess,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
               )
               IconButton(onClick = { viewModel.clearMessages() }, modifier = Modifier.size(24.dp)) {
@@ -154,7 +164,7 @@ fun WorkerHubScreen(
                 text = err,
                 color = FpmCrimson,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
               )
               IconButton(onClick = { viewModel.clearMessages() }, modifier = Modifier.size(24.dp)) {
@@ -194,46 +204,55 @@ fun WorkerHubScreen(
         ) {
           Text(
             text = "My Attendance History",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Black,
             color = FpmTextPrimary
           )
-          Text(
-            text = "${state.records.size} records",
-            fontSize = 12.sp,
-            color = FpmTextMuted
-          )
+          Surface(
+            color = FpmSlateBg,
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, FpmBorderLight)
+          ) {
+            Text(
+              text = "${state.records.size} Records",
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Bold,
+              color = FpmRoyalBlue,
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+          }
         }
       }
 
       // 6. Attendance Records List
       if (state.isLoading && state.records.isEmpty()) {
         item {
-          LoadingSpinner(modifier = Modifier.fillMaxWidth().height(100.dp))
+          LoadingSpinner(modifier = Modifier.fillMaxWidth().height(120.dp))
         }
       } else if (state.records.isEmpty()) {
         item {
           Surface(
             color = FpmSurfaceWhite,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, FpmCardBorder),
             modifier = Modifier.fillMaxWidth()
           ) {
             Column(
-              modifier = Modifier.padding(24.dp),
+              modifier = Modifier.padding(28.dp),
               horizontalAlignment = Alignment.CenterHorizontally
             ) {
-              Icon(Icons.Default.EventAvailable, contentDescription = null, tint = FpmTextMuted, modifier = Modifier.size(36.dp))
-              Spacer(modifier = Modifier.height(8.dp))
+              Icon(Icons.Default.EventAvailable, contentDescription = null, tint = FpmTextMuted, modifier = Modifier.size(40.dp))
+              Spacer(modifier = Modifier.height(10.dp))
               Text(
-                text = "No attendance records yet",
-                fontSize = 14.sp,
-                color = FpmTextSecondary,
-                fontWeight = FontWeight.Medium
+                text = "No Attendance Records Yet",
+                fontSize = 15.sp,
+                color = FpmTextPrimary,
+                fontWeight = FontWeight.Bold
               )
               Text(
-                text = "Clock in during church services to log your attendance.",
+                text = "Clock in during church services to log your worker attendance.",
                 fontSize = 12.sp,
-                color = FpmTextMuted
+                color = FpmTextSecondary
               )
             }
           }
@@ -265,7 +284,7 @@ fun WorkerHubScreen(
               }
             },
             onError = { errMsg ->
-              // Fallback or display error
+              // Fallback or direct display
             }
           )
         } else {
@@ -322,8 +341,14 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
   Surface(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
-      .border(1.5.dp, FpmGold.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+      .clip(RoundedCornerShape(18.dp))
+      .border(
+        1.5.dp,
+        Brush.linearGradient(
+          listOf(FpmGoldLight, FpmGold, FpmGoldDark)
+        ),
+        RoundedCornerShape(18.dp)
+      ),
     color = Color.Transparent
   ) {
     Box(
@@ -331,9 +356,9 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
         .background(
           Brush.linearGradient(
             colors = listOf(
-              FpmNavy,
-              Color(0xFF0F2338),
-              Color(0xFF0A1926)
+              FpmNavyDeep,
+              FpmNavyDark,
+              Color(0xFF0F2B5C)
             )
           )
         )
@@ -347,15 +372,24 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
           verticalAlignment = Alignment.CenterVertically
         ) {
           Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-              painter = painterResource(id = R.drawable.church_logo),
-              contentDescription = "FPM Official Seal",
+            Box(
               modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
+                .background(FpmGold.copy(alpha = 0.2f))
                 .border(1.dp, FpmGold, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+                .padding(2.dp),
+              contentAlignment = Alignment.Center
+            ) {
+              Image(
+                painter = painterResource(id = R.drawable.church_logo),
+                contentDescription = "FPM Official Seal",
+                modifier = Modifier
+                  .size(30.dp)
+                  .clip(CircleShape)
+              )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
             Column {
               Text(
                 text = "FAITH PREACHERS MINISTRY",
@@ -375,16 +409,16 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
           }
 
           Surface(
-            color = FpmGold.copy(alpha = 0.15f),
+            color = FpmGold.copy(alpha = 0.2f),
             shape = RoundedCornerShape(6.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, FpmGold.copy(alpha = 0.4f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, FpmGold.copy(alpha = 0.5f))
           ) {
             Text(
               text = "ACTIVE",
               color = FpmGoldLight,
               fontSize = 10.sp,
               fontWeight = FontWeight.Black,
-              modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
             )
           }
         }
@@ -575,7 +609,7 @@ fun AttendanceStatusCard(
         Text(
           text = record.serviceName ?: "Church Service",
           fontSize = 16.sp,
-          fontWeight = FontWeight.Bold,
+          fontWeight = FontWeight.Black,
           color = FpmTextPrimary
         )
         Text(
@@ -591,6 +625,7 @@ fun AttendanceStatusCard(
           onClick = onClockOutClick,
           enabled = !state.isLoading,
           containerColor = FpmCrimson,
+          icon = Icons.Default.Logout,
           modifier = Modifier.fillMaxWidth()
         )
       } else {
@@ -598,7 +633,7 @@ fun AttendanceStatusCard(
         Text(
           text = "Service Attendance Check-In",
           fontSize = 16.sp,
-          fontWeight = FontWeight.Bold,
+          fontWeight = FontWeight.Black,
           color = FpmTextPrimary
         )
         Text(
@@ -614,22 +649,31 @@ fun AttendanceStatusCard(
           Text("Select Service:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
           Spacer(modifier = Modifier.height(6.dp))
           Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            modifier = Modifier
+              .fillMaxWidth()
+              .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
           ) {
             state.services.forEach { srv ->
               val isSelected = state.selectedService?.id == srv.id
-              FilterChip(
-                selected = isSelected,
-                onClick = { onSelectService(srv) },
-                label = {
-                  Text("${srv.name} (${srv.startTime})", fontSize = 12.sp)
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                  selectedContainerColor = FpmNavy,
-                  selectedLabelColor = FpmSurfaceWhite
+              Surface(
+                modifier = Modifier
+                  .clip(RoundedCornerShape(16.dp))
+                  .clickable { onSelectService(srv) },
+                color = if (isSelected) FpmNavyDark else FpmSlateBg,
+                border = androidx.compose.foundation.BorderStroke(
+                  1.dp,
+                  if (isSelected) FpmNavyDark else FpmBorderLight
                 )
-              )
+              ) {
+                Text(
+                  text = "${srv.name} (${srv.startTime.take(5)})",
+                  fontSize = 11.sp,
+                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                  color = if (isSelected) FpmSurfaceWhite else FpmTextSecondary,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
             }
           }
           Spacer(modifier = Modifier.height(14.dp))
@@ -639,6 +683,7 @@ fun AttendanceStatusCard(
           text = if (state.isLoading) "Connecting..." else "Clock In to Service",
           onClick = onClockInClick,
           enabled = !state.isLoading,
+          icon = Icons.Default.HowToReg,
           modifier = Modifier.fillMaxWidth()
         )
       }
@@ -683,33 +728,27 @@ fun AttendanceSummarySection(summary: org.fpm.one.data.model.AttendanceSummary) 
 fun StatMiniCard(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
   Surface(
     color = FpmSurfaceWhite,
-    shape = RoundedCornerShape(10.dp),
-    shadowElevation = 0.5.dp,
+    shape = RoundedCornerShape(12.dp),
+    border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmCardBorder),
+    shadowElevation = 1.dp,
     modifier = modifier
   ) {
     Column(
-      modifier = Modifier.padding(10.dp),
+      modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
-      Text(text = title, fontSize = 10.sp, color = FpmTextMuted, fontWeight = FontWeight.SemiBold)
+      Text(text = title, fontSize = 10.sp, color = FpmTextMuted, fontWeight = FontWeight.Bold, maxLines = 1)
       Spacer(modifier = Modifier.height(4.dp))
-      Text(text = value, fontSize = 16.sp, color = color, fontWeight = FontWeight.Black)
+      Text(text = value, fontSize = 17.sp, color = color, fontWeight = FontWeight.Black)
     }
   }
 }
 
 @Composable
 fun AttendanceRecordRow(record: AttendanceRecordItem) {
-  Surface(
-    color = FpmSurfaceWhite,
-    shape = RoundedCornerShape(10.dp),
-    shadowElevation = 0.5.dp,
-    modifier = Modifier.fillMaxWidth()
-  ) {
+  FpmCard(modifier = Modifier.fillMaxWidth()) {
     Row(
-      modifier = Modifier
-        .padding(14.dp)
-        .fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {

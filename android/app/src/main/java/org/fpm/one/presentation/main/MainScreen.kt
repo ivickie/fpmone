@@ -1,7 +1,10 @@
 package org.fpm.one.presentation.main
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -58,81 +61,108 @@ fun MainScreen(
     BottomNavTab.Profile
   )
 
-  if (subScreen == "worker_hub") {
-    WorkerHubScreen(
-      viewModel = workerViewModel,
-      onNavigateBack = { subScreen = null }
-    )
-  } else if (subScreen == "notifications") {
-    NotificationsScreen(
-      viewModel = notificationsViewModel,
-      onBackClick = { subScreen = null }
-    )
-  } else {
-    Scaffold(
-      bottomBar = {
-        NavigationBar(
-          containerColor = FpmSurfaceWhite,
-          tonalElevation = 8.dp
-        ) {
-          tabs.forEach { tab ->
-            val isSelected = selectedTab == tab
-            NavigationBarItem(
-              icon = {
-                Icon(
-                  imageVector = tab.icon,
-                  contentDescription = tab.title,
-                  tint = if (isSelected) FpmCrimson else FpmTextMuted
-                )
-              },
-              label = {
-                Text(
-                  text = tab.title,
-                  fontSize = 11.sp,
-                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                  color = if (isSelected) FpmCrimson else FpmTextMuted
-                )
-              },
-              selected = isSelected,
-              onClick = { selectedTab = tab },
-              colors = NavigationBarItemDefaults.colors(
-                indicatorColor = FpmCrimson.copy(alpha = 0.1f)
-              )
-            )
-          }
-        }
+  Crossfade(
+    targetState = subScreen,
+    animationSpec = tween(300),
+    label = "subScreenTransition"
+  ) { currentSub ->
+    when (currentSub) {
+      "worker_hub" -> {
+        WorkerHubScreen(
+          viewModel = workerViewModel,
+          onNavigateBack = { subScreen = null }
+        )
       }
-    ) { paddingValues ->
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(paddingValues)
-      ) {
-        when (selectedTab) {
-          BottomNavTab.Home -> {
-            HomeScreen(
-              viewModel = homeViewModel,
-              currentUser = user,
-              onNavigateToServices = { selectedTab = BottomNavTab.Services },
-              onNavigateToNotifications = { subScreen = "notifications" },
-              onOpenWorkerHub = { subScreen = "worker_hub" }
-            )
+      "notifications" -> {
+        NotificationsScreen(
+          viewModel = notificationsViewModel,
+          onBackClick = { subScreen = null }
+        )
+      }
+      else -> {
+        Scaffold(
+          bottomBar = {
+            Surface(
+              color = FpmSurfaceWhite,
+              shadowElevation = 8.dp,
+              border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmBorderLight)
+            ) {
+              NavigationBar(
+                containerColor = FpmSurfaceWhite,
+                tonalElevation = 0.dp,
+                modifier = Modifier.height(64.dp)
+              ) {
+                tabs.forEach { tab ->
+                  val isSelected = selectedTab == tab
+                  NavigationBarItem(
+                    icon = {
+                      Icon(
+                        imageVector = tab.icon,
+                        contentDescription = tab.title,
+                        tint = if (isSelected) FpmCrimson else FpmTextSecondary
+                      )
+                    },
+                    label = {
+                      Text(
+                        text = tab.title,
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) FpmCrimson else FpmTextSecondary
+                      )
+                    },
+                    selected = isSelected,
+                    onClick = { selectedTab = tab },
+                    colors = NavigationBarItemDefaults.colors(
+                      indicatorColor = FpmCrimson.copy(alpha = 0.1f),
+                      selectedIconColor = FpmCrimson,
+                      selectedTextColor = FpmCrimson,
+                      unselectedIconColor = FpmTextSecondary,
+                      unselectedTextColor = FpmTextSecondary
+                    )
+                  )
+                }
+              }
+            }
           }
-          BottomNavTab.Services -> {
-            ServicesScreen(viewModel = servicesViewModel)
-          }
-          BottomNavTab.Events -> {
-            EventsScreen(viewModel = eventsViewModel)
-          }
-          BottomNavTab.Testimonies -> {
-            TestimoniesScreen(viewModel = testimoniesViewModel)
-          }
-          BottomNavTab.Profile -> {
-            ProfileScreen(
-              onNavigateToWorkerHub = { subScreen = "worker_hub" },
-              onNavigateToNotifications = { subScreen = "notifications" },
-              onLogout = onLogout
-            )
+        ) { paddingValues ->
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .padding(paddingValues)
+          ) {
+            Crossfade(
+              targetState = selectedTab,
+              animationSpec = tween(250),
+              label = "tabContentTransition"
+            ) { activeTab ->
+              when (activeTab) {
+                BottomNavTab.Home -> {
+                  HomeScreen(
+                    viewModel = homeViewModel,
+                    currentUser = user,
+                    onNavigateToServices = { selectedTab = BottomNavTab.Services },
+                    onNavigateToNotifications = { subScreen = "notifications" },
+                    onOpenWorkerHub = { subScreen = "worker_hub" }
+                  )
+                }
+                BottomNavTab.Services -> {
+                  ServicesScreen(viewModel = servicesViewModel)
+                }
+                BottomNavTab.Events -> {
+                  EventsScreen(viewModel = eventsViewModel)
+                }
+                BottomNavTab.Testimonies -> {
+                  TestimoniesScreen(viewModel = testimoniesViewModel)
+                }
+                BottomNavTab.Profile -> {
+                  ProfileScreen(
+                    onNavigateToWorkerHub = { subScreen = "worker_hub" },
+                    onNavigateToNotifications = { subScreen = "notifications" },
+                    onLogout = onLogout
+                  )
+                }
+              }
+            }
           }
         }
       }
