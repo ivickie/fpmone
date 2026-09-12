@@ -245,16 +245,43 @@ fun EventsScreen(viewModel: EventsViewModel) {
                   Text("Add Calendar", fontSize = 11.sp)
                 }
 
-                // Register Button
-                FpmButton(
-                  text = "RSVP / Register",
-                  onClick = {
-                    viewModel.registerForEvent(ev.id) {
-                      registeredMessage = "You have successfully registered for ${ev.title}!"
-                    }
-                  },
-                  modifier = Modifier.weight(1f)
-                )
+                // Register / RSVP Button
+                if (ev.isUserRegistered) {
+                  Button(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                      disabledContainerColor = FpmSuccess.copy(alpha = 0.15f),
+                      disabledContentColor = FpmSuccess
+                    )
+                  ) {
+                    Icon(
+                      imageVector = Icons.Default.Check,
+                      contentDescription = null,
+                      modifier = Modifier.size(15.dp),
+                      tint = FpmSuccess
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                      text = "Registered ✓",
+                      fontSize = 12.sp,
+                      fontWeight = FontWeight.Bold,
+                      color = FpmSuccess
+                    )
+                  }
+                } else {
+                  FpmButton(
+                    text = "RSVP / Register",
+                    onClick = {
+                      viewModel.registerForEvent(ev.id) {
+                        registeredMessage = "You have successfully registered for ${ev.title}!"
+                      }
+                    },
+                    modifier = Modifier.weight(1f)
+                  )
+                }
               }
             }
           }

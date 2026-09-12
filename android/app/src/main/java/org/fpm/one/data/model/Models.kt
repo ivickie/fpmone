@@ -178,7 +178,8 @@ data class EventItem(
     val speaker: String? = null,
     val category: String,
     val registrationRequired: Boolean = false,
-    val currentRegistrationsCount: Int = 0
+    val currentRegistrationsCount: Int = 0,
+    val isUserRegistered: Boolean = false
 )
 
 @Serializable

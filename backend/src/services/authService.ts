@@ -113,10 +113,10 @@ export class AuthService {
     const memberId = uuidv4();
     const now = new Date().toISOString();
 
-    // Prevent privilege escalation: check if requested role is an administrative/pastoral role
+    // Prevent privilege escalation: Super Admin can NEVER be self-assigned during registration
     let assignedRoleId = data.ministryRoleId;
     const requestedRole = db.ministryRoles.find(r => r.id === data.ministryRoleId);
-    if (!requestedRole || requestedRole.code === 'SUPER_ADMIN' || requestedRole.code === 'BRANCH_PASTOR' || requestedRole.hierarchyLevel <= 2) {
+    if (!requestedRole || requestedRole.code === 'SUPER_ADMIN') {
       // Reassign to standard WORKER or MEMBER role
       assignedRoleId = data.isWorker ? IDS.ROLE_WORKER : IDS.ROLE_MEMBER;
     }

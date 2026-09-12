@@ -45,8 +45,18 @@ class EventsViewModel(private val repository: ChurchRepository) : ViewModel() {
     viewModelScope.launch {
       val res = repository.registerForEvent(eventId)
       if (res.isSuccess) {
+        val updated = _state.value.events.map { ev ->
+          if (ev.id == eventId) {
+            ev.copy(
+              isUserRegistered = true,
+              currentRegistrationsCount = ev.currentRegistrationsCount + 1
+            )
+          } else {
+            ev
+          }
+        }
+        _state.value = _state.value.copy(events = updated)
         onSuccess()
-        loadEvents(_state.value.selectedCategory)
       }
     }
   }

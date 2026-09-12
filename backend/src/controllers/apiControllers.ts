@@ -383,6 +383,10 @@ export const deletePositionHandler = (req: Request, res: Response) => {
 };
 
 export const getRolesHandler = (req: Request, res: Response) => {
+  const { forRegistration } = req.query;
+  if (forRegistration === 'true') {
+    return res.json(db.ministryRoles.filter(r => r.code !== 'SUPER_ADMIN'));
+  }
   return res.json(db.ministryRoles);
 };
 
@@ -1857,6 +1861,39 @@ export const uploadMediaHandler = async (req: Request, res: Response) => {
     });
 
     return res.status(201).json({ success: true, media: mediaItem });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+export const uploadAvatarHandler = async (req: Request, res: Response) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'No image file provided.' });
+    }
+
+    // Strict 1MB ceiling enforcement (1,048,576 bytes)
+    if (file.size > 1024 * 1024) {
+      return res.status(400).json({ success: false, error: 'Profile photo exceeds 1MB limit. Please select an image under 1MB.' });
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, error: 'Only image files (JPEG, PNG, WEBP) are allowed for profile photos.' });
+    }
+
+    const mediaItem = await StorageService.uploadImage({
+      buffer: file.buffer,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      entityType: 'profile',
+      userId: 'registration-applicant',
+      userFullName: 'Applicant',
+      userRole: 'member'
+    });
+
+    return res.status(201).json({ success: true, publicUrl: mediaItem.publicUrl, media: mediaItem });
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
   }

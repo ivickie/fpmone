@@ -1,7 +1,12 @@
 package org.fpm.one.presentation.registration
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -10,19 +15,25 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import org.fpm.one.R
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import org.fpm.one.core.theme.*
 import org.fpm.one.presentation.components.FpmButton
 import org.fpm.one.presentation.components.FpmCard
@@ -173,65 +184,105 @@ private fun Step1Account(state: RegistrationFormState, viewModel: RegistrationVi
 
     OutlinedTextField(
       value = firstName,
-      onValueChange = { firstName = it },
+      onValueChange = { 
+        firstName = it
+        viewModel.updateStep1(it, middleName, lastName, phone, email, password)
+      },
       label = { Text("First Name *", fontSize = 12.sp) },
+      isError = state.firstNameError != null,
+      supportingText = { state.firstNameError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true
     )
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     OutlinedTextField(
       value = middleName,
-      onValueChange = { middleName = it },
+      onValueChange = { 
+        middleName = it
+        viewModel.updateStep1(firstName, it, lastName, phone, email, password)
+      },
       label = { Text("Middle Name", fontSize = 12.sp) },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true
     )
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     OutlinedTextField(
       value = lastName,
-      onValueChange = { lastName = it },
+      onValueChange = { 
+        lastName = it
+        viewModel.updateStep1(firstName, middleName, it, phone, email, password)
+      },
       label = { Text("Last Name *", fontSize = 12.sp) },
+      isError = state.lastNameError != null,
+      supportingText = { state.lastNameError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true
     )
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     OutlinedTextField(
       value = phone,
-      onValueChange = { phone = it },
+      onValueChange = { 
+        phone = it
+        viewModel.updateStep1(firstName, middleName, lastName, it, email, password)
+      },
       label = { Text("Phone Number *", fontSize = 12.sp) },
+      isError = state.phoneError != null,
+      supportingText = { 
+        if (state.phoneError != null) {
+          Text(state.phoneError!!, color = FpmError, fontSize = 11.sp)
+        } else {
+          Text("Format: e.g. +2348012345678 or 08012345678", fontSize = 10.sp, color = FpmTextSecondary)
+        }
+      },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true,
       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
     )
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     OutlinedTextField(
       value = email,
-      onValueChange = { email = it },
+      onValueChange = { 
+        email = it
+        viewModel.updateStep1(firstName, middleName, lastName, phone, it, password)
+      },
       label = { Text("Email Address *", fontSize = 12.sp) },
+      isError = state.emailError != null,
+      supportingText = { state.emailError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true,
       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
     )
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     OutlinedTextField(
       value = password,
-      onValueChange = { password = it },
+      onValueChange = { 
+        password = it
+        viewModel.updateStep1(firstName, middleName, lastName, phone, email, it)
+      },
       label = { Text("Create Password *", fontSize = 12.sp) },
+      isError = state.passwordError != null,
+      supportingText = { 
+        if (state.passwordError != null) {
+          Text(state.passwordError!!, color = FpmError, fontSize = 11.sp)
+        } else {
+          Text("Minimum 6 characters", fontSize = 10.sp, color = FpmTextSecondary)
+        }
+      },
       visualTransformation = PasswordVisualTransformation(),
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
@@ -259,6 +310,12 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
   var deptId by remember { mutableStateOf(state.departmentId) }
   var position by remember { mutableStateOf(state.positionName) }
 
+  // Synchronize local states when state changes in ViewModel
+  LaunchedEffect(state.ministryRoleId, state.isWorker) {
+    roleId = state.ministryRoleId
+    isWorker = state.isWorker
+  }
+
   FpmCard(modifier = Modifier.fillMaxWidth()) {
     Text(
       text = "Step 2 — Church Information",
@@ -279,12 +336,22 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       fontWeight = FontWeight.Bold,
       color = FpmTextSecondary
     )
+    if (state.branchError != null) {
+      Text(
+        text = state.branchError,
+        color = FpmError,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(top = 2.dp)
+      )
+    }
     Spacer(modifier = Modifier.height(6.dp))
 
     state.branches.forEach { b ->
       Row(
         modifier = Modifier
           .fillMaxWidth()
+          .clickable { branchId = b.id }
           .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
@@ -304,20 +371,44 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       fontWeight = FontWeight.Bold,
       color = FpmTextSecondary
     )
+    if (state.roleError != null) {
+      Text(
+        text = state.roleError,
+        color = FpmError,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(top = 2.dp)
+      )
+    }
     Spacer(modifier = Modifier.height(6.dp))
 
-    state.roles.take(4).forEach { r ->
+    // Display ALL registration roles (excluding Super Admin)
+    state.roles.forEach { r ->
       Row(
         modifier = Modifier
           .fillMaxWidth()
+          .clickable {
+            roleId = r.id
+            viewModel.onRoleSelected(r.id)
+            if (r.code == "WORKER") isWorker = true
+          }
           .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
         RadioButton(
           selected = roleId == r.id,
-          onClick = { roleId = r.id }
+          onClick = {
+            roleId = r.id
+            viewModel.onRoleSelected(r.id)
+            if (r.code == "WORKER") isWorker = true
+          }
         )
-        Text(text = r.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Column {
+          Text(text = r.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          r.description?.let { desc ->
+            Text(text = desc, fontSize = 11.sp, color = FpmTextSecondary)
+          }
+        }
       }
     }
 
@@ -347,7 +438,11 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       }
       Switch(
         checked = isWorker,
-        onCheckedChange = { isWorker = it }
+        onCheckedChange = {
+          isWorker = it
+          viewModel.onWorkerToggled(it)
+          roleId = viewModel.state.value.ministryRoleId
+        }
       )
     }
 
@@ -360,12 +455,22 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
         fontWeight = FontWeight.Bold,
         color = FpmTextSecondary
       )
+      if (state.departmentError != null) {
+        Text(
+          text = state.departmentError,
+          color = FpmError,
+          fontSize = 11.sp,
+          fontWeight = FontWeight.Medium,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+      }
       Spacer(modifier = Modifier.height(6.dp))
 
       state.departments.forEach { d ->
         Row(
           modifier = Modifier
             .fillMaxWidth()
+            .clickable { deptId = d.id }
             .padding(vertical = 4.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
@@ -413,11 +518,50 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
 
 @Composable
 private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: RegistrationViewModel) {
+  val context = LocalContext.current
+  val coroutineScope = rememberCoroutineScope()
   var gender by remember { mutableStateOf(state.gender) }
   var dob by remember { mutableStateOf(state.dateOfBirth) }
   var address by remember { mutableStateOf(state.residentialAddress) }
   var emName by remember { mutableStateOf(state.emergencyContactName) }
   var emPhone by remember { mutableStateOf(state.emergencyContactPhone) }
+  var localPhotoError by remember { mutableStateOf<String?>(null) }
+
+  val photoPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.PickVisualMedia()
+  ) { uri ->
+    if (uri != null) {
+      localPhotoError = null
+      val fileName = uri.lastPathSegment ?: "profile_avatar.jpg"
+      coroutineScope.launch {
+        try {
+          val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+          if (!mime.startsWith("image/")) {
+            localPhotoError = "Only photo and image files (JPEG, PNG, WEBP) are permitted."
+            return@launch
+          }
+          val inputStream = context.contentResolver.openInputStream(uri)
+          val bytes = inputStream?.readBytes() ?: run {
+            localPhotoError = "Could not read selected photo data."
+            return@launch
+          }
+          inputStream.close()
+
+          // Strict 1MB ceiling check (1,048,576 bytes)
+          val maxBytes = 1024 * 1024
+          if (bytes.size > maxBytes) {
+            val sizeKb = bytes.size / 1024
+            localPhotoError = "Selected photo exceeds 1MB limit (${sizeKb} KB). Please choose an image under 1MB."
+            return@launch
+          }
+
+          viewModel.uploadProfilePhoto(bytes, fileName, mime)
+        } catch (e: Exception) {
+          localPhotoError = "Error reading photo: ${e.message}"
+        }
+      }
+    }
+  }
 
   FpmCard(modifier = Modifier.fillMaxWidth()) {
     Text(
@@ -433,16 +577,152 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
     )
 
+    // PROFILE PICTURE SECTION
     Text(
-      text = "GENDER",
+      text = "PROFILE PICTURE",
       fontSize = 11.sp,
       fontWeight = FontWeight.Bold,
       color = FpmTextSecondary
     )
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+      // Circular Avatar Preview
+      Box(
+        modifier = Modifier
+          .size(80.dp)
+          .clip(CircleShape)
+          .background(FpmNavy.copy(alpha = 0.08f))
+          .clickable {
+            photoPickerLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        contentAlignment = Alignment.Center
+      ) {
+        if (state.profilePictureUrl.isNotBlank()) {
+          AsyncImage(
+            model = state.profilePictureUrl,
+            contentDescription = "Profile Picture",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+          )
+        } else {
+          Icon(
+            imageVector = Icons.Default.Person,
+            contentDescription = "No photo",
+            modifier = Modifier.size(40.dp),
+            tint = FpmTextSecondary
+          )
+        }
+
+        // Mini camera badge
+        Box(
+          modifier = Modifier
+            .size(24.dp)
+            .align(Alignment.BottomEnd)
+            .background(FpmRoyalBlue, CircleShape),
+          contentAlignment = Alignment.Center
+        ) {
+          Icon(
+            imageVector = Icons.Default.CameraAlt,
+            contentDescription = "Upload",
+            tint = FpmSurfaceWhite,
+            modifier = Modifier.size(14.dp)
+          )
+        }
+      }
+
+      Column(modifier = Modifier.weight(1f)) {
+        OutlinedButton(
+          onClick = {
+            photoPickerLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+          shape = RoundedCornerShape(8.dp),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(14.dp))
+          Spacer(modifier = Modifier.width(6.dp))
+          Text(
+            text = if (state.profilePictureUrl.isNotBlank()) "Change Photo" else "Upload Photo",
+            fontSize = 12.sp
+          )
+        }
+
+        if (state.profilePictureUrl.isNotBlank()) {
+          TextButton(
+            onClick = { viewModel.clearProfilePhoto() },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            contentPadding = PaddingValues(0.dp)
+          ) {
+            Text("Remove Photo", fontSize = 11.sp, color = FpmError)
+          }
+        }
+
+        Text(
+          text = "Strictly photos (JPEG, PNG, WEBP) · Max 1MB",
+          fontSize = 10.sp,
+          color = FpmTextSecondary
+        )
+      }
+    }
+
+    if (localPhotoError != null || state.avatarUploadError != null) {
+      Surface(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(top = 8.dp),
+        color = FpmErrorBg,
+        shape = RoundedCornerShape(8.dp)
+      ) {
+        Text(
+          text = localPhotoError ?: state.avatarUploadError ?: "",
+          color = FpmError,
+          fontSize = 11.sp,
+          modifier = Modifier.padding(8.dp)
+        )
+      }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+      text = "GENDER *",
+      fontSize = 11.sp,
+      fontWeight = FontWeight.Bold,
+      color = FpmTextSecondary
+    )
+    if (state.genderError != null) {
+      Text(
+        text = state.genderError,
+        color = FpmError,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(top = 2.dp)
+      )
+    }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
       listOf("Male", "Female").forEach { g ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          RadioButton(selected = gender == g, onClick = { gender = g })
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          modifier = Modifier.clickable {
+            gender = g
+            viewModel.updateStep3(g, dob, address, emName, emPhone)
+          }
+        ) {
+          RadioButton(
+            selected = gender == g,
+            onClick = {
+              gender = g
+              viewModel.updateStep3(g, dob, address, emName, emPhone)
+            }
+          )
           Text(text = g, fontSize = 13.sp)
         }
       }
@@ -452,19 +732,35 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
 
     OutlinedTextField(
       value = dob,
-      onValueChange = { dob = it },
-      label = { Text("Date of Birth (YYYY-MM-DD)", fontSize = 12.sp) },
+      onValueChange = { 
+        dob = it
+        viewModel.updateStep3(gender, it, address, emName, emPhone)
+      },
+      label = { Text("Date of Birth (YYYY-MM-DD) *", fontSize = 12.sp) },
+      isError = state.dobError != null,
+      supportingText = {
+        if (state.dobError != null) {
+          Text(state.dobError, color = FpmError, fontSize = 11.sp)
+        } else {
+          Text("Format: YYYY-MM-DD (e.g. 1995-08-20)", fontSize = 10.sp, color = FpmTextSecondary)
+        }
+      },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true
     )
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     OutlinedTextField(
       value = address,
-      onValueChange = { address = it },
-      label = { Text("Residential Address", fontSize = 12.sp) },
+      onValueChange = { 
+        address = it
+        viewModel.updateStep3(gender, dob, it, emName, emPhone)
+      },
+      label = { Text("Residential Address *", fontSize = 12.sp) },
+      isError = state.addressError != null,
+      supportingText = { state.addressError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = false,
@@ -484,7 +780,10 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
 
     OutlinedTextField(
       value = emName,
-      onValueChange = { emName = it },
+      onValueChange = { 
+        emName = it
+        viewModel.updateStep3(gender, dob, address, it, emPhone)
+      },
       label = { Text("Emergency Contact Name", fontSize = 12.sp) },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
@@ -495,7 +794,10 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
 
     OutlinedTextField(
       value = emPhone,
-      onValueChange = { emPhone = it },
+      onValueChange = { 
+        emPhone = it
+        viewModel.updateStep3(gender, dob, address, emName, it)
+      },
       label = { Text("Emergency Contact Phone", fontSize = 12.sp) },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
@@ -549,6 +851,26 @@ private fun Step4Review(
       modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
     )
 
+    // Avatar preview in review
+    if (state.profilePictureUrl.isNotBlank()) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+      ) {
+        AsyncImage(
+          model = state.profilePictureUrl,
+          contentDescription = "Profile Avatar",
+          modifier = Modifier
+            .size(64.dp)
+            .clip(CircleShape),
+          contentScale = ContentScale.Crop
+        )
+      }
+    }
+
     // Section 1: Account
     ReviewSection(
       title = "Account Details",
@@ -581,6 +903,7 @@ private fun Step4Review(
       onEdit = { viewModel.goToStep(3) },
       items = listOf(
         "Gender" to state.gender,
+        "Date of Birth" to state.dateOfBirth,
         "Address" to (state.residentialAddress.ifBlank { "Not provided" }),
         "Emergency Contact" to (state.emergencyContactName.ifBlank { "None" })
       )

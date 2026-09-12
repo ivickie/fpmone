@@ -30,7 +30,7 @@ class ChurchRepository {
 
   suspend fun getRoles(): Result<List<MinistryRoleItem>> = withContext(Dispatchers.IO) {
     try {
-      val responseText = ApiClient.get("/roles")
+      val responseText = ApiClient.get("/roles?forRegistration=true")
       val list = ApiClient.json.decodeFromString<List<MinistryRoleItem>>(responseText)
       Result.success(list)
     } catch (e: Exception) {

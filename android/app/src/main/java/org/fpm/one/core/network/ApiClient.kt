@@ -126,4 +126,31 @@ object ApiClient {
       body
     }
   }
+
+  suspend fun uploadAvatar(
+    bytes: ByteArray,
+    filename: String,
+    mimeType: String
+  ): String = withContext(Dispatchers.IO) {
+    val requestBodyBuilder = okhttp3.MultipartBody.Builder()
+      .setType(okhttp3.MultipartBody.FORM)
+      .addFormDataPart(
+        "file",
+        filename,
+        bytes.toRequestBody(mimeType.toMediaType())
+      )
+
+    val request = Request.Builder()
+      .url("$baseUrl/media/upload-avatar")
+      .post(requestBodyBuilder.build())
+      .build()
+
+    client.newCall(request).execute().use { response ->
+      val body = response.body?.string() ?: ""
+      if (!response.isSuccessful) {
+        throw Exception(body.ifBlank { "Avatar upload failed with HTTP ${response.code}" })
+      }
+      body
+    }
+  }
 }

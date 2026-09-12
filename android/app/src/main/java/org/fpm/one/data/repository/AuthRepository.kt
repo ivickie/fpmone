@@ -54,4 +54,13 @@ class AuthRepository(private val sessionManager: SessionManager) {
 
   fun isUserLoggedIn(): Boolean = sessionManager.isLoggedIn()
   fun getCurrentUser(): UserSession? = sessionManager.currentUser.value
+
+  suspend fun uploadAvatar(bytes: ByteArray, filename: String, mimeType: String): Result<String> = withContext(Dispatchers.IO) {
+    try {
+      val responseText = ApiClient.uploadAvatar(bytes, filename, mimeType)
+      Result.success(responseText)
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
 }

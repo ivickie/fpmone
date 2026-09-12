@@ -19,7 +19,7 @@ import {
   getApprovedTestimoniesHandler, getTestimoniesQueueHandler, submitTestimonyHandler, reviewTestimonyHandler, deleteTestimonyHandler,
   getNotificationsHandler, broadcastNotificationHandler, markNotificationReadHandler, deleteNotificationHandler,
   getAuditLogsHandler, getSettingsHandler, updateSettingsHandler,
-  uploadMediaHandler, deleteMediaHandler, listMediaHandler,
+  uploadMediaHandler, uploadAvatarHandler, deleteMediaHandler, listMediaHandler,
   getDbStatusHandler
 } from '../controllers/apiControllers';
 import { requireAuth, requireAdmin, requireCronAuth } from '../middleware/authMiddleware';
@@ -132,6 +132,7 @@ router.delete('/notifications/:id', requireAuth, requireAdmin, deleteNotificatio
 
 // --- MEDIA MANAGEMENT (SUPABASE STORAGE) ---
 router.post('/media/upload', requireAuth, upload.single('file'), uploadMediaHandler);
+router.post('/media/upload-avatar', upload.single('file'), uploadAvatarHandler);
 router.delete('/media/:id', requireAuth, deleteMediaHandler);
 router.get('/media', listMediaHandler);
 

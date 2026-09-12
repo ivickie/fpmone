@@ -1,6 +1,6 @@
 export type AccountStatus = 'pending' | 'active' | 'suspended' | 'rejected' | 'archived';
 export type AdminLevel = 'none' | 'branch_admin' | 'church_admin' | 'super_admin';
-export type MinistryRoleCode = 'SUPER_ADMIN' | 'BRANCH_PASTOR' | 'ASSOCIATE_PASTOR' | 'PASTOR' | 'HOD' | 'WORKER' | 'MEMBER';
+export type MinistryRoleCode = 'SUPER_ADMIN' | 'BRANCH_ADMIN' | 'BRANCH_PASTOR' | 'ASSOCIATE_PASTOR' | 'PASTOR' | 'HOD' | 'WORKER' | 'MEMBER';
 export type AttendanceStatus = 'present' | 'late' | 'absent' | 'excused';
 export type ClockInMethod = 'pin' | 'qr' | 'qr_scan' | 'biometric' | 'manual_admin';
 export type ClockOutSource = 'manual' | 'automatic' | 'admin';

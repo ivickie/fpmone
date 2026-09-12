@@ -24,6 +24,7 @@ export const IDS = {
   ROLE_HOD: 'a5555555-5555-5555-5555-555555555555',
   ROLE_WORKER: 'a6666666-6666-6666-6666-666666666666',
   ROLE_MEMBER: 'a7777777-7777-7777-7777-777777777777',
+  ROLE_BRANCH_ADMIN: 'a8888888-8888-8888-8888-888888888888',
 
   DEPT_CHOIR: 'd1111111-1111-1111-1111-111111111111',
   DEPT_MEDIA: 'd2222222-2222-2222-2222-222222222222',
@@ -216,6 +217,18 @@ export class DatabaseStore {
       description: 'Valued member of Faith Preachers Ministry church family',
       hierarchyLevel: 7,
       permissions: ['feed:read', 'events:read', 'testimonies:submit'],
+      isSystemRole: false,
+      isActive: true,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    },
+    {
+      id: IDS.ROLE_BRANCH_ADMIN,
+      name: 'Branch Administrator',
+      code: 'BRANCH_ADMIN',
+      description: 'Branch-level administrative operations and records',
+      hierarchyLevel: 3,
+      permissions: ['branch:manage', 'members:view', 'attendance:view'],
       isSystemRole: false,
       isActive: true,
       createdAt: '2024-01-01T00:00:00Z',
