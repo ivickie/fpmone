@@ -302,6 +302,46 @@ The official church seal (**Faith Preachers Ministries Int'l • Jer. 1:8**) has
 - **Login Portal:** Replaced placeholder initial with prominent ring-bordered church emblem in [LoginPage.tsx](file:///c:/Users/vics4/FPM/admin-portal/src/pages/LoginPage.tsx).
 - **Branch Management:** Integrated official church emblem as default visual fallback for branches without custom logos in [BranchesPage.tsx](file:///c:/Users/vics4/FPM/admin-portal/src/pages/BranchesPage.tsx).
 
+### 4. Build, Deployment & Git Synchronization
+- **Compilation:** `.\gradlew compileDebugKotlin` completed with 0 errors.
+- **APK Packaging:** `.\gradlew assembleDebug` passed with 0 errors:
+  - **File:** `android/app/build/outputs/apk/debug/app-debug.apk`
+  - **Size:** ~46.5 MB
+- **Git Repository:** Committed and pushed to `https://github.com/ivickie/fpmone.git` on branch `main` (commit `6ac9f9a`).
+- **Live Emulator Verification:** Executed and visually verified across all tabs and modal sheets on Android Emulator (`Medium_Phone_API_36.0`).
+
+---
+
+## 14. Supabase Database Security & Linter Remediation (Production Hardening)
+
+### 1. Root Cause Analysis
+The Supabase Database Linter flagged 12 security notices across three vulnerability categories:
+1. **`rls_disabled_in_public` (5 Errors):** Tables in the `public` schema (`user_ministry_roles`, `attendance_settings`, `post_media`, `saved_posts`, `notification_reads`) did not have Row Level Security enabled, exposing them to unrestricted PostgREST queries.
+2. **`function_search_path_mutable` (6 Warnings):** Database stored procedures (`generate_next_worker_id`, `record_worker_clock_in`, `record_worker_clock_out`, `auto_clock_out_expired_sessions`, `mark_service_absences`, `approve_member_registration`) lacked an explicit `search_path`, creating vulnerabilities to search path hijacking.
+3. **`public_bucket_allows_listing` (1 Warning):** The public storage bucket `fpm-media` had an overly permissive `SELECT` policy on `storage.objects` granting anonymous users the ability to scrape and enumerate all files in the bucket.
+
+### 2. Remediation Architecture & Implementation
+- **Row Level Security (RLS) on Exposed Tables:**
+  - Enabled RLS via `ALTER TABLE public.<table_name> ENABLE ROW LEVEL SECURITY;` across all 5 tables.
+  - Defined granular read policies (`SELECT`) and authenticated modification policies (`ALL TO authenticated WITH CHECK (true)`).
+- **Search Path Hardening on Stored Procedures:**
+  - Configured `SET search_path = public, pg_temp;` across all 6 functions in PostgreSQL runtime and in `backend/database/functions.sql`.
+- **Storage Bucket Policy Hardening:**
+  - Dropped the broad unauthenticated `Public Read Access fpm-media` policy on `storage.objects`.
+  - Created `Authenticated Read Access fpm-media` allowing only authenticated callers to query/list the file hierarchy, while retaining seamless public CDN/URL asset delivery via `storage.buckets.public = true`.
+
+### 3. Verification & Live Status
+- **Supabase Catalog Verification:**
+  - `user_ministry_roles`: RLS `ENABLED` (Pass)
+  - `attendance_settings`: RLS `ENABLED` (Pass)
+  - `post_media`: RLS `ENABLED` (Pass)
+  - `saved_posts`: RLS `ENABLED` (Pass)
+  - `notification_reads`: RLS `ENABLED` (Pass)
+  - All 6 stored procedures verified with `["search_path=public, pg_temp"]` (Pass).
+  - Storage policy listing restricted to authenticated users (Pass).
+- **Backend Test Suite:** **134 / 134 Tests Passing (100% Pass Rate)**.
+- **Git Commit:** Pushed to GitHub `main` (commit `855e47d`).
+
 ### 2. Android Mobile Application
 - **Application Launcher Icons:** Registered `@drawable/church_logo` for both standard and adaptive round launcher icons in [AndroidManifest.xml](file:///c:/Users/vics4/FPM/android/app/src/main/AndroidManifest.xml).
 - **Authentication & Sign-in:** Embedded gold-bordered circular emblem at header of [LoginScreen.kt](file:///c:/Users/vics4/FPM/android/app/src/main/java/org/fpm/one/presentation/auth/LoginScreen.kt).
