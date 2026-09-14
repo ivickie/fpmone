@@ -7,7 +7,10 @@
 -- 1. FUNCTION: Generate Next Worker ID Code (e.g. FPM-0001, FPM-0002)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION generate_next_worker_id()
-RETURNS VARCHAR AS $$
+RETURNS VARCHAR
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     next_val INT;
     worker_code VARCHAR(50);
@@ -16,7 +19,7 @@ BEGIN
     worker_code := 'FPM-' || LPAD(next_val::TEXT, 4, '0');
     RETURN worker_code;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 2. FUNCTION: Authoritative Worker Clock-In
@@ -27,7 +30,10 @@ CREATE OR REPLACE FUNCTION record_worker_clock_in(
     p_service_id UUID,
     p_method VARCHAR(50) -- 'pin', 'qr', 'biometric'
 )
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     v_worker RECORD;
     v_service RECORD;
@@ -143,7 +149,7 @@ BEGIN
         'grace_period_minutes', v_service.grace_period_minutes
     );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 3. FUNCTION: Worker Clock-Out (Manual, Automatic, or Admin)
@@ -152,7 +158,10 @@ CREATE OR REPLACE FUNCTION record_worker_clock_out(
     p_attendance_id UUID,
     p_source VARCHAR(50) -- 'manual', 'automatic', 'admin'
 )
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     v_rec RECORD;
     v_now TIMESTAMPTZ := NOW();
@@ -192,13 +201,16 @@ BEGIN
         'is_auto_clock_out', (p_source = 'automatic')
     );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 4. FUNCTION: Automatic Clock-Out for Stale Sessions (> configured hours, default 4)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_clock_out_expired_sessions()
-RETURNS INT AS $$
+RETURNS INT
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     v_count INT := 0;
     v_rec RECORD;
@@ -222,7 +234,7 @@ BEGIN
 
     RETURN v_count;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 5. FUNCTION: Mark Service Absences for Expected Workers
@@ -231,7 +243,10 @@ CREATE OR REPLACE FUNCTION mark_service_absences(
     p_service_id UUID,
     p_service_date DATE DEFAULT CURRENT_DATE
 )
-RETURNS INT AS $$
+RETURNS INT
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     v_service RECORD;
     v_worker RECORD;
@@ -279,7 +294,7 @@ BEGIN
 
     RETURN v_inserted_count;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 6. FUNCTION: Approve Member Registration & Worker Creation
@@ -288,7 +303,10 @@ CREATE OR REPLACE FUNCTION approve_member_registration(
     p_user_id UUID,
     p_admin_id UUID
 )
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     v_user RECORD;
     v_member RECORD;
@@ -387,4 +405,4 @@ BEGIN
         'worker_code', v_worker_code
     );
 END;
-$$ LANGUAGE plpgsql;
+$$;

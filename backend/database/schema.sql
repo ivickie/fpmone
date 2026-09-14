@@ -532,7 +532,13 @@ ALTER TABLE testimonies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Base read policies
+ALTER TABLE user_ministry_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_media ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saved_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_reads ENABLE ROW LEVEL SECURITY;
+
+-- Base read and write policies
 CREATE POLICY "Public branches read access" ON branches FOR SELECT USING (status = 'active');
 CREATE POLICY "Public roles read access" ON ministry_roles FOR SELECT USING (is_active = TRUE);
 CREATE POLICY "Public departments read access" ON departments FOR SELECT USING (status = 'active');
@@ -540,6 +546,16 @@ CREATE POLICY "Public services read access" ON services FOR SELECT USING (status
 CREATE POLICY "Public events read access" ON events FOR SELECT USING (status = 'published');
 CREATE POLICY "Public service highlights read" ON service_highlights FOR SELECT USING (is_published = TRUE);
 CREATE POLICY "Public approved testimonies read" ON testimonies FOR SELECT USING (status = 'approved' AND allow_publish = TRUE);
+CREATE POLICY "Allow read user_ministry_roles" ON user_ministry_roles FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage user_ministry_roles" ON user_ministry_roles FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow read attendance_settings" ON attendance_settings FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage attendance_settings" ON attendance_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow read post_media" ON post_media FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage post_media" ON post_media FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow read saved_posts" ON saved_posts FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage saved_posts" ON saved_posts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow read notification_reads" ON notification_reads FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage notification_reads" ON notification_reads FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- -----------------------------------------------------------------------------
 -- 19. MEDIA ITEMS (Supabase Storage Metadata)
@@ -586,10 +602,13 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = 10485760,
     allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
 
--- Public read access to church media bucket
+-- Authenticated read / listing access to church media bucket objects
+-- (Direct public download URLs continue to work globally via public = true bucket setting)
 DROP POLICY IF EXISTS "Public Read Access fpm-media" ON storage.objects;
-CREATE POLICY "Public Read Access fpm-media"
+DROP POLICY IF EXISTS "Authenticated Read Access fpm-media" ON storage.objects;
+CREATE POLICY "Authenticated Read Access fpm-media"
 ON storage.objects FOR SELECT
+TO authenticated
 USING (bucket_id = 'fpm-media');
 
 -- Authenticated member and worker upload access
