@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Layers, Plus, Users, UserCheck, Edit3, Trash2, Tag, X, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const DepartmentsPage: React.FC = () => {
   const { selectedBranchId, user } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const isBranchAdmin = isSuperAdmin || user?.adminLevel === 'branch_admin';
   const canAddDepartment = isBranchAdmin;
@@ -104,9 +106,10 @@ export const DepartmentsPage: React.FC = () => {
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
+      toast.success('Department created successfully');
       await fetchDepartments();
     } catch (err: any) {
-      alert(err.message || 'Failed to create department');
+      toast.error(err.message || 'Failed to create department');
     } finally {
       setActionLoading(false);
     }
@@ -119,9 +122,10 @@ export const DepartmentsPage: React.FC = () => {
     try {
       await api.updateDepartment(selectedDept.id, formData);
       setEditModalOpen(false);
+      toast.success('Department updated successfully');
       await fetchDepartments();
     } catch (err: any) {
-      alert(err.message || 'Failed to update department');
+      toast.error(err.message || 'Failed to update department');
     } finally {
       setActionLoading(false);
     }
@@ -134,9 +138,9 @@ export const DepartmentsPage: React.FC = () => {
       const res = await api.deleteDepartment(selectedDept.id);
       setConfirmArchiveOpen(false);
       await fetchDepartments();
-      if (res.message) alert(res.message);
+      toast.success(res.message || 'Department archived successfully');
     } catch (err: any) {
-      alert(err.message || 'Failed to delete department');
+      toast.error(err.message || 'Failed to delete department');
     } finally {
       setActionLoading(false);
     }
@@ -153,8 +157,9 @@ export const DepartmentsPage: React.FC = () => {
       setPositions([...positions, created]);
       setNewPositionName('');
       setNewPositionDesc('');
+      toast.success('Position added successfully');
     } catch (err: any) {
-      alert(err.message || 'Failed to add position');
+      toast.error(err.message || 'Failed to add position');
     }
   };
 
@@ -163,8 +168,9 @@ export const DepartmentsPage: React.FC = () => {
     try {
       await api.deletePosition(selectedDept.id, posId);
       setPositions(positions.filter(p => p.id !== posId));
+      toast.success('Position deleted successfully');
     } catch (err: any) {
-      alert(err.message || 'Failed to delete position');
+      toast.error(err.message || 'Failed to delete position');
     }
   };
 

@@ -10,7 +10,12 @@ import {
   clearDepartmentHod,
   updateBranchHandler,
   createDepartmentHandler,
-  updateDepartmentHandler
+  updateDepartmentHandler,
+  createServiceHandler,
+  updateServiceHandler,
+  deleteServiceHandler,
+  updateSettingsHandler,
+  broadcastNotificationHandler
 } from './controllers/apiControllers';
 
 async function runTests() {
@@ -1136,6 +1141,178 @@ async function runTests() {
       johnDemotedWorker.departmentId = IDS.DEPT_MEDIA;
       johnDemotedWorker.positionName = 'Broadcast Director';
     }
+
+    // =========================================================================
+    // PART 16: HOD SERVICE, CONFIG, & BROADCAST LIMITS + RESILIENT APPROVALS (Tests 125-134)
+    // =========================================================================
+    console.log('\n--- 16. HOD Service, Config, Broadcast Restrictions & Resilient Approvals ---');
+
+    // TEST 125: HOD is forbidden from creating a service schedule (returns 403)
+    const createServiceAttempt = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        name: 'HOD Unauthorized Midweek Fellowship',
+        dayOfWeek: 'Tuesday',
+        startTime: '18:00',
+        expectedEndTime: '19:30'
+      },
+      user: hodUser
+    });
+    createServiceHandler(createServiceAttempt.req, createServiceAttempt.res);
+    assert(createServiceAttempt.getStatus() === 403, 'HOD is forbidden from creating a service schedule (returns 403)');
+    assert(Boolean(createServiceAttempt.getData()?.error?.includes('Heads of Department cannot add services')), 'Service creation rejection explains HOD restriction');
+
+    // TEST 126: HOD is forbidden from editing a service schedule (returns 403)
+    const editServiceAttempt = mockReqRes({
+      params: { id: IDS.SERVICE_SUN_1 },
+      body: { name: 'HOD Attempted Service Rename' },
+      user: hodUser
+    });
+    updateServiceHandler(editServiceAttempt.req, editServiceAttempt.res);
+    assert(editServiceAttempt.getStatus() === 403, 'HOD is forbidden from editing a service schedule (returns 403)');
+    assert(Boolean(editServiceAttempt.getData()?.error?.includes('Heads of Department cannot edit services')), 'Service update rejection explains HOD restriction');
+
+    // TEST 127: HOD is forbidden from deleting a service schedule (returns 403)
+    const deleteServiceAttempt = mockReqRes({
+      params: { id: IDS.SERVICE_SUN_1 },
+      user: hodUser
+    });
+    deleteServiceHandler(deleteServiceAttempt.req, deleteServiceAttempt.res);
+    assert(deleteServiceAttempt.getStatus() === 403, 'HOD is forbidden from deleting a service schedule (returns 403)');
+    assert(Boolean(deleteServiceAttempt.getData()?.error?.includes('Heads of Department cannot delete services')), 'Service deletion rejection explains HOD restriction');
+
+    // TEST 128: HOD who is also a Branch Admin CAN create and edit a service schedule
+    const createServiceAllowed = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        name: 'Thursday Special Communion',
+        dayOfWeek: 'Thursday',
+        startTime: '17:30',
+        expectedEndTime: '19:00'
+      },
+      user: hodWithBranchAdmin
+    });
+    createServiceHandler(createServiceAllowed.req, createServiceAllowed.res);
+    assert(createServiceAllowed.getStatus() === 201, 'HOD who is also a Branch Admin CAN create a service schedule (returns 201)');
+    const createdService = createServiceAllowed.getData();
+
+    const editServiceAllowed = mockReqRes({
+      params: { id: createdService?.id },
+      body: { name: 'Thursday Communion Service' },
+      user: hodWithBranchAdmin
+    });
+    updateServiceHandler(editServiceAllowed.req, editServiceAllowed.res);
+    assert(editServiceAllowed.getStatus() === 200, 'HOD who is also a Branch Admin CAN edit a service schedule (returns 200)');
+    // Clean up created service
+    const cleanSvcIdx = db.services.findIndex(s => s.id === createdService?.id);
+    if (cleanSvcIdx >= 0) db.services.splice(cleanSvcIdx, 1);
+
+    // TEST 129: HOD is forbidden from updating System & Ministry Configuration (returns 403)
+    const updateSettingsAttempt = mockReqRes({
+      body: { defaultGracePeriodMinutes: 25 },
+      user: hodUser
+    });
+    updateSettingsHandler(updateSettingsAttempt.req, updateSettingsAttempt.res);
+    assert(updateSettingsAttempt.getStatus() === 403, 'HOD is forbidden from updating System & Ministry Configuration (returns 403)');
+    assert(Boolean(updateSettingsAttempt.getData()?.error?.includes('Heads of Department cannot modify system settings')), 'Settings rejection explains HOD restriction');
+
+    // TEST 130: HOD who is also a Branch Admin CAN update System & Ministry Configuration (returns 200)
+    const updateSettingsAllowed = mockReqRes({
+      body: { defaultGracePeriodMinutes: 15 },
+      user: hodWithBranchAdmin
+    });
+    updateSettingsHandler(updateSettingsAllowed.req, updateSettingsAllowed.res);
+    assert(updateSettingsAllowed.getStatus() === 200, 'HOD who is also a Branch Admin CAN update System & Ministry Configuration (returns 200)');
+
+    // TEST 131: HOD is forbidden from broadcasting push notifications (returns 403)
+    const broadcastAttempt = mockReqRes({
+      body: {
+        title: 'Unauthorized HOD Broadcast',
+        body: 'This is an unauthorized push notification from HOD'
+      },
+      user: hodUser
+    });
+    broadcastNotificationHandler(broadcastAttempt.req, broadcastAttempt.res);
+    assert(broadcastAttempt.getStatus() === 403, 'HOD is forbidden from broadcasting push notifications (returns 403)');
+    assert(Boolean(broadcastAttempt.getData()?.error?.includes('Heads of Department cannot broadcast notifications')), 'Broadcast rejection explains HOD restriction');
+
+    // TEST 132: HOD who is also a Branch Admin CAN broadcast push notifications (returns 201)
+    const broadcastAllowed = mockReqRes({
+      body: {
+        title: 'HQ Midweek Prayer Reminder',
+        body: 'Join the entire church online at 6 PM for prophetic prayers.',
+        notificationType: 'announcement',
+        targetScope: 'entire_church'
+      },
+      user: hodWithBranchAdmin
+    });
+    broadcastNotificationHandler(broadcastAllowed.req, broadcastAllowed.res);
+    assert(broadcastAllowed.getStatus() === 201, 'HOD who is also a Branch Admin CAN broadcast push notifications (returns 201)');
+    const createdNotif = broadcastAllowed.getData();
+    // Clean up created notification
+    const cleanNotifIdx = db.notifications.findIndex(n => n.id === createdNotif?.id);
+    if (cleanNotifIdx >= 0) db.notifications.splice(cleanNotifIdx, 1);
+
+    // TEST 133: Resilient Approval of Orphaned Pending User (Auto-Repairs Profile)
+    const orphanedUserId = uuidv4();
+    const orphanedUser = {
+      id: orphanedUserId,
+      email: 'orphaned.applicant@fpmchurch.org',
+      phone: '+2348099887766',
+      passwordHash: 'hash',
+      accountStatus: 'pending' as any,
+      isAdmin: false,
+      adminLevel: 'none' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    db.users.push(orphanedUser);
+    assert(!db.members.some(m => m.userId === orphanedUserId), 'Orphaned user has no initial member profile in database');
+
+    const orphanApprovalResult = MemberService.approveMember(
+      orphanedUserId,
+      IDS.USER_ADMIN,
+      'General Overseer Adeyemi',
+      { adminLevel: 'super_admin' }
+    );
+    assert(orphanApprovalResult.success === true, 'Approval of orphaned user succeeds cleanly without crashing');
+    const autoRepairedMember = db.members.find(m => m.userId === orphanedUserId);
+    assert(!!autoRepairedMember, 'Approval engine auto-repairs and provisions member profile for orphaned applicant');
+    assert(orphanedUser.accountStatus === 'active', 'Orphaned user accountStatus transitions to active');
+
+    // TEST 134: Resilient Rejection of Orphaned Pending User
+    const orphanedRejectId = uuidv4();
+    const orphanedRejectUser = {
+      id: orphanedRejectId,
+      email: 'orphaned.reject@fpmchurch.org',
+      phone: '+2348011223344',
+      passwordHash: 'hash',
+      accountStatus: 'pending' as any,
+      isAdmin: false,
+      adminLevel: 'none' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    db.users.push(orphanedRejectUser);
+    assert(!db.members.some(m => m.userId === orphanedRejectId), 'Second orphaned user has no member profile');
+
+    const rejectResult = MemberService.rejectMember(
+      orphanedRejectId,
+      IDS.USER_ADMIN,
+      'General Overseer Adeyemi',
+      'Incomplete background verification information',
+      { adminLevel: 'super_admin' }
+    );
+    assert(rejectResult.success === true, 'Rejection of orphaned user succeeds cleanly without throwing profile not found');
+    assert(orphanedRejectUser.accountStatus === 'rejected', 'Orphaned user status transitioned to rejected');
+
+    // Clean up test users
+    const uIdx1 = db.users.findIndex(u => u.id === orphanedUserId);
+    if (uIdx1 >= 0) db.users.splice(uIdx1, 1);
+    const mIdx1 = db.members.findIndex(m => m.userId === orphanedUserId);
+    if (mIdx1 >= 0) db.members.splice(mIdx1, 1);
+    const uIdx2 = db.users.findIndex(u => u.id === orphanedRejectId);
+    if (uIdx2 >= 0) db.users.splice(uIdx2, 1);
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);

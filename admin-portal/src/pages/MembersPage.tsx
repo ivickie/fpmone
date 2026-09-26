@@ -5,11 +5,13 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ImageUpload } from '../components/ImageUpload';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const MembersPage: React.FC = () => {
   const { selectedBranchId, user } = useAuth();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'members' | 'workers'>('members');
   const [members, setMembers] = useState<any[]>([]);
   const [workers, setWorkers] = useState<any[]>([]);
@@ -159,9 +161,10 @@ export const MembersPage: React.FC = () => {
     try {
       await api.createMember(addMemberForm);
       setAddMemberOpen(false);
+      toast.success('Member enrolled successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to enroll new member');
+      toast.error(err.message || 'Failed to enroll new member');
     } finally {
       setActionLoading(false);
     }
@@ -233,9 +236,10 @@ export const MembersPage: React.FC = () => {
     try {
       await api.updateMemberStatus(statusTarget.userId, statusTarget.status);
       setConfirmStatusOpen(false);
+      toast.success(`Member status updated to ${statusTarget.status}`);
       await fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update member account status');
+      toast.error(err.message || 'Failed to update member account status');
     } finally {
       setActionLoading(false);
     }
@@ -248,9 +252,10 @@ export const MembersPage: React.FC = () => {
     try {
       await api.updateMember(selectedMember.id, profileForm);
       setEditProfileOpen(false);
+      toast.success('Member profile updated successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update member profile');
+      toast.error(err.message || 'Failed to update member profile');
     } finally {
       setActionLoading(false);
     }
@@ -263,9 +268,10 @@ export const MembersPage: React.FC = () => {
     try {
       await api.updateMemberAssignment(selectedMember.id, assignmentForm);
       setEditAssignmentOpen(false);
+      toast.success('Member assignments updated successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update member assignments');
+      toast.error(err.message || 'Failed to update member assignments');
     } finally {
       setActionLoading(false);
     }
@@ -278,9 +284,10 @@ export const MembersPage: React.FC = () => {
     try {
       await api.updateWorker(selectedWorker.id, workerForm);
       setEditWorkerOpen(false);
+      toast.success('Worker details updated successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update worker');
+      toast.error(err.message || 'Failed to update worker');
     } finally {
       setActionLoading(false);
     }

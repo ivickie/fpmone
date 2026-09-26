@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../data/mockDb';
+import { db, IDS } from '../data/mockDb';
 import { Member, User, Worker, AccountStatus } from '../types';
 import { AuditService } from './auditService';
 import { persistUser, persistMember, persistWorker, persistNotification, persistDepartment } from '../db/sync';
@@ -12,7 +12,25 @@ export class MemberService {
   public static getPendingApprovals(branchId?: string) {
     const pendingUsers = db.users.filter(u => u.accountStatus === 'pending');
     return pendingUsers.map(u => {
-      const member = db.members.find(m => m.userId === u.id);
+      let member = db.members.find(m => m.userId === u.id);
+      // Auto-repair orphaned pending registration without member profile
+      if (!member) {
+        const synthesizedMember: Member = {
+          id: uuidv4(),
+          userId: u.id,
+          primaryBranchId: branchId || IDS.BRANCH_HQ,
+          firstName: u.email ? u.email.split('@')[0] : 'Applicant',
+          lastName: 'Member',
+          primaryRoleId: IDS.ROLE_MEMBER,
+          gender: 'Other',
+          isWorker: false,
+          createdAt: u.createdAt,
+          updatedAt: u.updatedAt
+        };
+        db.members.push(synthesizedMember);
+        persistMember(synthesizedMember).catch(() => {});
+        member = synthesizedMember;
+      }
       const branch = member ? db.branches.find(b => b.id === member.primaryBranchId) : undefined;
       const role = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
 
@@ -59,8 +77,25 @@ export class MemberService {
     const user = db.users.find(u => u.id === userId);
     if (!user) throw new Error('User not found.');
 
-    const member = db.members.find(m => m.userId === userId);
-    if (!member) throw new Error('Member profile not found.');
+    let member = db.members.find(m => m.userId === userId);
+    if (!member) {
+      // Auto-repair orphaned applicant profile
+      const repairedMember: Member = {
+        id: uuidv4(),
+        userId: userId,
+        primaryBranchId: adminScope?.branchId || IDS.BRANCH_HQ,
+        firstName: user.email ? user.email.split('@')[0] : 'Approved',
+        lastName: 'Member',
+        primaryRoleId: IDS.ROLE_MEMBER,
+        gender: 'Other',
+        isWorker: false,
+        createdAt: user.createdAt,
+        updatedAt: new Date().toISOString()
+      };
+      db.members.push(repairedMember);
+      persistMember(repairedMember).catch(() => {});
+      member = repairedMember;
+    }
 
     // Branch isolation enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
@@ -161,11 +196,10 @@ export class MemberService {
     if (!user) throw new Error('User not found.');
 
     const member = db.members.find(m => m.userId === userId);
-    if (!member) throw new Error('Member profile not found.');
 
     // Branch isolation enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
-      if (member.primaryBranchId !== adminScope.branchId) {
+      if (member && member.primaryBranchId !== adminScope.branchId) {
         throw new Error('Branch isolation violation: You can only reject registrations belonging to your assigned branch.');
       }
     }
@@ -190,6 +224,8 @@ export class MemberService {
     persistUser(user).catch(() => {});
 
     if (member) {
+      member.updatedAt = now;
+      persistMember(member).catch(() => {});
       db.notifications.unshift({
         id: uuidv4(),
         title: 'Registration Application Update',
@@ -218,11 +254,10 @@ export class MemberService {
     if (!user) throw new Error('User not found.');
 
     const member = db.members.find(m => m.userId === userId);
-    if (!member) throw new Error('Member profile not found.');
 
     // Branch isolation enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
-      if (member.primaryBranchId !== adminScope.branchId) {
+      if (member && member.primaryBranchId !== adminScope.branchId) {
         throw new Error('Branch isolation violation: You can only request changes for members belonging to your assigned branch.');
       }
     }

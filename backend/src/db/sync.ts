@@ -433,7 +433,10 @@ export async function persistUser(user: User): Promise<void> {
 }
 
 export async function persistMember(member: Member): Promise<void> {
-  if (!isUuid(member.id) || !isUuid(member.userId) || !isUuid(member.primaryBranchId)) return;
+  if (!isUuid(member.id) || !isUuid(member.userId)) return;
+  if (!member.primaryBranchId || !isUuid(member.primaryBranchId)) {
+    member.primaryBranchId = 'b1111111-1111-1111-1111-111111111111';
+  }
   try {
     await query(`
       INSERT INTO members (id, user_id, primary_branch_id, first_name, middle_name, last_name, primary_role_id, is_worker, gender, date_of_birth, residential_address, profile_picture_url, emergency_contact_name, emergency_contact_phone, approved_by, approved_at, created_at, updated_at)

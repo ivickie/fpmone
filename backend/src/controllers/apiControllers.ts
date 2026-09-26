@@ -1174,6 +1174,16 @@ export const getServicesHandler = (req: Request, res: Response) => {
 
 export const createServiceHandler = (req: Request, res: Response) => {
   try {
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Branch Administrator or Super Administrator privileges required to create church services. Heads of Department cannot add services.'
+      });
+    }
+
     const { branchId, name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours } = req.body;
     if (!branchId || !name || !dayOfWeek || !startTime || !expectedEndTime) {
       return res.status(400).json({ success: false, error: 'Branch, name, day, start time, and end time are required.' });
@@ -1211,6 +1221,16 @@ export const createServiceHandler = (req: Request, res: Response) => {
 
 export const updateServiceHandler = (req: Request, res: Response) => {
   try {
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Branch Administrator or Super Administrator privileges required to edit church services. Heads of Department cannot edit services.'
+      });
+    }
+
     const service = db.services.find(s => s.id === req.params.id);
     if (!service) return res.status(404).json({ success: false, error: 'Service not found.' });
 
@@ -1249,6 +1269,16 @@ export const updateServiceHandler = (req: Request, res: Response) => {
 
 export const deleteServiceHandler = (req: Request, res: Response) => {
   try {
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Branch Administrator or Super Administrator privileges required to delete church services. Heads of Department cannot delete services.'
+      });
+    }
+
     const service = db.services.find(s => s.id === req.params.id);
     if (!service) return res.status(404).json({ success: false, error: 'Service not found.' });
 
@@ -1930,6 +1960,16 @@ export const getNotificationsHandler = (req: Request, res: Response) => {
 
 export const broadcastNotificationHandler = (req: Request, res: Response) => {
   try {
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Branch Administrator or Super Administrator privileges required to broadcast push notifications. Heads of Department cannot broadcast notifications.'
+      });
+    }
+
     const { title, body, notificationType, targetScope, targetId, actionUrl } = req.body;
     if (!title || !body) return res.status(400).json({ error: 'Title and body are required.' });
 
@@ -2012,6 +2052,16 @@ export const getSettingsHandler = (req: Request, res: Response) => {
 };
 
 export const updateSettingsHandler = (req: Request, res: Response) => {
+  const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+  const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+  if (!isSuperAdmin && !isBranchAdmin) {
+    return res.status(403).json({
+      success: false,
+      error: 'Branch Administrator or Super Administrator privileges required to edit System & Ministry Configuration. Heads of Department cannot modify system settings.'
+    });
+  }
+
   Object.assign(db.attendanceSettings, req.body, { updatedAt: new Date().toISOString() });
   return res.json(db.attendanceSettings);
 };

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export interface DepartmentReportItem {
   id: string;
@@ -35,6 +36,7 @@ export interface DepartmentReportItem {
 
 export const ReportsPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
+  const toast = useToast();
 
   // Tab State
   const [activeTab, setActiveTab] = useState<'department_reports' | 'attendance_matrix'>('department_reports');
@@ -149,7 +151,7 @@ export const ReportsPage: React.FC = () => {
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReport.title.trim() || !newReport.summary.trim()) {
-      alert('Please fill in the title and executive summary.');
+      toast.warning('Please fill in the title and executive summary.');
       return;
     }
     setIsSubmitting(true);
@@ -179,9 +181,10 @@ export const ReportsPage: React.FC = () => {
         prayerRequests: '',
         budgetNotes: ''
       });
+      toast.success('Department report submitted successfully');
       await fetchReports();
     } catch (err: any) {
-      alert(err.message || 'Failed to submit department report.');
+      toast.error(err.message || 'Failed to submit department report.');
     } finally {
       setIsSubmitting(false);
     }
@@ -199,9 +202,10 @@ export const ReportsPage: React.FC = () => {
       });
       setReviewingReport(null);
       setReviewNotes('');
+      toast.success('Pastoral review saved successfully');
       await fetchReports();
     } catch (err: any) {
-      alert(err.message || 'Failed to save pastoral review.');
+      toast.error(err.message || 'Failed to save pastoral review.');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -212,9 +216,10 @@ export const ReportsPage: React.FC = () => {
     if (!confirm(`Are you sure you want to delete report "${title}"?`)) return;
     try {
       await api.deleteDepartmentReport(id);
+      toast.success('Report deleted successfully');
       await fetchReports();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete report.');
+      toast.error(err.message || 'Failed to delete report.');
     }
   };
 

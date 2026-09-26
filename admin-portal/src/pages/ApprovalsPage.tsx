@@ -5,9 +5,11 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const ApprovalsPage: React.FC = () => {
   const { selectedBranchId } = useAuth();
+  const { toast } = useToast();
   const [approvals, setApprovals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApplicant, setSelectedApplicant] = useState<any | null>(null);
@@ -16,7 +18,6 @@ export const ApprovalsPage: React.FC = () => {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchApprovals = async () => {
     setLoading(true);
@@ -43,10 +44,10 @@ export const ApprovalsPage: React.FC = () => {
     setActionLoading(true);
     try {
       const res = await api.approveMember(userId);
-      setSuccessMessage(`Applicant approved successfully!${res.workerCode ? ` Unique Worker ID: ${res.workerCode}` : ''}`);
+      toast.success(`Applicant approved successfully!${res.workerCode ? ` Unique Worker ID: ${res.workerCode}` : ''}`);
       await fetchApprovals();
     } catch (err: any) {
-      alert(err.message || 'Failed to approve applicant');
+      toast.error(err.message || 'Failed to approve applicant');
     } finally {
       setActionLoading(false);
     }
@@ -58,12 +59,12 @@ export const ApprovalsPage: React.FC = () => {
     setActionLoading(true);
     try {
       await api.rejectMember(selectedApplicant.userId, reason);
-      setSuccessMessage('Applicant has been marked as rejected.');
+      toast.success('Applicant has been marked as rejected.');
       setRejectModalOpen(false);
       setReason('');
       await fetchApprovals();
     } catch (err: any) {
-      alert(err.message || 'Failed to reject applicant');
+      toast.error(err.message || 'Failed to reject applicant');
     } finally {
       setActionLoading(false);
     }
@@ -75,12 +76,12 @@ export const ApprovalsPage: React.FC = () => {
     setActionLoading(true);
     try {
       await api.requestChanges(selectedApplicant.userId, notes);
-      setSuccessMessage('Feedback sent to applicant requesting information changes.');
+      toast.info('Feedback sent to applicant requesting information changes.');
       setChangesModalOpen(false);
       setNotes('');
       await fetchApprovals();
     } catch (err: any) {
-      alert(err.message || 'Failed to request changes');
+      toast.error(err.message || 'Failed to request changes');
     } finally {
       setActionLoading(false);
     }
@@ -96,15 +97,6 @@ export const ApprovalsPage: React.FC = () => {
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
-      {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-sm">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-900 font-bold hover:underline">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Header and counter */}
       <div className="flex items-center justify-between">
         <div>

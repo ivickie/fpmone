@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, MapPin, Users, User, Edit2, Trash2, Eye, X, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ImageUpload } from '../components/ImageUpload';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const EventsPage: React.FC = () => {
   const { selectedBranchId, user } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,9 +128,10 @@ export const EventsPage: React.FC = () => {
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
+      toast.success('Event created successfully');
       await fetchEvents();
     } catch (err: any) {
-      alert(err.message || 'Failed to create event');
+      toast.error(err.message || 'Failed to create event');
     } finally {
       setActionLoading(false);
     }
@@ -153,9 +156,10 @@ export const EventsPage: React.FC = () => {
         status: formData.status
       });
       setEditModalOpen(false);
+      toast.success('Event updated successfully');
       await fetchEvents();
     } catch (err: any) {
-      alert(err.message || 'Failed to update event');
+      toast.error(err.message || 'Failed to update event');
     } finally {
       setActionLoading(false);
     }
@@ -167,9 +171,10 @@ export const EventsPage: React.FC = () => {
     try {
       await api.deleteEvent(selectedEvent.id);
       setConfirmArchiveOpen(false);
+      toast.success('Event archived successfully');
       await fetchEvents();
     } catch (err: any) {
-      alert(err.message || 'Failed to archive event');
+      toast.error(err.message || 'Failed to archive event');
     } finally {
       setActionLoading(false);
     }

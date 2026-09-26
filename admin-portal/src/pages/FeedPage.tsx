@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Newspaper, Plus, ThumbsUp, MessageSquare, Pin, ShieldCheck, Share2, Edit2, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ImageUpload } from '../components/ImageUpload';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const FeedPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,9 +93,10 @@ export const FeedPage: React.FC = () => {
         mediaUrls: formData.mediaUrl ? [formData.mediaUrl] : []
       });
       setModalOpen(false);
+      toast.success('Post published successfully');
       await fetchFeed();
     } catch (err: any) {
-      alert(err.message || 'Failed to publish post');
+      toast.error(err.message || 'Failed to publish post');
     } finally {
       setActionLoading(false);
     }
@@ -112,9 +115,10 @@ export const FeedPage: React.FC = () => {
         mediaUrls: formData.mediaUrl ? [formData.mediaUrl] : []
       });
       setEditModalOpen(false);
+      toast.success('Post updated successfully');
       await fetchFeed();
     } catch (err: any) {
-      alert(err.message || 'Failed to update post');
+      toast.error(err.message || 'Failed to update post');
     } finally {
       setActionLoading(false);
     }
@@ -126,9 +130,10 @@ export const FeedPage: React.FC = () => {
     try {
       await api.deletePost(selectedPost.id);
       setConfirmDeleteOpen(false);
+      toast.success('Post deleted successfully');
       await fetchFeed();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete post');
+      toast.error(err.message || 'Failed to delete post');
     } finally {
       setActionLoading(false);
     }

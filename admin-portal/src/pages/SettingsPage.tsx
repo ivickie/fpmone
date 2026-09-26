@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, ShieldCheck, Database, Server } from 'lucide-react';
+import { Settings, Save, ShieldCheck, Database, Server, Lock } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const SettingsPage: React.FC = () => {
+  const { user } = useAuth();
+  const toast = useToast();
+  const isSuperAdmin = user?.adminLevel === 'super_admin';
+  const canEditSettings = isSuperAdmin || user?.adminLevel === 'branch_admin';
+
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [gracePeriod, setGracePeriod] = useState(15);
   const [autoClockOutHours, setAutoClockOutHours] = useState(4.0);
@@ -37,8 +43,11 @@ export const SettingsPage: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditSettings) {
+      toast.error('You do not have permission to modify system configuration.');
+      return;
+    }
     setSaving(true);
-    setSuccessMsg(null);
     try {
       await api.updateSettings({
         defaultGracePeriodMinutes: Number(gracePeriod),
@@ -46,9 +55,9 @@ export const SettingsPage: React.FC = () => {
         manualClockOutEnabled,
         earliestClockInMinutes: Number(earliestClockInMinutes)
       });
-      setSuccessMsg('Attendance rules and system policies saved successfully!');
+      toast.success('Attendance rules and system policies saved successfully!');
     } catch (err: any) {
-      alert(err.message || 'Failed to save settings');
+      toast.error(err.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -63,12 +72,10 @@ export const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      {successMsg && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-2xs">
-          <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} className="font-bold text-emerald-900 hover:underline">
-            Dismiss
-          </button>
+      {!canEditSettings && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center space-x-3 shadow-2xs">
+          <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>Read-Only: System & Ministry Configuration is restricted to Branch and Super Administrators.</span>
         </div>
       )}
 
@@ -89,9 +96,10 @@ export const SettingsPage: React.FC = () => {
                 type="number"
                 min={1}
                 max={60}
+                disabled={!canEditSettings || saving}
                 value={gracePeriod}
                 onChange={e => setGracePeriod(Number(e.target.value))}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p className="text-[10px] text-slate-400 mt-1">
                 Workers arriving within this window after service start are marked Present; thereafter marked Late.
@@ -107,9 +115,10 @@ export const SettingsPage: React.FC = () => {
                 step={0.5}
                 min={1}
                 max={12}
+                disabled={!canEditSettings || saving}
                 value={autoClockOutHours}
                 onChange={e => setAutoClockOutHours(Number(e.target.value))}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p className="text-[10px] text-slate-400 mt-1">
                 Default 4 hours. Unclosed attendance records are automatically clocked out by the backend scheduled worker.
@@ -124,9 +133,10 @@ export const SettingsPage: React.FC = () => {
                 type="number"
                 min={15}
                 max={180}
+                disabled={!canEditSettings || saving}
                 value={earliestClockInMinutes}
                 onChange={e => setEarliestClockInMinutes(Number(e.target.value))}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p className="text-[10px] text-slate-400 mt-1">
                 Prevents workers from prematurely clocking in hours before pre-service setup commences.
@@ -141,9 +151,10 @@ export const SettingsPage: React.FC = () => {
                 <input
                   type="checkbox"
                   id="manualClockOut"
+                  disabled={!canEditSettings || saving}
                   checked={manualClockOutEnabled}
                   onChange={e => setManualClockOutEnabled(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                  className="w-4 h-4 text-blue-600 rounded cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 <label htmlFor="manualClockOut" className="font-semibold text-slate-800 cursor-pointer">
                   Allow workers to manually tap "Clock Out" on mobile
@@ -152,16 +163,18 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex justify-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save Policies</span>
-            </button>
-          </div>
+          {canEditSettings && (
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Policies</span>
+              </button>
+            </div>
+          )}
         </form>
       </div>
 

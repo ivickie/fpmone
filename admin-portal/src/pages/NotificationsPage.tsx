@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Send, Users, Shield, Building2, CheckCircle2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const NotificationsPage: React.FC = () => {
-  const { selectedBranchId } = useAuth();
+  const { selectedBranchId, user } = useAuth();
+  const toast = useToast();
+  const isSuperAdmin = user?.adminLevel === 'super_admin';
+  const canBroadcast = isSuperAdmin || user?.adminLevel === 'branch_admin';
+
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -14,7 +19,6 @@ export const NotificationsPage: React.FC = () => {
   const [body, setBody] = useState('');
   const [targetScope, setTargetScope] = useState('entire_church');
   const [notificationType, setNotificationType] = useState('announcement');
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
     setLoading(true);
@@ -34,6 +38,10 @@ export const NotificationsPage: React.FC = () => {
 
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canBroadcast) {
+      toast.error('You do not have permission to broadcast push notifications.');
+      return;
+    }
     try {
       await api.broadcastNotification({
         title,
@@ -45,24 +53,15 @@ export const NotificationsPage: React.FC = () => {
       setModalOpen(false);
       setTitle('');
       setBody('');
-      setSuccessMessage('Push notification broadcasted successfully to all target devices!');
+      toast.success('Push notification broadcasted successfully to all target devices!');
       await fetchNotifications();
     } catch (err: any) {
-      alert(err.message || 'Broadcast failed');
+      toast.error(err.message || 'Broadcast failed');
     }
   };
 
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
-      {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-2xs">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)} className="font-bold text-emerald-900 hover:underline">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Push Notifications Dispatcher</h2>
@@ -71,13 +70,15 @@ export const NotificationsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setModalOpen(true)}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
-        >
-          <Send className="w-4 h-4" />
-          <span>Broadcast Notification</span>
-        </button>
+        {canBroadcast && (
+          <button
+            onClick={() => setModalOpen(true)}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+          >
+            <Send className="w-4 h-4" />
+            <span>Broadcast Notification</span>
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -112,7 +113,7 @@ export const NotificationsPage: React.FC = () => {
       )}
 
       {/* Broadcast Modal */}
-      {modalOpen && (
+      {canBroadcast && modalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-slate-900">Broadcast Push Notification</h3>

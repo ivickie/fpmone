@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { HeartHandshake, Check, X, Star, ShieldCheck, Tag, User, Trash2, Image as ImageIcon } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const TestimoniesPage: React.FC = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const [testimonies, setTestimonies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,9 +36,10 @@ export const TestimoniesPage: React.FC = () => {
     setActionLoading(true);
     try {
       await api.reviewTestimony(id, { status, isFeaturedOnFeed });
+      toast.success(`Testimony marked as ${status.replace('_', ' ')}`);
       await fetchTestimonies();
     } catch (err: any) {
-      alert(err.message || 'Review action failed');
+      toast.error(err.message || 'Review action failed');
     } finally {
       setActionLoading(false);
     }
@@ -49,9 +52,10 @@ export const TestimoniesPage: React.FC = () => {
       await api.deleteTestimony(selectedTestimony.id);
       setConfirmDeleteOpen(false);
       setSelectedTestimony(null);
+      toast.success('Testimony deleted successfully');
       await fetchTestimonies();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete testimony');
+      toast.error(err.message || 'Failed to delete testimony');
     } finally {
       setActionLoading(false);
     }

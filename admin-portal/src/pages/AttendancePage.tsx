@@ -5,9 +5,11 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const AttendancePage: React.FC = () => {
   const { selectedBranchId } = useAuth();
+  const toast = useToast();
   const [data, setData] = useState<any>(null);
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,9 +53,10 @@ export const AttendancePage: React.FC = () => {
   const handleManualClockOut = async (attendanceId: string) => {
     try {
       await api.clockOut(attendanceId, 'admin');
+      toast.success('Worker clocked out successfully');
       await fetchAttendance();
     } catch (err: any) {
-      alert(err.message || 'Clock out failed');
+      toast.error(err.message || 'Clock out failed');
     }
   };
 
@@ -67,10 +70,13 @@ export const AttendancePage: React.FC = () => {
         method,
         pin: method === 'pin' ? pin : undefined
       });
-      setClockInMsg(`Clock-in successful! Recorded status: ${res.record.status.toUpperCase()} at ${new Date(res.record.clockInTime).toLocaleTimeString()}`);
+      const msg = `Clock-in successful! Recorded status: ${res.record.status.toUpperCase()} at ${new Date(res.record.clockInTime).toLocaleTimeString()}`;
+      setClockInMsg(msg);
+      toast.success(msg);
       await fetchAttendance();
     } catch (err: any) {
       setClockInMsg(`Error: ${err.message}`);
+      toast.error(err.message || 'Clock-in failed');
     }
   };
 
@@ -80,19 +86,20 @@ export const AttendancePage: React.FC = () => {
       await api.excuseAbsence(selectedRecordId, excuseReason);
       setExcuseModalOpen(false);
       setExcuseReason('');
+      toast.success('Absence marked as excused');
       await fetchAttendance();
     } catch (err: any) {
-      alert(err.message || 'Failed to excuse absence');
+      toast.error(err.message || 'Failed to excuse absence');
     }
   };
 
   const handleTriggerAutoClockOut = async () => {
     try {
       const res = await api.autoClockOut();
-      alert(`Automated timeout job executed: ${res.clockedOutCount} expired worker session(s) closed.`);
+      toast.info(`Automated timeout job executed: ${res.clockedOutCount} expired worker session(s) closed.`);
       await fetchAttendance();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to execute auto clock-out');
     }
   };
 

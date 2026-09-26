@@ -3,11 +3,14 @@ import QRCode from 'qrcode';
 import { Clock, Plus, Calendar, AlertCircle, Edit2, Trash2, QrCode, Printer, Download, X } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const ServicesPage: React.FC = () => {
   const { selectedBranchId, user } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
+  const canManageServices = isSuperAdmin || user?.adminLevel === 'branch_admin';
   const [services, setServices] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,12 +125,13 @@ export const ServicesPage: React.FC = () => {
         attendanceDurationHours: Number(formData.attendanceDurationHours)
       });
       setCreateModalOpen(false);
+      toast.success('Service schedule created successfully');
       await fetchServices();
       if (created) {
         await openQrModal(created);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to create service schedule');
+      toast.error(err.message || 'Failed to create service schedule');
     } finally {
       setActionLoading(false);
     }
@@ -146,9 +150,10 @@ export const ServicesPage: React.FC = () => {
         attendanceDurationHours: Number(formData.attendanceDurationHours)
       });
       setEditModalOpen(false);
+      toast.success('Service schedule updated successfully');
       await fetchServices();
     } catch (err: any) {
-      alert(err.message || 'Failed to update service schedule');
+      toast.error(err.message || 'Failed to update service schedule');
     } finally {
       setActionLoading(false);
     }
@@ -161,9 +166,9 @@ export const ServicesPage: React.FC = () => {
       const res = await api.deleteService(selectedService.id);
       setConfirmArchiveOpen(false);
       await fetchServices();
-      if (res.message) alert(res.message);
+      toast.success(res.message || 'Service archived successfully');
     } catch (err: any) {
-      alert(err.message || 'Failed to archive or delete service');
+      toast.error(err.message || 'Failed to archive or delete service');
     } finally {
       setActionLoading(false);
     }
@@ -178,13 +183,15 @@ export const ServicesPage: React.FC = () => {
             Configure weekly church services, start times, grace periods, and attendance windows.
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Service Schedule</span>
-        </button>
+        {canManageServices && (
+          <button
+            onClick={openCreateModal}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Service Schedule</span>
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -244,22 +251,24 @@ export const ServicesPage: React.FC = () => {
                     <QrCode className="w-3.5 h-3.5" />
                     <span>QR Badge</span>
                   </button>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => openEditModal(s)}
-                      className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded-lg transition"
-                      title="Edit Service"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => openArchiveDialog(s)}
-                      className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition"
-                      title="Archive / Delete Service"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {canManageServices && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => openEditModal(s)}
+                        className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded-lg transition cursor-pointer"
+                        title="Edit Service"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => openArchiveDialog(s)}
+                        className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
+                        title="Archive / Delete Service"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Plus, Quote, BookOpen, User, CheckCircle2, Edit2, Trash2, Image as ImageIcon, X } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ImageUpload } from '../components/ImageUpload';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const HighlightsPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const [highlights, setHighlights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,9 +82,10 @@ export const HighlightsPage: React.FC = () => {
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
+      toast.success('Highlight published successfully');
       await fetchHighlights();
     } catch (err: any) {
-      alert(err.message || 'Failed to publish highlight');
+      toast.error(err.message || 'Failed to publish highlight');
     } finally {
       setActionLoading(false);
     }
@@ -105,9 +108,10 @@ export const HighlightsPage: React.FC = () => {
       });
       setEditModalOpen(false);
       setSelectedHighlight(null);
+      toast.success('Highlight updated successfully');
       await fetchHighlights();
     } catch (err: any) {
-      alert(err.message || 'Failed to update highlight');
+      toast.error(err.message || 'Failed to update highlight');
     } finally {
       setActionLoading(false);
     }
@@ -120,9 +124,10 @@ export const HighlightsPage: React.FC = () => {
       await api.deleteHighlight(selectedHighlight.id);
       setConfirmDeleteOpen(false);
       setSelectedHighlight(null);
+      toast.success('Highlight deleted successfully');
       await fetchHighlights();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete highlight');
+      toast.error(err.message || 'Failed to delete highlight');
     } finally {
       setActionLoading(false);
     }

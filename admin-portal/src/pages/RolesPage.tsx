@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Check, Lock, Plus, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const RolesPage: React.FC = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,9 +84,10 @@ export const RolesPage: React.FC = () => {
     try {
       await api.createRole(formData);
       setCreateModalOpen(false);
+      toast.success('Role created successfully');
       await fetchRoles();
     } catch (err: any) {
-      alert(err.message || 'Failed to create role');
+      toast.error(err.message || 'Failed to create role');
     } finally {
       setActionLoading(false);
     }
@@ -97,9 +100,10 @@ export const RolesPage: React.FC = () => {
     try {
       await api.updateRole(selectedRole.id, formData);
       setEditModalOpen(false);
+      toast.success('Role updated successfully');
       await fetchRoles();
     } catch (err: any) {
-      alert(err.message || 'Failed to update role');
+      toast.error(err.message || 'Failed to update role');
     } finally {
       setActionLoading(false);
     }
@@ -111,9 +115,10 @@ export const RolesPage: React.FC = () => {
     try {
       await api.deleteRole(selectedRole.id);
       setConfirmDeleteOpen(false);
+      toast.success('Role deleted successfully');
       await fetchRoles();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete role');
+      toast.error(err.message || 'Failed to delete role');
     } finally {
       setActionLoading(false);
     }

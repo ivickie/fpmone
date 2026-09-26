@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Phone, Mail, MapPin, Edit3, Trash2, Archive, Users, ExternalLink } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ImageUpload } from '../components/ImageUpload';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const BranchesPage: React.FC = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,9 +97,10 @@ export const BranchesPage: React.FC = () => {
     try {
       await api.createBranch(formData);
       setCreateModalOpen(false);
+      toast.success('Branch created successfully');
       await fetchBranches();
     } catch (err: any) {
-      alert(err.message || 'Failed to create branch');
+      toast.error(err.message || 'Failed to create branch');
     } finally {
       setActionLoading(false);
     }
@@ -110,9 +113,10 @@ export const BranchesPage: React.FC = () => {
     try {
       await api.updateBranch(selectedBranch.id, formData);
       setEditModalOpen(false);
+      toast.success('Branch updated successfully');
       await fetchBranches();
     } catch (err: any) {
-      alert(err.message || 'Failed to update branch');
+      toast.error(err.message || 'Failed to update branch');
     } finally {
       setActionLoading(false);
     }
@@ -125,11 +129,9 @@ export const BranchesPage: React.FC = () => {
       const res = await api.deleteBranch(selectedBranch.id);
       setConfirmArchiveOpen(false);
       await fetchBranches();
-      if (res.message) {
-        alert(res.message);
-      }
+      toast.success(res.message || 'Branch archived or deleted successfully');
     } catch (err: any) {
-      alert(err.message || 'Failed to remove or archive branch');
+      toast.error(err.message || 'Failed to remove or archive branch');
     } finally {
       setActionLoading(false);
     }

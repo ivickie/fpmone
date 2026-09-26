@@ -137,10 +137,13 @@ export class AuthService {
     persistUser(newUser).catch(() => {});
 
     // 4. Create member profile
+    const branchExists = data.branchId && db.branches.some(b => b.id === data.branchId);
+    const effectiveBranchId = branchExists ? data.branchId : IDS.BRANCH_HQ;
+
     const newMember: Member = {
       id: memberId,
       userId: userId,
-      primaryBranchId: data.branchId,
+      primaryBranchId: effectiveBranchId,
       firstName: data.firstName.trim(),
       middleName: data.middleName ? data.middleName.trim() : undefined,
       lastName: data.lastName.trim(),
