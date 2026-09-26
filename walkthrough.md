@@ -502,3 +502,67 @@ The Supabase Database Linter flagged 12 security notices across three vulnerabil
 - `MainScreen.kt`: Adjusted bottom navigation bar height to `80.dp` with `padding(top = 10.dp, bottom = 6.dp)`. This resolves the cramped top padding issue and provides generous headroom above the navigation icons and selection indicators.
 - **Android APK Build:** Successfully assembled `app-debug.apk` (`BUILD SUCCESSFUL in 2m 8s`).
 
+---
+
+## 15. Single HOD Enforcement Engine & HOD Privilege Restrictions
+
+### 1. Requirements & Core Governance Rules
+Per church administrative specifications:
+1. **Single HOD Invariant:** A church department can only have **one** Head of Department (HOD) at any time. Appointing a new HOD must atomically supersede and demote any prior HOD in that department to `'Worker'`.
+2. **HOD Branch Edit Restriction:** A Head of Department **cannot** edit Church branch settings (`PUT /api/branches/:id` returns `403 Forbidden`).
+3. **HOD Department Creation Restriction:** A Head of Department **cannot** create or add a new department (`POST /api/departments` returns `403 Forbidden`).
+4. **Scoping to Own Department Only:** A Head of Department **can only edit their own assigned department** (`PUT /api/departments/:id`). Attempting to edit any other department returns `403 Forbidden`.
+5. **HOD Appointment & Transfer Protection:** While editing their own department, an HOD cannot reassign the HOD (`hodId`) or transfer the department across branches (`branchId`).
+6. **Dual-Role Exception:** If an HOD is also granted Branch Administrator privileges (`adminLevel === 'branch_admin'`) or is a Super Administrator (`adminLevel === 'super_admin'`), they retain administrative privileges for their branch.
+
+---
+
+### 2. Backend Implementation (`backend`)
+- **`enforceSingleDepartmentHod(departmentId, newHodUserId, newHodName)` (`backend/src/controllers/apiControllers.ts`):**
+  - Updates department's `hodId` and `hodName`.
+  - Locates the worker record of `newHodUserId`, sets their `departmentId` and promotes their `positionName` to `'Head of Department'`.
+  - Iterates through all other workers in that department: any worker holding `'head'`, `'hod'`, or `'director'` positions is automatically reset to `'Worker'`.
+  - Persists changes to PostgreSQL / Supabase storage.
+- **`clearDepartmentHod(departmentId)`:** Resets `hodId` and `hodName`, and resets any HOD worker in that department to `'Worker'`.
+- **`updateBranchHandler`:** Validates `req.user?.adminLevel === 'super_admin' || req.user?.adminLevel === 'branch_admin'`. Rejects pure HOD calls with `403 Forbidden`.
+- **`createDepartmentHandler`:** Forbids creation unless caller has `super_admin` or `branch_admin` privileges. Invokes `enforceSingleDepartmentHod` if an HOD is assigned.
+- **`updateDepartmentHandler`:** 
+  - Allows caller if they are `super_admin`, `branch_admin`, or the designated HOD of that specific department.
+  - Rejects cross-department edits with `403 Forbidden`.
+  - Prevents pure HOD callers from altering `hodId` or `branchId`.
+- **`MemberService.updateChurchAssignment` (`backend/src/services/memberService.ts`):**
+  - When promoting a worker to HOD role or position, demotes any other worker holding HOD titles in that department and updates `department.hodId` and `department.hodName`.
+
+---
+
+### 3. Admin Portal UI Enforcement (`admin-portal`)
+- **`BranchesPage.tsx`:**
+  - "Edit Branch" button is hidden for users who are not `super_admin` or `branch_admin`.
+- **`DepartmentsPage.tsx`:**
+  - "Add Department" action button hidden unless user has branch/super admin privileges.
+  - Department cards: "Edit" button visible only for branch admins or the assigned HOD of that department; "Archive" action hidden for non-admins.
+  - Edit Modal: Displays an informational "Single HOD Policy" callout banner; locks `HOD Name`, `Department Code`, and `Status` controls for HOD callers without branch admin privileges.
+- **`AuthContext.tsx`:**
+  - Extended `UserSession` interface with optional `isWorker` and `workerDetails` (`departmentId`, `positionName`, etc.) to support granular frontend role checks.
+
+---
+
+### 4. Comprehensive Test Verification
+Added 9 dedicated test cases (Tests 116–124) in `backend/src/test.ts`:
+- **TEST 116:** HOD cannot edit Church branch (returns 403 Forbidden) — **PASS**
+- **TEST 117:** HOD who is also a Branch Admin CAN edit their Church branch (returns 200) — **PASS**
+- **TEST 118:** HOD cannot create or add a new department (returns 403 Forbidden) — **PASS**
+- **TEST 119:** HOD who is also a Branch Admin CAN create a department (returns 201) — **PASS**
+- **TEST 120:** HOD cannot edit another department that is not their own (returns 403 Forbidden) — **PASS**
+- **TEST 121:** HOD CAN edit their own assigned department description (returns 200) — **PASS**
+- **TEST 122:** HOD cannot reassign HOD or transfer branch on their department (returns 403 Forbidden) — **PASS**
+- **TEST 123:** Single HOD Engine: Appointing new HOD automatically demotes incumbent HOD to Worker and guarantees exactly 1 HOD — **PASS**
+- **TEST 124:** Single HOD Enforcement via `MemberService.updateChurchAssignment` restores HOD and demotes predecessor — **PASS**
+
+**Overall Test Suite Status:** **167 / 167 Tests Passing (100% Pass Rate)**.
+**Build & Dev Server Status:**
+- Backend API (`http://localhost:5000/health`): Healthy (PostgreSQL connected)
+- Admin Portal (`http://localhost:3000`): Healthy (Vite bundle compiled cleanly)
+- Git: Committed and pushed to `main` (commit `5708d95`).
+
+
