@@ -11,7 +11,7 @@ import {
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
   DepartmentReport
 } from '../types';
-import { persistService, persistDepartmentReport, persistDelete } from '../db/sync';
+import { persistService, persistDepartmentReport, persistDelete, persistDepartment, persistWorker, persistBranch } from '../db/sync';
 
 // =============================================================================
 // AUTH CONTROLLER
@@ -113,12 +113,24 @@ export const createBranchHandler = (req: Request, res: Response) => {
 };
 
 export const updateBranchHandler = (req: Request, res: Response) => {
-  if (req.user?.adminLevel !== 'super_admin' && req.user?.branchId !== req.params.id) {
+  const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+  const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+  // HODs and other roles without branch_admin or super_admin cannot edit church branches
+  if (!isSuperAdmin && !isBranchAdmin) {
+    return res.status(403).json({
+      success: false,
+      error: 'Branch Administrator or Super Administrator privileges required to edit church branch details. Heads of Department cannot edit branch settings.'
+    });
+  }
+
+  if (!isSuperAdmin && req.user?.branchId !== req.params.id) {
     return res.status(403).json({ success: false, error: 'Unauthorized to modify another branch.' });
   }
   const branch = db.branches.find(b => b.id === req.params.id);
   if (!branch) return res.status(404).json({ success: false, error: 'Branch not found.' });
   Object.assign(branch, req.body, { updatedAt: new Date().toISOString() });
+  persistBranch(branch).catch(() => {});
   AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'BRANCH_UPDATED', 'branch', branch.id, req.user?.userId, null, branch);
   return res.json(branch);
 };
@@ -185,6 +197,81 @@ export const deleteBranchHandler = (req: Request, res: Response) => {
 // =============================================================================
 // DEPARTMENTS & ROLES CONTROLLER
 // =============================================================================
+
+/**
+ * Ensures that a department has strictly ONLY ONE Head of Department (HOD).
+ * If a new HOD is appointed:
+ * 1. The new HOD's worker record in this department has positionName set to 'Head of Department'.
+ * 2. ANY OTHER worker in this department who previously held an HOD position is reset to 'Worker'.
+ * 3. Department hodId and hodName are updated and persisted.
+ */
+export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: string, newHodName?: string): void {
+  const dept = db.departments.find(d => d.id === departmentId);
+  if (!dept) return;
+
+  dept.hodId = newHodUserId;
+  if (newHodName) dept.hodName = newHodName;
+
+  // 1. Ensure the new HOD's worker record (if exists) is linked to this department and has HOD position
+  const targetMember = db.members.find(m => m.userId === newHodUserId);
+  let targetWorkerId: string | undefined;
+  if (targetMember) {
+    const hodWorker = db.workers.find(w => w.memberId === targetMember.id);
+    if (hodWorker) {
+      targetWorkerId = hodWorker.id;
+      hodWorker.departmentId = departmentId;
+      hodWorker.positionName = 'Head of Department';
+      hodWorker.updatedAt = new Date().toISOString();
+      persistWorker(hodWorker).catch(() => {});
+    }
+  }
+
+  // 2. Demote any other worker in this department who held an HOD/Director position
+  const deptWorkers = db.workers.filter(w => w.departmentId === departmentId);
+  deptWorkers.forEach(w => {
+    if (targetWorkerId && w.id === targetWorkerId) return;
+
+    const member = db.members.find(m => m.id === w.memberId);
+    if (member && member.userId === newHodUserId) {
+      w.positionName = 'Head of Department';
+      w.updatedAt = new Date().toISOString();
+      persistWorker(w).catch(() => {});
+      return;
+    }
+
+    const pos = (w.positionName || '').toLowerCase();
+    if (pos.includes('head') || pos.includes('hod') || pos.includes('director')) {
+      w.positionName = 'Worker';
+      w.updatedAt = new Date().toISOString();
+      persistWorker(w).catch(() => {});
+    }
+  });
+
+  dept.updatedAt = new Date().toISOString();
+  persistDepartment(dept).catch(() => {});
+}
+
+export function clearDepartmentHod(departmentId: string): void {
+  const dept = db.departments.find(d => d.id === departmentId);
+  if (!dept) return;
+
+  dept.hodId = undefined;
+  dept.hodName = undefined;
+
+  const deptWorkers = db.workers.filter(w => w.departmentId === departmentId);
+  deptWorkers.forEach(w => {
+    const pos = (w.positionName || '').toLowerCase();
+    if (pos.includes('head') || pos.includes('hod') || pos.includes('director')) {
+      w.positionName = 'Worker';
+      w.updatedAt = new Date().toISOString();
+      persistWorker(w).catch(() => {});
+    }
+  });
+
+  dept.updatedAt = new Date().toISOString();
+  persistDepartment(dept).catch(() => {});
+}
+
 export const getDepartmentsHandler = (req: Request, res: Response) => {
   const { branchId, includeArchived } = req.query;
   let depts = db.departments;
@@ -198,24 +285,45 @@ export const getDepartmentsHandler = (req: Request, res: Response) => {
 };
 
 export const createDepartmentHandler = (req: Request, res: Response) => {
-  const { name, code, description, hodName, branchId } = req.body;
+  const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+  const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+  // An HOD cannot add a department unless they are also a Branch Administrator or Super Administrator
+  if (!isSuperAdmin && !isBranchAdmin) {
+    return res.status(403).json({
+      success: false,
+      error: 'Branch Administrator or Super Administrator privileges required to create a new department. Heads of Department cannot add departments unless they are also a Branch Administrator.'
+    });
+  }
+
+  const { name, code, description, hodName, hodId, branchId } = req.body;
   if (!name || !code) return res.status(400).json({ success: false, error: 'Name and Code are required.' });
 
   // If not super admin, department must belong to caller's branch
-  const effectiveBranchId = req.user?.adminLevel === 'super_admin' ? branchId : req.user?.branchId;
+  const effectiveBranchId = isSuperAdmin ? (branchId || req.user?.branchId) : req.user?.branchId;
 
+  const newDeptId = uuidv4();
   const newDept: Department = {
-    id: uuidv4(),
+    id: newDeptId,
     name,
     code: code.toUpperCase(),
     description,
     hodName,
+    hodId,
     branchId: effectiveBranchId,
     status: 'active',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
+
   db.departments.push(newDept);
+  persistDepartment(newDept).catch(() => {});
+
+  // Single HOD enforcement if hodId provided
+  if (hodId) {
+    enforceSingleDepartmentHod(newDeptId, hodId, hodName);
+  }
+
   AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'DEPARTMENT_CREATED', 'department', newDept.id, req.user?.userId, null, newDept);
   return res.status(201).json(newDept);
 };
@@ -225,19 +333,73 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
     const dept = db.departments.find(d => d.id === req.params.id);
     if (!dept) return res.status(404).json({ success: false, error: 'Department not found.' });
 
-    // Branch isolation
-    if (req.user?.adminLevel !== 'super_admin' && dept.branchId && dept.branchId !== req.user?.branchId) {
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+    // Check if user is HOD of this specific department
+    const isHodOfThisDept = dept.hodId === req.user?.userId ||
+      req.user?.workerDetails?.departmentId === dept.id ||
+      db.workers.some(w => {
+        const m = db.members.find(mem => mem.id === w.memberId);
+        return m?.userId === req.user?.userId && w.departmentId === dept.id &&
+          (w.positionName?.toLowerCase().includes('head') || w.positionName?.toLowerCase().includes('hod'));
+      });
+
+    // An HOD can ONLY edit their own department
+    if (!isSuperAdmin && !isBranchAdmin && !isHodOfThisDept) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized. As a Head of Department, you can only edit your own assigned department.'
+      });
+    }
+
+    // Branch isolation for branch admin
+    if (isBranchAdmin && !isSuperAdmin && dept.branchId && dept.branchId !== req.user?.branchId) {
       return res.status(403).json({ success: false, error: 'Unauthorized to modify departments outside your branch.' });
+    }
+
+    // If caller is an HOD without branch admin/super admin privileges:
+    // They cannot reassign HOD or transfer department across branches
+    if (!isSuperAdmin && !isBranchAdmin) {
+      if (req.body.hodId !== undefined && req.body.hodId !== dept.hodId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Only Branch Administrators or Super Administrators can appoint or change the Head of Department.'
+        });
+      }
+      if (req.body.branchId !== undefined && req.body.branchId !== dept.branchId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Heads of Department cannot transfer departments across branches.'
+        });
+      }
     }
 
     const { name, code, description, hodName, hodId, status } = req.body;
     if (name) dept.name = name;
     if (code) dept.code = code.toUpperCase();
     if (description !== undefined) dept.description = description;
-    if (hodName !== undefined) dept.hodName = hodName;
-    if (hodId !== undefined) dept.hodId = hodId;
-    if (status) dept.status = status;
+
+    // Single HOD enforcement when appointing/updating HOD (only by branch admin or super admin)
+    if (hodId !== undefined && (isSuperAdmin || isBranchAdmin)) {
+      if (hodId) {
+        const resolvedName = hodName || (() => {
+          const m = db.members.find(mem => mem.userId === hodId);
+          return m ? `${m.firstName} ${m.lastName}` : dept.hodName;
+        })();
+        dept.hodId = hodId;
+        dept.hodName = resolvedName;
+        enforceSingleDepartmentHod(dept.id, hodId, resolvedName);
+      } else {
+        clearDepartmentHod(dept.id);
+      }
+    } else if (hodName !== undefined && (isSuperAdmin || isBranchAdmin)) {
+      dept.hodName = hodName;
+    }
+
+    if (status && (isSuperAdmin || isBranchAdmin)) dept.status = status;
     dept.updatedAt = new Date().toISOString();
+    persistDepartment(dept).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -258,10 +420,21 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
 
 export const deleteDepartmentHandler = (req: Request, res: Response) => {
   try {
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+
+    // HODs cannot delete or archive departments
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Branch Administrator or Super Administrator privileges required to delete or archive a department.'
+      });
+    }
+
     const dept = db.departments.find(d => d.id === req.params.id);
     if (!dept) return res.status(404).json({ success: false, error: 'Department not found.' });
 
-    if (req.user?.adminLevel !== 'super_admin' && dept.branchId && dept.branchId !== req.user?.branchId) {
+    if (!isSuperAdmin && dept.branchId && dept.branchId !== req.user?.branchId) {
       return res.status(403).json({ success: false, error: 'Unauthorized to delete departments outside your branch.' });
     }
 
@@ -796,15 +969,27 @@ export const updateWorkerHandler = (req: Request, res: Response) => {
     }
 
     const { departmentId, positionId, positionName, workerStatus } = req.body;
+    const targetDeptId = departmentId || worker.departmentId;
+
     if (departmentId) {
       const dept = db.departments.find(d => d.id === departmentId);
       if (!dept) return res.status(400).json({ success: false, error: 'Selected department does not exist.' });
       worker.departmentId = departmentId;
     }
     if (positionId !== undefined) worker.positionId = positionId;
-    if (positionName !== undefined) worker.positionName = positionName;
+    if (positionName !== undefined) {
+      worker.positionName = positionName;
+      // Single HOD policy: if worker is appointed HOD, demote other HOD in this dept
+      const posLower = positionName.toLowerCase();
+      if (posLower.includes('head') || posLower.includes('hod')) {
+        if (member) {
+          enforceSingleDepartmentHod(targetDeptId, member.userId, `${member.firstName} ${member.lastName}`);
+        }
+      }
+    }
     if (workerStatus) worker.workerStatus = workerStatus;
     worker.updatedAt = new Date().toISOString();
+    persistWorker(worker).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',

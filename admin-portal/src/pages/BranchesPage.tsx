@@ -226,7 +226,7 @@ export const BranchesPage: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                {(isSuperAdmin || user?.branchId === b.id) && (
+                {(isSuperAdmin || (user?.adminLevel === 'branch_admin' && user?.branchId === b.id)) && (
                   <button
                     onClick={() => openEditModal(b)}
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"

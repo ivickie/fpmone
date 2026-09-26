@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api, getAuthToken, setAuthToken, removeAuthToken } from '../services/api';
 
-interface UserSession {
+export interface UserSession {
   userId: string;
   email: string;
   phone: string;
@@ -14,6 +14,15 @@ interface UserSession {
   roleCode: string;
   isAdmin: boolean;
   adminLevel: 'none' | 'branch_admin' | 'church_admin' | 'super_admin';
+  isWorker?: boolean;
+  workerDetails?: {
+    workerId: string;
+    workerCode: string;
+    departmentId?: string;
+    departmentName?: string;
+    positionName?: string;
+    status: string;
+  };
 }
 
 interface AuthContextType {

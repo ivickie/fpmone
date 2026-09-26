@@ -5,6 +5,13 @@ import { AuditService } from './services/auditService';
 import { StorageService } from './services/storageService';
 import { db, IDS } from './data/mockDb';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  enforceSingleDepartmentHod,
+  clearDepartmentHod,
+  updateBranchHandler,
+  createDepartmentHandler,
+  updateDepartmentHandler
+} from './controllers/apiControllers';
 
 async function runTests() {
   console.log('====================================================');
@@ -971,6 +978,164 @@ async function runTests() {
     const cleanIdx = db.departmentReports.findIndex(r => r.id === testReportId);
     if (cleanIdx >= 0) db.departmentReports.splice(cleanIdx, 1);
     assert(db.departmentReports.length === allReportsCount - 1, 'Test report cleaned up from store');
+
+    // =========================================================================
+    // PART 15: HOD PRIVILEGE RESTRICTIONS & SINGLE HOD ENFORCEMENT (Tests 116-124)
+    // =========================================================================
+    console.log('\n--- 15. HOD Privilege Restrictions & Single HOD Engine Tests ---');
+
+    function mockReqRes(data: { params?: any; body?: any; query?: any; user?: any }) {
+      let statusCode = 200;
+      let responseData: any = null;
+      const req: any = {
+        params: data.params || {},
+        body: data.body || {},
+        query: data.query || {},
+        user: data.user || {}
+      };
+      const res: any = {
+        status(code: number) {
+          statusCode = code;
+          return this;
+        },
+        json(payload: any) {
+          responseData = payload;
+          return this;
+        }
+      };
+      return { req, res, getStatus: () => statusCode, getData: () => responseData };
+    }
+
+    // TEST 116: HOD cannot edit Church Branch (403 Forbidden)
+    const hodUser = {
+      userId: IDS.USER_HOD,
+      fullName: 'Rachel Adams',
+      roleCode: 'HOD',
+      roleName: 'Head of Department',
+      adminLevel: 'none',
+      branchId: IDS.BRANCH_HQ,
+      workerDetails: { departmentId: IDS.DEPT_CHOIR }
+    };
+
+    const branchEditAttempt = mockReqRes({
+      params: { id: IDS.BRANCH_HQ },
+      body: { phone: '+2348009999999' },
+      user: hodUser
+    });
+    updateBranchHandler(branchEditAttempt.req, branchEditAttempt.res);
+    assert(branchEditAttempt.getStatus() === 403, 'HOD is forbidden from editing Church branch (returns 403)');
+    assert(Boolean(branchEditAttempt.getData()?.error?.includes('Heads of Department cannot edit branch settings')), 'Branch edit rejection informs user of HOD restriction');
+
+    // TEST 117: HOD who is also a Branch Admin CAN edit their Church Branch
+    const hodWithBranchAdmin = {
+      ...hodUser,
+      adminLevel: 'branch_admin'
+    };
+    const branchEditAllowed = mockReqRes({
+      params: { id: IDS.BRANCH_HQ },
+      body: { phone: '+2348001112233' },
+      user: hodWithBranchAdmin
+    });
+    updateBranchHandler(branchEditAllowed.req, branchEditAllowed.res);
+    assert(branchEditAllowed.getStatus() === 200, 'HOD who is also a Branch Administrator CAN edit church branch (returns 200)');
+
+    // TEST 118: HOD cannot create or add a new department (403 Forbidden)
+    const createDeptAttempt = mockReqRes({
+      body: { name: 'Evangelism & Outreach', code: 'EVANGELISM' },
+      user: hodUser
+    });
+    createDepartmentHandler(createDeptAttempt.req, createDeptAttempt.res);
+    assert(createDeptAttempt.getStatus() === 403, 'HOD is forbidden from adding a department (returns 403)');
+    assert(Boolean(createDeptAttempt.getData()?.error?.includes('Heads of Department cannot add departments')), 'Department create rejection explains HOD restriction');
+
+    // TEST 119: HOD who is also a Branch Admin CAN create a department
+    const createDeptAllowed = mockReqRes({
+      body: { name: 'Special Projects', code: 'PROJ' },
+      user: hodWithBranchAdmin
+    });
+    createDepartmentHandler(createDeptAllowed.req, createDeptAllowed.res);
+    assert(createDeptAllowed.getStatus() === 201, 'HOD who is also a Branch Administrator CAN create a department (returns 201)');
+    // Clean up created department
+    const projDeptIdx = db.departments.findIndex(d => d.code === 'PROJ');
+    if (projDeptIdx >= 0) db.departments.splice(projDeptIdx, 1);
+
+    // TEST 120: HOD cannot edit another department that is not their own (403 Forbidden)
+    const editOtherDeptAttempt = mockReqRes({
+      params: { id: IDS.DEPT_MEDIA },
+      body: { name: 'Unauthorized Media Edit' },
+      user: hodUser
+    });
+    updateDepartmentHandler(editOtherDeptAttempt.req, editOtherDeptAttempt.res);
+    assert(editOtherDeptAttempt.getStatus() === 403, 'HOD is forbidden from editing another department (returns 403)');
+    assert(Boolean(editOtherDeptAttempt.getData()?.error?.includes('can only edit your own assigned department')), 'Cross-department edit rejection explains restriction');
+
+    // TEST 121: HOD CAN edit their own assigned department
+    const editOwnDeptAllowed = mockReqRes({
+      params: { id: IDS.DEPT_CHOIR },
+      body: { description: 'Choir Department - Voices of Praise and Joy' },
+      user: hodUser
+    });
+    updateDepartmentHandler(editOwnDeptAllowed.req, editOwnDeptAllowed.res);
+    assert(editOwnDeptAllowed.getStatus() === 200, 'HOD CAN edit their own assigned department description (returns 200)');
+    const choirAfterEdit = db.departments.find(d => d.id === IDS.DEPT_CHOIR);
+    assert(choirAfterEdit?.description === 'Choir Department - Voices of Praise and Joy', 'Own department description updated in database');
+
+    // TEST 122: HOD cannot reassign HOD or transfer branch on their department (403 Forbidden)
+    const reassignHodAttempt = mockReqRes({
+      params: { id: IDS.DEPT_CHOIR },
+      body: { hodId: IDS.USER_JOHN },
+      user: hodUser
+    });
+    updateDepartmentHandler(reassignHodAttempt.req, reassignHodAttempt.res);
+    assert(reassignHodAttempt.getStatus() === 403, 'HOD is forbidden from appointing or reassigning department HOD (returns 403)');
+
+    // TEST 123: Single HOD Enforcement - Appointing new HOD demotes incumbent
+    // Initial state: Rachel Adams is Choir HOD
+    assert(choirAfterEdit?.hodId === IDS.USER_HOD, 'Initial Choir HOD is Rachel Adams');
+    const rachelWorkerBefore = db.workers.find(w => w.memberId === IDS.MEMBER_HOD);
+    assert(Boolean(rachelWorkerBefore?.positionName?.toLowerCase().includes('hod')), 'Rachel worker position is Head of Department');
+
+    // Appoint John Mensah as the new HOD
+    enforceSingleDepartmentHod(IDS.DEPT_CHOIR, IDS.USER_JOHN, 'John Mensah');
+    const choirAfterNewHod = db.departments.find(d => d.id === IDS.DEPT_CHOIR);
+    assert(choirAfterNewHod?.hodId === IDS.USER_JOHN, 'Single HOD Policy: Choir hodId updated to John Mensah');
+    assert(choirAfterNewHod?.hodName === 'John Mensah', 'Single HOD Policy: Choir hodName updated to John Mensah');
+
+    const johnWorker = db.workers.find(w => w.memberId === IDS.MEMBER_JOHN);
+    assert(johnWorker?.positionName === 'Head of Department', 'Single HOD Policy: John Mensah promoted to Head of Department');
+
+    const rachelWorkerAfter = db.workers.find(w => w.memberId === IDS.MEMBER_HOD);
+    assert(rachelWorkerAfter?.positionName === 'Worker', 'Single HOD Policy: Previous HOD Rachel Adams automatically demoted to Worker');
+
+    // Verify there is strictly ONE worker with HOD title in Choir
+    const choirHodCount = db.workers.filter(w => w.departmentId === IDS.DEPT_CHOIR && (w.positionName?.toLowerCase().includes('head') || w.positionName?.toLowerCase().includes('hod'))).length;
+    assert(choirHodCount === 1, 'Strict Single HOD Guarantee: Exactly 1 HOD exists in Choir department');
+
+    // TEST 124: Single HOD Enforcement via MemberService.updateChurchAssignment
+    MemberService.updateChurchAssignment(
+      IDS.MEMBER_HOD,
+      {
+        departmentId: IDS.DEPT_CHOIR,
+        roleId: IDS.ROLE_HOD,
+        positionName: 'Head of Department'
+      },
+      IDS.USER_ADMIN,
+      'General Overseer Adeyemi',
+      { adminLevel: 'super_admin' }
+    );
+
+    const choirRestored = db.departments.find(d => d.id === IDS.DEPT_CHOIR);
+    assert(choirRestored?.hodId === IDS.USER_HOD, 'Member assignment: Rachel Adams restored as Choir HOD');
+    const rachelRestoredWorker = db.workers.find(w => w.memberId === IDS.MEMBER_HOD);
+    assert(rachelRestoredWorker?.positionName === 'Head of Department', 'Member assignment: Rachel position restored to Head of Department');
+    const johnDemotedWorker = db.workers.find(w => w.memberId === IDS.MEMBER_JOHN);
+    assert(johnDemotedWorker?.positionName === 'Worker', 'Member assignment: John Mensah automatically demoted back to Worker');
+
+    // Restore John to Media Department
+    if (johnDemotedWorker) {
+      johnDemotedWorker.departmentId = IDS.DEPT_MEDIA;
+      johnDemotedWorker.positionName = 'Broadcast Director';
+    }
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);

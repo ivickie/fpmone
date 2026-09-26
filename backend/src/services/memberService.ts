@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../data/mockDb';
 import { Member, User, Worker, AccountStatus } from '../types';
 import { AuditService } from './auditService';
-import { persistUser, persistMember, persistWorker, persistNotification } from '../db/sync';
+import { persistUser, persistMember, persistWorker, persistNotification, persistDepartment } from '../db/sync';
 
 export class MemberService {
   /**
@@ -453,6 +453,34 @@ export class MemberService {
       if (data.positionName) workerRecord.positionName = data.positionName;
       workerRecord.updatedAt = new Date().toISOString();
       persistWorker(workerRecord).catch(() => {});
+    }
+
+    // Single HOD enforcement: If assigning HOD position or role, demote any other HOD in that department
+    if (data.positionName || targetRole?.code === 'HOD') {
+      const posLower = (data.positionName || '').toLowerCase();
+      const isHodAssignment = posLower.includes('head') || posLower.includes('hod') || targetRole?.code === 'HOD';
+      if (isHodAssignment) {
+        const effectiveDeptId = data.departmentId || workerRecord?.departmentId;
+        if (effectiveDeptId) {
+          const dept = db.departments.find(d => d.id === effectiveDeptId);
+          if (dept) {
+            dept.hodId = member.userId;
+            dept.hodName = `${member.firstName} ${member.lastName}`;
+            dept.updatedAt = new Date().toISOString();
+            persistDepartment(dept).catch(() => {});
+
+            // Demote any other worker in this department who was HOD
+            db.workers.filter(w => w.departmentId === effectiveDeptId && w.id !== workerRecord?.id).forEach(otherW => {
+              const otherPos = (otherW.positionName || '').toLowerCase();
+              if (otherPos.includes('head') || otherPos.includes('hod') || otherPos.includes('director')) {
+                otherW.positionName = 'Worker';
+                otherW.updatedAt = new Date().toISOString();
+                persistWorker(otherW).catch(() => {});
+              }
+            });
+          }
+        }
+      }
     }
 
     member.updatedAt = new Date().toISOString();
