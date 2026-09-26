@@ -625,3 +625,40 @@ ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'fpm-media');
 
+-- -----------------------------------------------------------------------------
+-- 20. DEPARTMENT REPORTS (HOD Operational Reporting)
+-- -----------------------------------------------------------------------------
+CREATE TABLE department_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    report_type VARCHAR(50) NOT NULL DEFAULT 'weekly' CHECK (report_type IN ('weekly', 'monthly', 'service', 'special_event')),
+    report_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    attendance_count INT DEFAULT 0,
+    summary TEXT NOT NULL,
+    achievements TEXT,
+    challenges TEXT,
+    prayer_requests TEXT,
+    budget_notes TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'reviewed', 'acknowledged')),
+    submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    submitted_by_name VARCHAR(255) NOT NULL,
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    review_notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_dept_reports_dept ON department_reports(department_id);
+CREATE INDEX idx_dept_reports_branch ON department_reports(branch_id);
+CREATE INDEX idx_dept_reports_date ON department_reports(report_date DESC);
+CREATE INDEX idx_dept_reports_status ON department_reports(status);
+
+ALTER TABLE department_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read department_reports" ON department_reports FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage department_reports" ON department_reports FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+

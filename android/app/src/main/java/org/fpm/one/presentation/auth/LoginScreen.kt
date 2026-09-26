@@ -100,7 +100,7 @@ fun LoginScreen(
       Spacer(modifier = Modifier.height(16.dp))
 
       Text(
-        text = "FPM ONE",
+        text = "FPM GLOBAL",
         fontSize = 26.sp,
         fontWeight = FontWeight.Black,
         color = FpmSurfaceWhite,

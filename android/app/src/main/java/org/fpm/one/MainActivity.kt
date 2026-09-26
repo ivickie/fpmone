@@ -229,7 +229,7 @@ fun AnimatedSplashScreen(onFinished: () -> Unit) {
       Spacer(modifier = Modifier.height(24.dp))
 
       Text(
-        text = "FPM ONE",
+        text = "FPM GLOBAL",
         fontSize = 28.sp,
         fontWeight = FontWeight.Black,
         color = FpmSurfaceWhite,

@@ -104,7 +104,7 @@ app.use((req, res, next) => {
 // Root & Health check
 app.get('/', (req, res) => {
   res.json({
-    app: 'FPM ONE Backend API',
+    app: 'FPM Global Backend API',
     ministry: 'Faith Preachers Ministry',
     status: 'online',
     version: '1.0.0',
@@ -157,7 +157,7 @@ setInterval(() => {
 
 export const server = app.listen(Number(PORT), '0.0.0.0', async () => {
   console.log(`=======================================================`);
-  console.log(`  FAITH PREACHERS MINISTRY - FPM ONE API SERVER`);
+  console.log(`  FAITH PREACHERS MINISTRY - FPM GLOBAL API SERVER`);
   console.log(`  Running on: http://0.0.0.0:${PORT}`);
   console.log(`  LAN URL:    http://10.164.108.241:${PORT}`);
   console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);

@@ -561,7 +561,7 @@ export const ServicesPage: React.FC = () => {
             <div className="text-xs text-slate-500 space-y-1">
               <p className="font-bold text-slate-700">Display at Church Entrance Station or Terminal</p>
               <p className="text-[11px] text-slate-400">
-                Workers scan this QR code with the FPM ONE app to verify their attendance and punctuality.
+                Workers scan this QR code with the FPM Global app to verify their attendance and punctuality.
               </p>
             </div>
 

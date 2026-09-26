@@ -355,3 +355,33 @@ export interface RegistrationRequestDto {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
 }
+
+export type ReportType = 'weekly' | 'monthly' | 'service' | 'special_event';
+export type ReportStatus = 'submitted' | 'reviewed' | 'acknowledged';
+
+export interface DepartmentReport {
+  id: string;
+  departmentId: string;
+  departmentName?: string;
+  branchId: string;
+  branchName?: string;
+  title: string;
+  reportType: ReportType;
+  reportDate: string;
+  attendanceCount?: number;
+  summary: string;
+  achievements?: string;
+  challenges?: string;
+  prayerRequests?: string;
+  budgetNotes?: string;
+  status: ReportStatus;
+  submittedBy: string;
+  submittedByName: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

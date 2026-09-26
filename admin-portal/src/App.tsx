@@ -53,7 +53,7 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-bold text-slate-500">Connecting to FPM ONE Portal...</p>
+          <p className="text-xs font-bold text-slate-500">Connecting to FPM Global Portal...</p>
         </div>
       </div>
     );

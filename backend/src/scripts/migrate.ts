@@ -4,7 +4,7 @@ import { pool, query } from '../db';
 
 async function runMigration() {
   console.log('====================================================');
-  console.log('  FPM ONE — SUPABASE POSTGRESQL MIGRATION RUNNER');
+  console.log('  FPM GLOBAL — SUPABASE POSTGRESQL MIGRATION RUNNER');
   console.log('====================================================');
 
   const databaseDir = path.resolve(__dirname, '../../database');

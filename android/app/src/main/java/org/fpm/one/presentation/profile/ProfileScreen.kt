@@ -109,7 +109,7 @@ fun ProfileScreen(
           horizontalAlignment = Alignment.CenterHorizontally
         ) {
           FpmButton(
-            text = "Log Out from FPM ONE",
+            text = "Log Out from FPM Global",
             onClick = { showLogoutConfirm = true },
             containerColor = FpmCrimson,
             icon = Icons.Default.Logout,
@@ -146,7 +146,7 @@ fun ProfileScreen(
             letterSpacing = 0.5.sp
           )
           Text(
-            text = "Jeremiah 1:8 • FPM ONE Platform v1.0.0",
+            text = "Jeremiah 1:8 • FPM Global Platform v1.0.0",
             fontSize = 10.sp,
             color = FpmTextMuted
           )
@@ -162,7 +162,7 @@ fun ProfileScreen(
       containerColor = FpmSurfaceWhite,
       shape = RoundedCornerShape(18.dp),
       title = { Text("Confirm Sign Out", fontWeight = FontWeight.Bold) },
-      text = { Text("Are you sure you want to log out of your FPM ONE account on this device?") },
+      text = { Text("Are you sure you want to log out of your FPM Global account on this device?") },
       confirmButton = {
         Button(
           onClick = {

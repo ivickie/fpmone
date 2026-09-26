@@ -37,7 +37,7 @@ export const LoginPage: React.FC = () => {
             alt="Faith Preachers Ministry"
             className="w-20 h-20 rounded-full object-cover ring-4 ring-amber-400/50 shadow-2xl shadow-amber-500/20 mx-auto mb-4 bg-white"
           />
-          <h1 className="text-2xl font-black text-white tracking-tight">FPM ONE</h1>
+          <h1 className="text-2xl font-black text-white tracking-tight">FPM Global</h1>
           <p className="text-sm text-slate-300 font-medium mt-1">Faith Preachers Ministry • Admin Portal</p>
           <div className="inline-flex items-center space-x-1.5 bg-blue-900/60 border border-blue-700/50 rounded-full px-3 py-1 mt-3 text-xs text-blue-200">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />

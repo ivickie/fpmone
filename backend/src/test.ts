@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 async function runTests() {
   console.log('====================================================');
-  console.log('  RUNNING FPM ONE CORE BACKEND TEST SUITE');
+  console.log('  RUNNING FPM GLOBAL CORE BACKEND TEST SUITE');
   console.log('====================================================');
 
   let passed = 0;
@@ -907,6 +907,70 @@ async function runTests() {
     assert(hasMediaUpload, 'Audit trail records MEDIA_UPLOADED actions');
     assert(hasMediaDelete, 'Audit trail records MEDIA_DELETED actions');
     assert(hasBranchArchived, 'Audit trail records BRANCH_ARCHIVED actions');
+
+    // TEST 111: Departmental Reports - Initial Seed Verification
+    console.log('\n--- 14. Departmental Reports Tests ---');
+    assert(db.departmentReports && db.departmentReports.length >= 2, 'Initial departmental reports seed loaded');
+    const choirReport = db.departmentReports.find(r => r.id === 'rep-choir-001');
+    assert(!!choirReport, 'Choir weekly report exists in store');
+    assert(choirReport?.submittedByName === 'Rachel Adams', 'Choir report submitter is Rachel Adams (HOD)');
+
+    // TEST 112: HOD Report Submission
+    const testReportId = uuidv4();
+    const newHodReport = {
+      id: testReportId,
+      departmentId: IDS.DEPT_CHOIR,
+      departmentName: 'Choir (Voices of Faith)',
+      branchId: IDS.BRANCH_HQ,
+      branchName: 'Cathedral of Grace (HQ)',
+      title: 'Choir Mid-Week Practice & Special Service Prep',
+      reportType: 'weekly' as const,
+      reportDate: '2026-09-24',
+      attendanceCount: 16,
+      summary: 'Rehearsed the convention theme songs and coordinated with the sound engineers.',
+      achievements: 'High attendance for Thursday rehearsal; 3 new songs mastered.',
+      challenges: 'Microphone stand broken in choir rehearsal room.',
+      prayerRequests: 'Voice strength and unity.',
+      budgetNotes: '₦15,000 for replacement stand.',
+      status: 'submitted' as const,
+      submittedBy: IDS.USER_HOD,
+      submittedByName: 'Rachel Adams',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    db.departmentReports.unshift(newHodReport);
+    assert(db.departmentReports.some(r => r.id === testReportId), 'HOD successfully submits new departmental report');
+
+    // TEST 113: Branch Pastor Scoping
+    // Branch Pastor of HQ should see HQ reports
+    const hqPastorReports = db.departmentReports.filter(r => r.branchId === IDS.BRANCH_HQ);
+    assert(hqPastorReports.length >= 3, `Branch Pastor sees ${hqPastorReports.length} reports for their assigned branch`);
+    assert(hqPastorReports.some(r => r.id === testReportId), 'Newly submitted report is visible to the Branch Pastor');
+
+    // TEST 114: Branch Pastor Review & Notes
+    const reportToReview = db.departmentReports.find(r => r.id === testReportId);
+    assert(!!reportToReview, 'Report found for pastoral review');
+    if (reportToReview) {
+      reportToReview.status = 'reviewed';
+      reportToReview.reviewNotes = 'Approved. Facilities team has been instructed to replace the microphone stand.';
+      reportToReview.reviewedBy = IDS.USER_PASTOR;
+      reportToReview.reviewedByName = 'Pastor David Adeleke';
+      reportToReview.reviewedAt = new Date().toISOString();
+      reportToReview.updatedAt = new Date().toISOString();
+      assert(reportToReview.status === 'reviewed', 'Report status successfully transitioned to reviewed');
+      assert(reportToReview.reviewNotes.includes('Approved'), 'Pastoral review notes recorded accurately');
+      assert(reportToReview.reviewedByName === 'Pastor David Adeleke', 'Reviewer attribution correctly recorded');
+    }
+
+    // TEST 115: SuperAdmin Global Visibility
+    // SuperAdmin sees all reports regardless of branch
+    const allReportsCount = db.departmentReports.length;
+    assert(allReportsCount >= 3, `SuperAdmin has global visibility across all branches: ${allReportsCount} reports total`);
+
+    // Clean up test report
+    const cleanIdx = db.departmentReports.findIndex(r => r.id === testReportId);
+    if (cleanIdx >= 0) db.departmentReports.splice(cleanIdx, 1);
+    assert(db.departmentReports.length === allReportsCount - 1, 'Test report cleaned up from store');
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);

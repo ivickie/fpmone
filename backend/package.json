@@ -1,7 +1,7 @@
 {
   "name": "fpm-one-backend",
   "version": "1.0.0",
-  "description": "FPM ONE Backend API & Edge Functions for Faith Preachers Ministry",
+  "description": "FPM Global Backend API & Edge Functions for Faith Preachers Ministry",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",

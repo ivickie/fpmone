@@ -2,7 +2,8 @@ import { query } from './index';
 import { 
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
-  ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem
+  ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem,
+  DepartmentReport
 } from '../types';
 
 /**
@@ -27,7 +28,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       testimoniesRes,
       notifsRes,
       auditRes,
-      mediaRes
+      mediaRes,
+      deptReportsRes
     ] = await Promise.all([
       query('SELECT * FROM branches ORDER BY name ASC'),
       query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC'),
@@ -45,7 +47,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       query('SELECT * FROM testimonies ORDER BY created_at DESC'),
       query('SELECT * FROM notifications ORDER BY created_at DESC'),
       query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500'),
-      query('SELECT * FROM media_items ORDER BY created_at DESC')
+      query('SELECT * FROM media_items ORDER BY created_at DESC'),
+      query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] }))
     ]);
 
     if (branchesRes.rows.length > 0) {
@@ -356,7 +359,35 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services.`);
+    if (deptReportsRes && deptReportsRes.rows && deptReportsRes.rows.length > 0) {
+      store.departmentReports = deptReportsRes.rows.map((r: any): DepartmentReport => ({
+        id: r.id,
+        departmentId: r.department_id,
+        departmentName: store.departments?.find((d: any) => d.id === r.department_id)?.name,
+        branchId: r.branch_id,
+        branchName: store.branches?.find((b: any) => b.id === r.branch_id)?.name,
+        title: r.title,
+        reportType: r.report_type,
+        reportDate: r.report_date ? new Date(r.report_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        attendanceCount: r.attendance_count !== null && r.attendance_count !== undefined ? Number(r.attendance_count) : undefined,
+        summary: r.summary,
+        achievements: r.achievements || undefined,
+        challenges: r.challenges || undefined,
+        prayerRequests: r.prayer_requests || undefined,
+        budgetNotes: r.budget_notes || undefined,
+        status: r.status,
+        submittedBy: r.submitted_by,
+        submittedByName: r.submitted_by_name || 'HOD',
+        reviewedBy: r.reviewed_by || undefined,
+        reviewedByName: store.members?.find((m: any) => m.userId === r.reviewed_by)?.firstName ? `${store.members.find((m: any) => m.userId === r.reviewed_by)?.firstName} ${store.members.find((m: any) => m.userId === r.reviewed_by)?.lastName}` : undefined,
+        reviewedAt: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : undefined,
+        reviewNotes: r.review_notes || undefined,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    }
+
+    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.departmentReports?.length || 0} reports.`);
     return true;
   } catch (err: any) {
     console.error('[DATABASE] Hydration from Supabase encountered an issue, falling back to local seed state:', err.message);
@@ -758,6 +789,45 @@ export async function persistAuditLog(log: AuditLogItem): Promise<void> {
   }
 }
 
+export async function persistDepartmentReport(report: DepartmentReport): Promise<void> {
+  if (!isUuid(report.id) || !isUuid(report.departmentId) || !isUuid(report.branchId) || !isUuid(report.submittedBy)) return;
+  try {
+    await query(`
+      INSERT INTO department_reports (
+        id, department_id, branch_id, title, report_type, report_date,
+        attendance_count, summary, achievements, challenges, prayer_requests,
+        budget_notes, status, submitted_by, submitted_by_name,
+        reviewed_by, reviewed_at, review_notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        report_type = EXCLUDED.report_type,
+        report_date = EXCLUDED.report_date,
+        attendance_count = EXCLUDED.attendance_count,
+        summary = EXCLUDED.summary,
+        achievements = EXCLUDED.achievements,
+        challenges = EXCLUDED.challenges,
+        prayer_requests = EXCLUDED.prayer_requests,
+        budget_notes = EXCLUDED.budget_notes,
+        status = EXCLUDED.status,
+        reviewed_by = EXCLUDED.reviewed_by,
+        reviewed_at = EXCLUDED.reviewed_at,
+        review_notes = EXCLUDED.review_notes,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      report.id, report.departmentId, report.branchId, report.title,
+      report.reportType, report.reportDate, report.attendanceCount ?? null,
+      report.summary, report.achievements || null, report.challenges || null,
+      report.prayerRequests || null, report.budgetNotes || null,
+      report.status, report.submittedBy, report.submittedByName,
+      report.reviewedBy || null, report.reviewedAt || null,
+      report.reviewNotes || null, report.createdAt, report.updatedAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: department_reports] ${err.message}`);
+  }
+}
+
 export async function persistDelete(table: string, id: string): Promise<void> {
   if (!isUuid(id)) return;
   try {
@@ -766,7 +836,7 @@ export async function persistDelete(table: string, id: string): Promise<void> {
       'branches', 'departments', 'department_positions', 'ministry_roles',
       'users', 'members', 'workers', 'services', 'attendance_records',
       'events', 'posts', 'comments', 'reactions', 'service_highlights',
-      'testimonies', 'notifications', 'media_items'
+      'testimonies', 'notifications', 'media_items', 'department_reports'
     ];
     if (!safeTables.includes(table)) {
       throw new Error(`Invalid table name for persistDelete: ${table}`);

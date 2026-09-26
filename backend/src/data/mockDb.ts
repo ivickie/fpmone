@@ -3,7 +3,7 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ReactionItem, CommentItem, ServiceHighlightItem, TestimonyItem, NotificationItem,
-  AuditLogItem, MediaItem
+  AuditLogItem, MediaItem, DepartmentReport
 } from '../types';
 
 // Pre-compute bcrypt hashes for seed data
@@ -142,7 +142,7 @@ export class DatabaseStore {
       id: IDS.ROLE_SUPER_ADMIN,
       name: 'Administrator',
       code: 'SUPER_ADMIN',
-      description: 'Overall global administrative control of FPM ONE',
+      description: 'Overall global administrative control of FPM Global',
       hierarchyLevel: 1,
       permissions: ['*'],
       isSystemRole: true,
@@ -944,7 +944,7 @@ export class DatabaseStore {
   public notifications: NotificationItem[] = [
     {
       id: 'n-1',
-      title: 'Welcome to FPM ONE',
+      title: 'Welcome to FPM Global',
       body: 'Faith Preachers Ministry mobile portal is officially live. Connect, serve, and grow with us!',
       notificationType: 'announcement',
       targetScope: 'entire_church',
@@ -997,6 +997,55 @@ export class DatabaseStore {
   ];
 
   public mediaFiles: MediaItem[] = [];
+
+  public departmentReports: DepartmentReport[] = [
+    {
+      id: 'rep-choir-001',
+      departmentId: IDS.DEPT_CHOIR,
+      departmentName: 'Choir (Voices of Faith)',
+      branchId: IDS.BRANCH_HQ,
+      branchName: 'Cathedral of Grace (HQ)',
+      title: 'Choir Rehearsal & Sunday Worship Ministry Report',
+      reportType: 'weekly',
+      reportDate: '2026-09-20',
+      attendanceCount: 14,
+      summary: 'All vocalists and instrumentalists arrived promptly for the pre-service spiritual warm-up and sound check. The choir ministered powerful worship during communion.',
+      achievements: 'Introduced 2 new worship medleys; 14 of 15 registered choir workers in attendance.',
+      challenges: 'Need 2 replacement wireless dynamic microphones for the soprano section.',
+      prayerRequests: 'Spiritual renewal and protection for our worship leaders ahead of the convention.',
+      budgetNotes: 'Requested ₦85,000 for vocal training equipment and cable upgrades.',
+      status: 'submitted',
+      submittedBy: IDS.USER_HOD,
+      submittedByName: 'Rachel Adams',
+      createdAt: '2026-09-20T14:30:00Z',
+      updatedAt: '2026-09-20T14:30:00Z'
+    },
+    {
+      id: 'rep-media-001',
+      departmentId: IDS.DEPT_MEDIA,
+      departmentName: 'Media & Technology',
+      branchId: IDS.BRANCH_HQ,
+      branchName: 'Cathedral of Grace (HQ)',
+      title: 'Media Broadcast & Live Stream Production Report',
+      reportType: 'weekly',
+      reportDate: '2026-09-20',
+      attendanceCount: 8,
+      summary: 'Sunday morning service was live-streamed concurrently to YouTube, Facebook, and the mobile app with zero frame drops.',
+      achievements: 'Reached over 1,400 concurrent live stream viewers; all recorded sermon clips uploaded to FPM Global app highlights.',
+      challenges: 'Internet uplink experienced 10s latency spike during the second offering.',
+      prayerRequests: 'Grace and wisdom for the AV technical crew.',
+      budgetNotes: 'None for this week.',
+      status: 'reviewed',
+      submittedBy: IDS.USER_JOHN,
+      submittedByName: 'John Mensah',
+      reviewedBy: IDS.USER_PASTOR,
+      reviewedByName: 'Pastor David Adeleke',
+      reviewedAt: '2026-09-21T09:00:00Z',
+      reviewNotes: 'Excellent work as always Brother John. We will look into provisioning a dedicated secondary fiber failover.',
+      createdAt: '2026-09-20T16:00:00Z',
+      updatedAt: '2026-09-21T09:00:00Z'
+    }
+  ];
 
   private workerCounter = 4;
 

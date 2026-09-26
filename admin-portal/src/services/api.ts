@@ -222,5 +222,23 @@ export const api = {
 
   // Settings
   getSettings: () => apiRequest('/settings'),
-  updateSettings: (data: any) => apiRequest('/settings', { method: 'PUT', body: JSON.stringify(data) })
+  updateSettings: (data: any) => apiRequest('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Department Reports
+  getDepartmentReports: (params: { branchId?: string; departmentId?: string; reportType?: string; status?: string; startDate?: string; endDate?: string } = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '' && val !== 'undefined') {
+        searchParams.append(key, String(val));
+      }
+    });
+    const qs = searchParams.toString();
+    return apiRequest(`/department-reports${qs ? `?${qs}` : ''}`);
+  },
+  getDepartmentReportById: (id: string) => apiRequest(`/department-reports/${id}`),
+  createDepartmentReport: (data: any) =>
+    apiRequest('/department-reports', { method: 'POST', body: JSON.stringify(data) }),
+  reviewDepartmentReport: (id: string, data: { status?: string; reviewNotes?: string }) =>
+    apiRequest(`/department-reports/${id}/review`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDepartmentReport: (id: string) => apiRequest(`/department-reports/${id}`, { method: 'DELETE' })
 };

@@ -8,9 +8,10 @@ import { AuditService } from '../services/auditService';
 import { StorageService } from '../services/storageService';
 import {
   Branch, Department, DepartmentPosition, EventItem, PostItem,
-  ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem
+  ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
+  DepartmentReport
 } from '../types';
-import { persistService } from '../db/sync';
+import { persistService, persistDepartmentReport, persistDelete } from '../db/sync';
 
 // =============================================================================
 // AUTH CONTROLLER
@@ -1948,10 +1949,403 @@ export const getDbStatusHandler = async (req: Request, res: Response) => {
         testimonies: db.testimonies.length,
         notifications: db.notifications.length,
         mediaFiles: db.mediaFiles.length,
-        auditLogs: db.auditLogs.length
+        auditLogs: db.auditLogs.length,
+        departmentReports: db.departmentReports?.length || 0
       }
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// =============================================================================
+// DEPARTMENT REPORTS CONTROLLER
+// =============================================================================
+
+/**
+ * Checks whether the given user is an HOD for any department or a specific department.
+ */
+function isUserHod(user: any, departmentId?: string): boolean {
+  if (!user) return false;
+  const roleCode = user.roleCode?.toUpperCase();
+  const isHodRole = roleCode === 'HOD' || user.roleName?.toLowerCase().includes('head of department');
+
+  if (departmentId) {
+    const dept = db.departments.find(d => d.id === departmentId);
+    if (dept && (dept.hodId === user.userId || dept.hodName?.toLowerCase() === user.fullName?.toLowerCase())) {
+      return true;
+    }
+    const worker = db.workers.find(w => {
+      const m = db.members.find(mem => mem.id === w.memberId);
+      return m?.userId === user.userId && w.departmentId === departmentId;
+    });
+    if (worker) {
+      const pos = (worker.positionName || '').toLowerCase();
+      if (pos.includes('head') || pos.includes('hod') || pos.includes('director') || pos.includes('lead') || pos.includes('coordinator')) {
+        return true;
+      }
+    }
+    return isHodRole;
+  }
+
+  // Check generally if user is HOD of any department
+  const isDeptHod = db.departments.some(d => d.hodId === user.userId || d.hodName?.toLowerCase() === user.fullName?.toLowerCase());
+  if (isDeptHod || isHodRole) return true;
+
+  const userWorkers = db.workers.filter(w => {
+    const m = db.members.find(mem => mem.id === w.memberId);
+    return m?.userId === user.userId;
+  });
+  return userWorkers.some(w => {
+    const pos = (w.positionName || '').toLowerCase();
+    return pos.includes('head') || pos.includes('hod') || pos.includes('director') || pos.includes('lead') || pos.includes('coordinator');
+  });
+}
+
+function isPastorOrAdmin(user: any): boolean {
+  if (!user) return false;
+  if (user.isAdmin || user.adminLevel === 'super_admin' || user.adminLevel === 'branch_admin') return true;
+  const roleCode = user.roleCode?.toUpperCase();
+  return roleCode === 'BRANCH_PASTOR' || roleCode === 'ASSOCIATE_PASTOR' || roleCode === 'PASTOR' || roleCode === 'SENIOR_PASTOR';
+}
+
+export const getDepartmentReportsHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isBranchPastor = isPastorOrAdmin(user);
+    const isHod = isUserHod(user);
+
+    if (!isSuperAdmin && !isBranchPastor && !isHod) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only Heads of Department, Branch Pastors, and Administrators can access departmental reports.'
+      });
+    }
+
+    const { departmentId, branchId, reportType, status, startDate, endDate } = req.query;
+
+    let reports = [...(db.departmentReports || [])];
+
+    // Branch / Department scoping:
+    if (isSuperAdmin) {
+      if (branchId) {
+        reports = reports.filter(r => r.branchId === branchId);
+      }
+    } else if (isBranchPastor) {
+      reports = reports.filter(r => r.branchId === user.branchId);
+    } else if (isHod) {
+      const hodDeptIds = db.departments
+        .filter(d => isUserHod(user, d.id))
+        .map(d => d.id);
+      
+      reports = reports.filter(r => 
+        hodDeptIds.includes(r.departmentId) || 
+        r.submittedBy === user.userId ||
+        (user.workerDetails?.departmentId && r.departmentId === user.workerDetails.departmentId)
+      );
+    }
+
+    // Additional query filters
+    if (departmentId) {
+      reports = reports.filter(r => r.departmentId === departmentId);
+    }
+    if (reportType) {
+      reports = reports.filter(r => r.reportType === reportType);
+    }
+    if (status) {
+      reports = reports.filter(r => r.status === status);
+    }
+    if (startDate) {
+      reports = reports.filter(r => r.reportDate >= (startDate as string));
+    }
+    if (endDate) {
+      reports = reports.filter(r => r.reportDate <= (endDate as string));
+    }
+
+    // Enrich with current names if missing
+    reports = reports.map(r => ({
+      ...r,
+      departmentName: r.departmentName || db.departments.find(d => d.id === r.departmentId)?.name || 'Department',
+      branchName: r.branchName || db.branches.find(b => b.id === r.branchId)?.name || 'Branch'
+    }));
+
+    // Sort descending by reportDate
+    reports.sort((a, b) => (b.reportDate > a.reportDate ? 1 : b.reportDate < a.reportDate ? -1 : 0));
+
+    return res.json(reports);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getDepartmentReportByIdHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const report = (db.departmentReports || []).find(r => r.id === req.params.id);
+    if (!report) {
+      return res.status(404).json({ success: false, error: 'Department report not found.' });
+    }
+
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isBranchPastor = isPastorOrAdmin(user) && report.branchId === user.branchId;
+    const isSubmittingHod = report.submittedBy === user.userId || isUserHod(user, report.departmentId);
+
+    if (!isSuperAdmin && !isBranchPastor && !isSubmittingHod) {
+      return res.status(403).json({ success: false, error: 'Access denied to this report.' });
+    }
+
+    const enrichedReport = {
+      ...report,
+      departmentName: report.departmentName || db.departments.find(d => d.id === report.departmentId)?.name || 'Department',
+      branchName: report.branchName || db.branches.find(b => b.id === report.branchId)?.name || 'Branch'
+    };
+
+    return res.json(enrichedReport);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const createDepartmentReportHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    let {
+      departmentId,
+      branchId,
+      title,
+      reportType,
+      reportDate,
+      attendanceCount,
+      summary,
+      achievements,
+      challenges,
+      prayerRequests,
+      budgetNotes
+    } = req.body;
+
+    // Auto-resolve departmentId if missing
+    if (!departmentId) {
+      if (user.workerDetails?.departmentId) {
+        departmentId = user.workerDetails.departmentId;
+      } else {
+        const userHodDept = db.departments.find(d => isUserHod(user, d.id));
+        if (userHodDept) {
+          departmentId = userHodDept.id;
+        }
+      }
+    }
+
+    if (!departmentId) {
+      return res.status(400).json({ success: false, error: 'Department ID is required.' });
+    }
+
+    const dept = db.departments.find(d => d.id === departmentId);
+    if (!dept) {
+      return res.status(404).json({ success: false, error: 'Department not found.' });
+    }
+
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isBranchPastor = isPastorOrAdmin(user);
+    const isHod = isUserHod(user, departmentId);
+
+    if (!isSuperAdmin && !isBranchPastor && !isHod) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only the Head of Department, Branch Pastor, or Super Administrator can submit reports for this department.'
+      });
+    }
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, error: 'Report title is required.' });
+    }
+    if (!summary || !summary.trim()) {
+      return res.status(400).json({ success: false, error: 'Report summary is required.' });
+    }
+
+    const targetBranchId = branchId || dept.branchId || user.branchId || IDS.BRANCH_HQ;
+    const branch = db.branches.find(b => b.id === targetBranchId);
+
+    const now = new Date().toISOString();
+    const newReport: DepartmentReport = {
+      id: uuidv4(),
+      departmentId,
+      departmentName: dept.name,
+      branchId: targetBranchId,
+      branchName: branch?.name || 'Cathedral of Grace (HQ)',
+      title: title.trim(),
+      reportType: reportType || 'weekly',
+      reportDate: reportDate || now.split('T')[0],
+      attendanceCount: attendanceCount !== undefined && attendanceCount !== null ? Number(attendanceCount) : undefined,
+      summary: summary.trim(),
+      achievements: achievements?.trim() || undefined,
+      challenges: challenges?.trim() || undefined,
+      prayerRequests: prayerRequests?.trim() || undefined,
+      budgetNotes: budgetNotes?.trim() || undefined,
+      status: 'submitted',
+      submittedBy: user.userId,
+      submittedByName: user.fullName || 'HOD',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    if (!db.departmentReports) {
+      db.departmentReports = [];
+    }
+    db.departmentReports.unshift(newReport);
+
+    // Persist to Postgres
+    await persistDepartmentReport(newReport);
+
+    // Log audit trail
+    AuditService.log(
+      user.fullName,
+      user.roleName,
+      'SUBMIT_DEPARTMENT_REPORT',
+      'department_report',
+      newReport.id,
+      newReport.id
+    );
+
+    // Create notification for Branch Pastor & Super Admin
+    const notif: NotificationItem = {
+      id: uuidv4(),
+      title: `New Report: ${dept.name}`,
+      body: `${user.fullName} submitted a ${newReport.reportType} report for ${dept.name}: "${newReport.title}".`,
+      notificationType: 'reminder',
+      targetScope: 'branch',
+      targetId: targetBranchId,
+      actionUrl: '/reports',
+      createdAt: now
+    };
+    db.notifications.unshift(notif);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Department report submitted successfully.',
+      report: newReport
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const reviewDepartmentReportHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isPastor = isPastorOrAdmin(user);
+
+    if (!isSuperAdmin && !isPastor) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only Branch Pastors and Super Administrators can review departmental reports.'
+      });
+    }
+
+    const report = (db.departmentReports || []).find(r => r.id === req.params.id);
+    if (!report) {
+      return res.status(404).json({ success: false, error: 'Department report not found.' });
+    }
+
+    // Branch scope check: Branch Pastors can only review reports in their branch
+    if (!isSuperAdmin && report.branchId !== user.branchId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You may only review reports submitted for your branch.'
+      });
+    }
+
+    const { reviewNotes, status } = req.body;
+    const now = new Date().toISOString();
+
+    report.status = status === 'acknowledged' ? 'acknowledged' : 'reviewed';
+    if (reviewNotes !== undefined) {
+      report.reviewNotes = reviewNotes.trim();
+    }
+    report.reviewedBy = user.userId;
+    report.reviewedByName = user.fullName;
+    report.reviewedAt = now;
+    report.updatedAt = now;
+
+    await persistDepartmentReport(report);
+
+    AuditService.log(
+      user.fullName,
+      user.roleName,
+      'REVIEW_DEPARTMENT_REPORT',
+      'department_report',
+      report.id,
+      report.id
+    );
+
+    // Notify submitting HOD
+    const notif: NotificationItem = {
+      id: uuidv4(),
+      title: `Report Reviewed: ${report.title}`,
+      body: `${user.fullName} has reviewed your report for ${report.departmentName || 'your department'}.${report.reviewNotes ? ` Note: "${report.reviewNotes}"` : ''}`,
+      notificationType: 'announcement',
+      targetScope: 'specific_member',
+      targetId: report.submittedBy,
+      actionUrl: '/reports',
+      createdAt: now
+    };
+    db.notifications.unshift(notif);
+
+    return res.json({
+      success: true,
+      message: 'Report reviewed successfully.',
+      report
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const deleteDepartmentReportHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const reportIndex = (db.departmentReports || []).findIndex(r => r.id === req.params.id);
+    if (reportIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Department report not found.' });
+    }
+
+    const report = db.departmentReports[reportIndex];
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isSubmitter = report.submittedBy === user.userId && report.status === 'submitted';
+
+    if (!isSuperAdmin && !isSubmitter) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only Super Administrators or the author of an unreviewed report can delete it.'
+      });
+    }
+
+    db.departmentReports.splice(reportIndex, 1);
+    await persistDelete('department_reports', req.params.id);
+
+    AuditService.log(
+      user.fullName,
+      user.roleName,
+      'DELETE_DEPARTMENT_REPORT',
+      'department_report',
+      req.params.id,
+      req.params.id
+    );
+
+    return res.json({ success: true, message: 'Department report deleted successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+

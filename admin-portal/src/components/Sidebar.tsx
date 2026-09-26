@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10 shrink-0 bg-white"
         />
         <div>
-          <h1 className="font-extrabold text-white tracking-wide text-base leading-tight">FPM ONE</h1>
+          <h1 className="font-extrabold text-white tracking-wide text-base leading-tight">FPM Global</h1>
           <p className="text-[11px] font-medium text-amber-400 uppercase tracking-wider">Faith Preachers Ministry</p>
         </div>
       </div>

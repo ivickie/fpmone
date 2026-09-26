@@ -90,7 +90,9 @@ fun MainScreen(
               NavigationBar(
                 containerColor = FpmSurfaceWhite,
                 tonalElevation = 0.dp,
-                modifier = Modifier.height(64.dp)
+                modifier = Modifier
+                  .height(80.dp)
+                  .padding(top = 10.dp, bottom = 6.dp)
               ) {
                 tabs.forEach { tab ->
                   val isSelected = selectedTab == tab

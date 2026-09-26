@@ -20,7 +20,9 @@ import {
   getNotificationsHandler, broadcastNotificationHandler, markNotificationReadHandler, deleteNotificationHandler,
   getAuditLogsHandler, getSettingsHandler, updateSettingsHandler,
   uploadMediaHandler, uploadAvatarHandler, deleteMediaHandler, listMediaHandler,
-  getDbStatusHandler
+  getDbStatusHandler,
+  getDepartmentReportsHandler, getDepartmentReportByIdHandler,
+  createDepartmentReportHandler, reviewDepartmentReportHandler, deleteDepartmentReportHandler
 } from '../controllers/apiControllers';
 import { requireAuth, requireAdmin, requireCronAuth } from '../middleware/authMiddleware';
 
@@ -145,5 +147,12 @@ router.put('/settings', requireAuth, requireAdmin, updateSettingsHandler);
 
 // --- DATABASE HEALTH & STATUS ---
 router.get('/db/status', getDbStatusHandler);
+
+// --- DEPARTMENT REPORTS ---
+router.get('/department-reports', requireAuth, getDepartmentReportsHandler);
+router.post('/department-reports', requireAuth, createDepartmentReportHandler);
+router.get('/department-reports/:id', requireAuth, getDepartmentReportByIdHandler);
+router.put('/department-reports/:id/review', requireAuth, reviewDepartmentReportHandler);
+router.delete('/department-reports/:id', requireAuth, deleteDepartmentReportHandler);
 
 export default router;

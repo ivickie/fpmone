@@ -449,3 +449,56 @@ The Supabase Database Linter flagged 12 security notices across three vulnerabil
 - **Network Resilience:**
   - Admin Portal dynamic API host resolves automatically to current browser host or fallback LAN IP `192.168.1.234`.
   - Android Mobile App `ApiClient.kt` configured with default `192.168.1.234:5000/api` alongside dynamic UDP auto-discovery.
+
+---
+
+## 5. Milestone: FPM Global Rebranding, Departmental Operational Reports & UI Refinement
+
+### 1. System-Wide Rebranding ("FPM One" -> "FPM Global")
+- **Android Mobile Application:**
+  - `strings.xml`: Updated `app_name` to `"FPM Global"`.
+  - `settings.gradle.kts`: Root project name updated to `"FPM Global"`.
+  - `MainActivity.kt`: Splash screen title updated to `"FPM GLOBAL"`.
+  - `LoginScreen.kt`: Header banner updated to `"FPM GLOBAL"`.
+  - `ProfileScreen.kt`: Footer version and copyright strings updated to `"FPM Global"`.
+- **Web Admin Portal:**
+  - `index.html`: Title updated to `"FPM Global Admin Portal | Faith Preachers Ministry"`.
+  - `Sidebar.tsx`: Brand header updated to `"FPM Global"`.
+  - `LoginPage.tsx`: Brand header updated to `"FPM Global"`.
+  - `App.tsx`: Loading screen updated to `"Connecting to FPM Global Portal..."`.
+- **Backend API & Database:**
+  - `server.ts`: Startup console banner and `/health` response updated to `"FPM Global"`.
+  - `package.json`: Description updated to `"FPM Global Backend API"`.
+  - `mockDb.ts`: Super admin role description and welcome notification updated to `"FPM Global"`.
+  - `database/schema.sql` & `database/seed.sql`: Headers and seed messages updated to `"FPM Global"`.
+
+### 2. Departmental Operational Reports Architecture
+- **Supabase PostgreSQL Database:**
+  - Created `department_reports` table directly on live PostgreSQL:
+    - `id` (UUID PK), `department_id` (UUID FK), `branch_id` (UUID FK), `title`, `report_type` ('weekly' | 'monthly' | 'service' | 'special_event'), `report_date`, `attendance_count` (INT), `summary` (TEXT), `achievements` (TEXT), `challenges` (TEXT), `prayer_requests` (TEXT), `budget_notes` (TEXT), `status` ('submitted' | 'reviewed' | 'acknowledged'), `submitted_by` (UUID FK), `submitted_by_name`, `reviewed_by` (UUID FK), `reviewed_at`, `review_notes` (TEXT), `created_at`, `updated_at`.
+  - Row Level Security (RLS) enabled with read and authenticated write policies.
+- **Backend Dual Sync & Persistence:**
+  - Hydration on startup (`hydrateStoreFromPostgres`) queries `department_reports`.
+  - Write-through persistence handler: `persistDepartmentReport(report: DepartmentReport)`.
+  - Whitelisted `'department_reports'` in `persistDelete`.
+- **REST API Controller & Endpoints:**
+  - `GET /api/department-reports`: Scoped by role. HODs see reports for departments they head or submitted; Branch Pastors see all reports in their branch; Super Admin has global visibility across all branches.
+  - `POST /api/department-reports`: Validates input, creates report, logs audit trail, and generates an automated notification for leadership.
+  - `GET /api/department-reports/:id`: Returns single report details with permissions check.
+  - `PUT /api/department-reports/:id/review`: Allows Branch Pastors and Admins to provide pastoral counsel/review notes and transition status to `reviewed` or `acknowledged`. Generates notification for submitting HOD.
+  - `DELETE /api/department-reports/:id`: Allows Super Admin or submitting author (if unreviewed) to delete.
+- **Backend Test Suite:**
+  - Added tests 111 to 115 covering initial seed loading, HOD report submission, Branch Pastor scoping, pastoral review & notes recording, SuperAdmin global visibility, and cleanup.
+  - **146 / 146 tests passing (100% pass rate).**
+- **Admin Portal UI (`ReportsPage.tsx`):**
+  - Modern dual-tab navigation: "Department Reports" & "Attendance Matrix".
+  - KPI Stat Cards: Total Reports, Pending Review, Pastoral Reviewed, Acknowledged.
+  - Search & filter toolbar by department, report type, and status.
+  - "+ Write Department Report" modal with comprehensive operational fields.
+  - Full Report Details modal with structured sections.
+  - Pastoral Review modal for Pastors/Admins to submit guidance and mark reports as reviewed.
+
+### 3. Mobile App Bottom Navigation Bar
+- `MainScreen.kt`: Adjusted bottom navigation bar height to `80.dp` with `padding(top = 10.dp, bottom = 6.dp)`. This resolves the cramped top padding issue and provides generous headroom above the navigation icons and selection indicators.
+- **Android APK Build:** Successfully assembled `app-debug.apk` (`BUILD SUCCESSFUL in 2m 8s`).
+
