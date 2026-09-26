@@ -1,10 +1,12 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import apiRoutes from './routes/api';
 import { AttendanceService } from './services/attendanceService';
 import { DiscoveryService } from './services/discoveryService';
+import { StorageService } from './services/storageService';
 import { db } from './data/mockDb';
 import { checkConnection } from './db';
 
@@ -19,7 +21,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('X-XSS-Protection', '0');
-  res.setHeader('Content-Security-Policy', "default-src 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self' * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:;");
   next();
 });
 
@@ -129,6 +131,10 @@ app.get('/health', async (req, res) => {
 
 // Static assets (logos, church media)
 app.use('/assets', express.static(path.join(__dirname, '../public')));
+
+// Static uploads (user uploaded media, event flyers, post photos, badges)
+const uploadsDir = StorageService.getUploadsDir();
+app.use('/uploads', express.static(uploadsDir));
 
 // Mount modular API router
 app.use('/api', apiRoutes);

@@ -2149,6 +2149,10 @@ export const uploadMediaHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'entityType is required.' });
     }
 
+    const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+    const protocol = req.protocol || 'http';
+    const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
+
     const mediaItem = await StorageService.uploadImage({
       buffer: file.buffer,
       originalName: file.originalname,
@@ -2157,11 +2161,13 @@ export const uploadMediaHandler = async (req: Request, res: Response) => {
       entityType,
       entityId,
       branchId,
+      baseUrl,
       userId: req.user?.userId || 'system',
       userFullName: req.user?.fullName || 'Unknown User',
       userRole: req.user?.roleName || 'member',
       adminLevel: req.user?.adminLevel,
-      userBranchId: req.user?.branchId
+      userBranchId: req.user?.branchId,
+      isAdmin: req.user?.isAdmin
     });
 
     return res.status(201).json({ success: true, media: mediaItem });
@@ -2186,12 +2192,17 @@ export const uploadAvatarHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Only image files (JPEG, PNG, WEBP) are allowed for profile photos.' });
     }
 
+    const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+    const protocol = req.protocol || 'http';
+    const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
+
     const mediaItem = await StorageService.uploadImage({
       buffer: file.buffer,
       originalName: file.originalname,
       mimeType: file.mimetype,
       size: file.size,
       entityType: 'profile',
+      baseUrl,
       userId: 'registration-applicant',
       userFullName: 'Applicant',
       userRole: 'member'

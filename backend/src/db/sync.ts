@@ -708,10 +708,11 @@ export async function persistPost(post: PostItem): Promise<void> {
   const branchId = isUuid(post.branchId) ? post.branchId : null;
   const deptId = isUuid(post.departmentId) ? post.departmentId : null;
   const allowComments = post.allowComments !== undefined ? post.allowComments : (post.postType !== 'announcement');
+  const mediaUrls = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
   try {
     await query(`
-      INSERT INTO posts (id, author_id, author_name, branch_id, department_id, visibility, title, content, scripture_reference, post_type, is_pinned, likes_count, comments_count, allow_comments, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      INSERT INTO posts (id, author_id, author_name, branch_id, department_id, visibility, title, content, scripture_reference, post_type, is_pinned, likes_count, comments_count, allow_comments, media_urls, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
         author_name = EXCLUDED.author_name,
         branch_id = EXCLUDED.branch_id,
@@ -723,13 +724,14 @@ export async function persistPost(post: PostItem): Promise<void> {
         likes_count = EXCLUDED.likes_count,
         comments_count = EXCLUDED.comments_count,
         allow_comments = EXCLUDED.allow_comments,
+        media_urls = EXCLUDED.media_urls,
         updated_at = EXCLUDED.updated_at
     `, [
       post.id, authorId, post.authorName, branchId,
       deptId, post.visibility, post.title || null,
       post.content, post.scriptureReference || null, post.postType,
       post.isPinned, post.likesCount, post.commentsCount,
-      allowComments, post.createdAt, post.updatedAt
+      allowComments, mediaUrls, post.createdAt, post.updatedAt
     ]);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: posts] ${err.message}`);

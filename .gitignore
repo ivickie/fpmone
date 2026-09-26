@@ -1,4 +1,4 @@
-﻿# Environment & Secrets
+# Environment & Secrets
 .env
 .env.*
 *.env
@@ -43,3 +43,5 @@ desktop.ini
 # Logs
 logs/
 *.log
+uploads/
+backend/uploads/

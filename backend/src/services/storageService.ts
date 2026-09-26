@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs';
 import { db } from '../data/mockDb';
 import { MediaItem, MediaType } from '../types';
 import { AuditService } from './auditService';
@@ -13,11 +15,13 @@ export interface UploadFileOptions {
   entityType: MediaType;
   entityId?: string;
   branchId?: string;
+  baseUrl?: string;
   userId: string;
   userFullName: string;
   userRole: string;
   adminLevel?: string;
   userBranchId?: string;
+  isAdmin?: boolean;
 }
 
 export class StorageService {
@@ -40,13 +44,39 @@ export class StorageService {
     return this.supabase;
   }
 
+  public static getUploadsDir(): string {
+    const defaultDir = path.resolve(__dirname, process.env.NODE_ENV === 'production' ? '../uploads' : '../../uploads');
+    const uploadsDir = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : defaultDir;
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    return uploadsDir;
+  }
+
+  public static saveToLocalDisk(storagePath: string, buffer: Buffer, baseUrl?: string): string {
+    const uploadsDir = this.getUploadsDir();
+    const relativePath = path.join(this.bucketName, storagePath);
+    const filePath = path.join(uploadsDir, relativePath);
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, buffer);
+
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+    if (baseUrl) {
+      return `${baseUrl.replace(/\/$/, '')}/uploads/${normalizedPath}`;
+    }
+    return `/uploads/${normalizedPath}`;
+  }
+
   /**
    * Validate authorization to upload for target entity and branch
    */
   public static validateUploadAuthorization(options: UploadFileOptions): void {
-    const { entityType, branchId, userId, adminLevel, userBranchId } = options;
+    const { entityType, branchId, userId, adminLevel, userBranchId, isAdmin, userRole } = options;
 
-    if (adminLevel === 'super_admin') {
+    if (adminLevel === 'super_admin' || adminLevel === 'church_admin') {
       return; // Global access
     }
 
@@ -55,12 +85,16 @@ export class StorageService {
       return;
     }
 
-    // Official church entities require admin role
+    // Official church entities require admin or authorized role
     if (adminLevel === 'branch_admin') {
       if (branchId && userBranchId && branchId !== userBranchId) {
         throw new Error('Branch isolation violation: You can only upload media for your assigned branch.');
       }
       return;
+    }
+
+    if (isAdmin || (userRole && userRole.toLowerCase() !== 'member')) {
+      return; // Staff, pastors, HODs with active portal access
     }
 
     throw new Error(`Unauthorized. Only administrators can upload media for ${entityType}.`);
@@ -93,7 +127,7 @@ export class StorageService {
   }
 
   /**
-   * Authoritative File Upload to Supabase Storage with Local Mock Fallback
+   * Authoritative File Upload to Supabase Storage with Local Disk Fallback
    */
   public static async uploadImage(options: UploadFileOptions): Promise<MediaItem> {
     // 1. Authorization check
@@ -131,19 +165,19 @@ export class StorageService {
           });
 
         if (uploadError) {
-          console.warn('[STORAGE] Supabase upload failed, falling back:', uploadError.message);
-          publicUrl = `https://storage.faithpreachers.org/${this.bucketName}/${storagePath}`;
+          console.warn('[STORAGE] Supabase upload failed, falling back to local file storage:', uploadError.message);
+          publicUrl = this.saveToLocalDisk(storagePath, options.buffer, options.baseUrl);
         } else {
           const { data } = client.storage.from(this.bucketName).getPublicUrl(storagePath);
           publicUrl = data.publicUrl;
         }
       } catch (err: any) {
-        console.warn('[STORAGE] Supabase upload error:', err.message);
-        publicUrl = `https://storage.faithpreachers.org/${this.bucketName}/${storagePath}`;
+        console.warn('[STORAGE] Supabase upload error, falling back to local disk:', err.message);
+        publicUrl = this.saveToLocalDisk(storagePath, options.buffer, options.baseUrl);
       }
     } else {
-      // Deterministic URL for mock/test/local environments
-      publicUrl = `https://storage.faithpreachers.org/${this.bucketName}/${storagePath}`;
+      // Local disk file storage
+      publicUrl = this.saveToLocalDisk(storagePath, options.buffer, options.baseUrl);
     }
 
     // 5. Commit Media Record to Database
@@ -219,6 +253,15 @@ export class StorageService {
       } catch (err) {
         console.warn('[STORAGE] Storage object removal warning:', err);
       }
+    }
+
+    try {
+      const p1 = path.join(this.getUploadsDir(), this.bucketName, media.storagePath);
+      const p2 = path.join(this.getUploadsDir(), media.storagePath);
+      if (fs.existsSync(p1)) fs.unlinkSync(p1);
+      else if (fs.existsSync(p2)) fs.unlinkSync(p2);
+    } catch (err: any) {
+      console.warn('[STORAGE] Local file removal notice:', err.message);
     }
 
     // Audit log

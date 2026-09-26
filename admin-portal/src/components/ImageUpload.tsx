@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, X, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, X, AlertCircle, Loader2, Image as ImageIcon } from 'lucide-react';
 import { api } from '../services/api';
 
 interface ImageUploadProps {
@@ -27,10 +27,39 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset image error whenever value changes
+  useEffect(() => {
+    setImageError(false);
+  }, [value]);
+
+  // Clean up object URL when component unmounts or preview changes
+  useEffect(() => {
+    return () => {
+      if (localPreview && localPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(localPreview);
+      }
+    };
+  }, [localPreview]);
+
+  const resolveUrl = (url?: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+      return url;
+    }
+    if (url.startsWith('/')) {
+      const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+      return `http://${host}:5000${url}`;
+    }
+    return url;
+  };
 
   const handleFileSelect = async (file: File) => {
     setError(null);
+    setImageError(false);
 
     // Client-side validations
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -44,16 +73,22 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       return;
     }
 
+    // Set immediate local preview for smooth user feedback
+    const preview = URL.createObjectURL(file);
+    setLocalPreview(preview);
+
     try {
       setIsUploading(true);
       const res = await api.uploadMedia(file, entityType, entityId, branchId);
       if (res.media?.publicUrl) {
         onChange(res.media.publicUrl);
+        setLocalPreview(null);
       } else {
         throw new Error('Upload succeeded but no public URL was returned.');
       }
     } catch (err: any) {
       setError(err.message || 'Upload failed. Please try again.');
+      setLocalPreview(null);
     } finally {
       setIsUploading(false);
     }
@@ -77,32 +112,80 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     }
   };
 
+  const displaySrc = localPreview || resolveUrl(value);
+
   return (
     <div className="space-y-1.5">
       {label && <label className="block text-sm font-medium text-slate-700">{label}</label>}
 
-      {value ? (
+      {displaySrc && !imageError ? (
         <div className="relative rounded-lg border border-slate-200 overflow-hidden group bg-slate-50 flex items-center justify-center h-48">
           <img
-            src={value}
+            src={displaySrc}
             alt="Preview"
             className="w-full h-full object-cover"
+            onError={() => {
+              console.warn('Image failed to load:', displaySrc);
+              setImageError(true);
+            }}
           />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+          {isUploading && (
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex flex-col items-center justify-center text-white">
+              <Loader2 className="w-7 h-7 animate-spin mb-2 text-indigo-400" />
+              <p className="text-xs font-semibold">Attaching image...</p>
+            </div>
+          )}
+          {!isUploading && (
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 bg-white text-slate-800 text-xs font-medium rounded shadow hover:bg-slate-100 transition-colors"
+              >
+                Change
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange('');
+                  setLocalPreview(null);
+                  setImageError(false);
+                }}
+                className="p-1.5 bg-red-600 text-white rounded shadow hover:bg-red-700 transition-colors"
+                title="Remove image"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      ) : displaySrc && imageError ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 flex flex-col items-center justify-center text-center space-y-2">
+          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+            <ImageIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-800">Image Attached</p>
+            <p className="text-[10px] text-slate-500 max-w-xs truncate mt-0.5">{value}</p>
+          </div>
+          <div className="flex gap-2 pt-1">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 bg-white text-slate-800 text-xs font-medium rounded shadow hover:bg-slate-100 transition-colors"
+              className="px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
             >
-              Change
+              Replace
             </button>
             <button
               type="button"
-              onClick={() => onChange('')}
-              className="p-1.5 bg-red-600 text-white rounded shadow hover:bg-red-700 transition-colors"
-              title="Remove image"
+              onClick={() => {
+                onChange('');
+                setLocalPreview(null);
+                setImageError(false);
+              }}
+              className="px-2.5 py-1 bg-red-50 border border-red-200 rounded text-xs font-medium text-red-600 hover:bg-red-100 transition"
             >
-              <X className="w-4 h-4" />
+              Remove
             </button>
           </div>
         </div>
@@ -121,8 +204,8 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
           {isUploading ? (
             <div className="flex flex-col items-center py-2">
               <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-2" />
-              <p className="text-sm font-medium text-slate-700">Uploading to Supabase Storage...</p>
-              <p className="text-xs text-slate-400 mt-1">Processing and validating image metadata</p>
+              <p className="text-sm font-medium text-slate-700">Uploading media...</p>
+              <p className="text-xs text-slate-400 mt-1">Processing and optimizing image</p>
             </div>
           ) : (
             <>
