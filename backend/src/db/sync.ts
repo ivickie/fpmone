@@ -500,11 +500,14 @@ export async function persistWorker(worker: Worker): Promise<void> {
 export async function persistBranch(branch: Branch): Promise<void> {
   if (!isUuid(branch.id)) return;
   try {
+    const orgId = isUuid(branch.organizationId) ? branch.organizationId : '00000000-0000-0000-0000-000000000001';
+    const pastorId = isUuid(branch.branchPastorId) ? branch.branchPastorId : null;
     await query(`
       INSERT INTO branches (id, organization_id, name, branch_code, address, city, state, country, phone, email, branch_pastor_name, branch_pastor_id, logo_url, status, is_headquarters, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
+        branch_code = EXCLUDED.branch_code,
         address = EXCLUDED.address,
         city = EXCLUDED.city,
         state = EXCLUDED.state,
@@ -518,10 +521,10 @@ export async function persistBranch(branch: Branch): Promise<void> {
         is_headquarters = EXCLUDED.is_headquarters,
         updated_at = EXCLUDED.updated_at
     `, [
-      branch.id, branch.organizationId, branch.name, branch.branchCode,
+      branch.id, orgId, branch.name, branch.branchCode,
       branch.address, branch.city, branch.state || null, branch.country,
       branch.phone || null, branch.email || null, branch.branchPastorName || null,
-      branch.branchPastorId || null, branch.logoUrl || null, branch.status,
+      pastorId, branch.logoUrl || null, branch.status,
       branch.isHeadquarters, branch.createdAt, branch.updatedAt
     ]);
   } catch (err: any) {
@@ -532,10 +535,13 @@ export async function persistBranch(branch: Branch): Promise<void> {
 export async function persistDepartment(dept: Department): Promise<void> {
   if (!isUuid(dept.id)) return;
   try {
+    const branchId = isUuid(dept.branchId) ? dept.branchId : null;
+    const hodId = isUuid(dept.hodId) ? dept.hodId : null;
     await query(`
       INSERT INTO departments (id, branch_id, name, code, description, hod_name, hod_id, status, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (id) DO UPDATE SET
+        branch_id = EXCLUDED.branch_id,
         name = EXCLUDED.name,
         code = EXCLUDED.code,
         description = EXCLUDED.description,
@@ -544,12 +550,51 @@ export async function persistDepartment(dept: Department): Promise<void> {
         status = EXCLUDED.status,
         updated_at = EXCLUDED.updated_at
     `, [
-      dept.id, dept.branchId || null, dept.name, dept.code,
-      dept.description || null, dept.hodName || null, dept.hodId || null,
+      dept.id, branchId, dept.name, dept.code,
+      dept.description || null, dept.hodName || null, hodId,
       dept.status, dept.createdAt, dept.updatedAt
     ]);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: departments] ${err.message}`);
+  }
+}
+
+export async function persistDepartmentPosition(pos: DepartmentPosition): Promise<void> {
+  if (!isUuid(pos.id) || !isUuid(pos.departmentId)) return;
+  try {
+    await query(`
+      INSERT INTO department_positions (id, department_id, name, description, created_at)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description
+    `, [pos.id, pos.departmentId, pos.name, pos.description || null, pos.createdAt]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: department_positions] ${err.message}`);
+  }
+}
+
+export async function persistRole(role: MinistryRole): Promise<void> {
+  if (!isUuid(role.id)) return;
+  try {
+    await query(`
+      INSERT INTO ministry_roles (id, name, code, description, hierarchy_level, permissions, is_system_role, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        code = EXCLUDED.code,
+        description = EXCLUDED.description,
+        hierarchy_level = EXCLUDED.hierarchy_level,
+        permissions = EXCLUDED.permissions,
+        is_active = EXCLUDED.is_active,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      role.id, role.name, role.code, role.description || null,
+      role.hierarchyLevel, JSON.stringify(role.permissions || []),
+      role.isSystemRole, role.isActive, role.createdAt, role.updatedAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: ministry_roles] ${err.message}`);
   }
 }
 
@@ -615,10 +660,12 @@ export async function persistAttendanceRecord(record: AttendanceRecord): Promise
 export async function persistEvent(event: EventItem): Promise<void> {
   if (!isUuid(event.id)) return;
   try {
+    const branchId = isUuid(event.branchId) ? event.branchId : null;
     await query(`
       INSERT INTO events (id, branch_id, title, description, banner_url, start_datetime, end_datetime, location, speaker, category, registration_required, registration_capacity, current_registrations_count, target_scope, status, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
+        branch_id = EXCLUDED.branch_id,
         title = EXCLUDED.title,
         description = EXCLUDED.description,
         banner_url = EXCLUDED.banner_url,
@@ -634,7 +681,7 @@ export async function persistEvent(event: EventItem): Promise<void> {
         status = EXCLUDED.status,
         updated_at = EXCLUDED.updated_at
     `, [
-      event.id, event.branchId || null, event.title, event.description,
+      event.id, branchId, event.title, event.description,
       event.bannerUrl || null, event.startDatetime, event.endDatetime,
       event.location, event.speaker || null, event.category,
       event.registrationRequired, event.registrationCapacity || null,
@@ -647,13 +694,18 @@ export async function persistEvent(event: EventItem): Promise<void> {
 }
 
 export async function persistPost(post: PostItem): Promise<void> {
-  if (!isUuid(post.id) || !isUuid(post.authorId)) return;
+  if (!isUuid(post.id)) return;
+  const authorId = isUuid(post.authorId) ? post.authorId : 'c1111111-1111-1111-1111-111111111111';
+  const branchId = isUuid(post.branchId) ? post.branchId : null;
+  const deptId = isUuid(post.departmentId) ? post.departmentId : null;
   try {
     await query(`
       INSERT INTO posts (id, author_id, author_name, branch_id, department_id, visibility, title, content, scripture_reference, post_type, is_pinned, likes_count, comments_count, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ON CONFLICT (id) DO UPDATE SET
         author_name = EXCLUDED.author_name,
+        branch_id = EXCLUDED.branch_id,
+        department_id = EXCLUDED.department_id,
         title = EXCLUDED.title,
         content = EXCLUDED.content,
         scripture_reference = EXCLUDED.scripture_reference,
@@ -662,8 +714,8 @@ export async function persistPost(post: PostItem): Promise<void> {
         comments_count = EXCLUDED.comments_count,
         updated_at = EXCLUDED.updated_at
     `, [
-      post.id, post.authorId, post.authorName, post.branchId || null,
-      post.departmentId || null, post.visibility, post.title || null,
+      post.id, authorId, post.authorName, branchId,
+      deptId, post.visibility, post.title || null,
       post.content, post.scriptureReference || null, post.postType,
       post.isPinned, post.likesCount, post.commentsCount,
       post.createdAt, post.updatedAt
@@ -674,12 +726,16 @@ export async function persistPost(post: PostItem): Promise<void> {
 }
 
 export async function persistServiceHighlight(highlight: ServiceHighlightItem): Promise<void> {
-  if (!isUuid(highlight.id) || !isUuid(highlight.branchId)) return;
+  if (!isUuid(highlight.id)) return;
+  const branchId = isUuid(highlight.branchId) ? highlight.branchId : 'b1111111-1111-1111-1111-111111111111';
+  const serviceId = isUuid(highlight.serviceId) ? highlight.serviceId : null;
   try {
     await query(`
       INSERT INTO service_highlights (id, service_id, branch_id, highlight_date, title, speaker, summary, scripture, key_points, quote, photos, video_url, is_published, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ON CONFLICT (id) DO UPDATE SET
+        service_id = EXCLUDED.service_id,
+        branch_id = EXCLUDED.branch_id,
         title = EXCLUDED.title,
         speaker = EXCLUDED.speaker,
         summary = EXCLUDED.summary,
@@ -691,7 +747,7 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
         is_published = EXCLUDED.is_published,
         updated_at = EXCLUDED.updated_at
     `, [
-      highlight.id, highlight.serviceId || null, highlight.branchId,
+      highlight.id, serviceId, branchId,
       highlight.highlightDate, highlight.title, highlight.speaker,
       highlight.summary, highlight.scripture || null,
       JSON.stringify(highlight.keyPoints || []), highlight.quote || null,
@@ -704,12 +760,16 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
 }
 
 export async function persistTestimony(testimony: TestimonyItem): Promise<void> {
-  if (!isUuid(testimony.id) || !isUuid(testimony.memberId) || !isUuid(testimony.branchId)) return;
+  if (!isUuid(testimony.id)) return;
+  const memberId = isUuid(testimony.memberId) ? testimony.memberId : 'e1111111-1111-1111-1111-111111111111';
+  const branchId = isUuid(testimony.branchId) ? testimony.branchId : 'b1111111-1111-1111-1111-111111111111';
+  const reviewedBy = isUuid(testimony.reviewedBy) ? testimony.reviewedBy : null;
   try {
     await query(`
       INSERT INTO testimonies (id, member_id, branch_id, title, content, category, photo_url, video_url, allow_publish, status, rejection_reason, request_changes_notes, reviewed_by, reviewed_at, is_featured_on_feed, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
+        branch_id = EXCLUDED.branch_id,
         title = EXCLUDED.title,
         content = EXCLUDED.content,
         category = EXCLUDED.category,
@@ -724,11 +784,11 @@ export async function persistTestimony(testimony: TestimonyItem): Promise<void> 
         is_featured_on_feed = EXCLUDED.is_featured_on_feed,
         updated_at = EXCLUDED.updated_at
     `, [
-      testimony.id, testimony.memberId, testimony.branchId, testimony.title,
+      testimony.id, memberId, branchId, testimony.title,
       testimony.content, testimony.category, testimony.photoUrl || null,
       testimony.videoUrl || null, testimony.allowPublish, testimony.status,
       testimony.rejectionReason || null, testimony.requestChangesNotes || null,
-      testimony.reviewedBy || null, testimony.reviewedAt || null,
+      reviewedBy, testimony.reviewedAt || null,
       testimony.isFeaturedOnFeed, testimony.createdAt, testimony.updatedAt
     ]);
   } catch (err: any) {
@@ -738,14 +798,23 @@ export async function persistTestimony(testimony: TestimonyItem): Promise<void> 
 
 export async function persistNotification(notif: NotificationItem): Promise<void> {
   if (!isUuid(notif.id)) return;
+  const targetId = isUuid(notif.targetId) ? notif.targetId : null;
+  const validTypes = [
+    'announcement', 'registration_approved', 'registration_rejected', 
+    'registration_changes_requested', 'upcoming_service', 'upcoming_event', 
+    'event_reminder', 'attendance_confirmed', 'highlight_published', 
+    'testimony_approved', 'admin_alert'
+  ];
+  const notifType = validTypes.includes(notif.notificationType) ? notif.notificationType : 'announcement';
+  const targetScope = notif.targetScope === 'all' ? 'entire_church' : (notif.targetScope || 'entire_church');
   try {
     await query(`
       INSERT INTO notifications (id, title, body, notification_type, target_scope, target_id, action_url, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (id) DO NOTHING
     `, [
-      notif.id, notif.title, notif.body, notif.notificationType,
-      notif.targetScope, notif.targetId || null, notif.actionUrl || null,
+      notif.id, notif.title, notif.body, notifType,
+      targetScope, targetId, notif.actionUrl || null,
       notif.createdAt
     ]);
   } catch (err: any) {

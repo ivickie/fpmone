@@ -11,7 +11,12 @@ import {
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
   DepartmentReport
 } from '../types';
-import { persistService, persistDepartmentReport, persistDelete, persistDepartment, persistWorker, persistBranch } from '../db/sync';
+import {
+  persistService, persistDepartmentReport, persistDelete, persistDepartment,
+  persistWorker, persistBranch, persistDepartmentPosition, persistRole,
+  persistMember, persistUser, persistEvent, persistPost,
+  persistServiceHighlight, persistTestimony, persistNotification
+} from '../db/sync';
 
 // =============================================================================
 // AUTH CONTROLLER
@@ -56,13 +61,18 @@ export const updateProfileHandler = (req: Request, res: Response) => {
 
     if (phone) {
       const user = db.users.find(u => u.id === req.user?.userId);
-      if (user) user.phone = phone;
+      if (user) {
+        user.phone = phone;
+        user.updatedAt = new Date().toISOString();
+        persistUser(user).catch(() => {});
+      }
     }
     if (residentialAddress !== undefined) member.residentialAddress = residentialAddress;
     if (emergencyContactName !== undefined) member.emergencyContactName = emergencyContactName;
     if (emergencyContactPhone !== undefined) member.emergencyContactPhone = emergencyContactPhone;
     if (profilePictureUrl !== undefined) member.profilePictureUrl = profilePictureUrl;
     member.updatedAt = new Date().toISOString();
+    persistMember(member).catch(() => {});
 
     return res.json({ success: true, member });
   } catch (err: any) {
@@ -105,6 +115,7 @@ export const createBranchHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.branches.push(newBranch);
+    persistBranch(newBranch).catch(() => {});
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'BRANCH_CREATED', 'branch', newBranch.id, req.user?.userId, null, newBranch);
     return res.status(201).json(newBranch);
   } catch (err: any) {
@@ -158,6 +169,7 @@ export const deleteBranchHandler = (req: Request, res: Response) => {
     if (hasDependencies) {
       branch.status = 'archived';
       branch.updatedAt = new Date().toISOString();
+      persistBranch(branch).catch(() => {});
       AuditService.log(
         req.user?.fullName || 'Admin',
         req.user?.roleName || 'admin',
@@ -178,6 +190,7 @@ export const deleteBranchHandler = (req: Request, res: Response) => {
 
     const idx = db.branches.findIndex(b => b.id === id);
     db.branches.splice(idx, 1);
+    persistDelete('branches', id).catch(() => {});
     AuditService.log(
       req.user?.fullName || 'Admin',
       req.user?.roleName || 'admin',
@@ -442,6 +455,7 @@ export const deleteDepartmentHandler = (req: Request, res: Response) => {
     if (hasWorkers) {
       dept.status = 'archived';
       dept.updatedAt = new Date().toISOString();
+      persistDepartment(dept).catch(() => {});
       AuditService.log(
         req.user?.fullName || 'Admin',
         req.user?.roleName || 'admin',
@@ -462,6 +476,7 @@ export const deleteDepartmentHandler = (req: Request, res: Response) => {
 
     const idx = db.departments.findIndex(d => d.id === req.params.id);
     db.departments.splice(idx, 1);
+    persistDelete('departments', req.params.id).catch(() => {});
     AuditService.log(
       req.user?.fullName || 'Admin',
       req.user?.roleName || 'admin',
@@ -503,6 +518,7 @@ export const createPositionHandler = (req: Request, res: Response) => {
       createdAt: new Date().toISOString()
     };
     db.departmentPositions.push(newPos);
+    persistDepartmentPosition(newPos).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -538,6 +554,7 @@ export const deletePositionHandler = (req: Request, res: Response) => {
 
     const idx = db.departmentPositions.findIndex(p => p.id === pos.id);
     db.departmentPositions.splice(idx, 1);
+    persistDelete('department_positions', pos.id).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -590,6 +607,7 @@ export const createRoleHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.ministryRoles.push(newRole);
+    persistRole(newRole).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -631,6 +649,7 @@ export const updateRoleHandler = (req: Request, res: Response) => {
     if (permissions !== undefined) role.permissions = permissions;
     if (isActive !== undefined) role.isActive = !!isActive;
     role.updatedAt = new Date().toISOString();
+    persistRole(role).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -668,6 +687,7 @@ export const deleteRoleHandler = (req: Request, res: Response) => {
 
     const idx = db.ministryRoles.findIndex(r => r.id === req.params.id);
     db.ministryRoles.splice(idx, 1);
+    persistDelete('ministry_roles', role.id).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -857,12 +877,14 @@ export const updateMemberHandler = (req: Request, res: Response) => {
     if (emergencyContactPhone !== undefined) member.emergencyContactPhone = emergencyContactPhone;
     if (profilePictureUrl !== undefined) member.profilePictureUrl = profilePictureUrl;
     member.updatedAt = new Date().toISOString();
+    persistMember(member).catch(() => {});
 
     const user = db.users.find(u => u.id === member.userId);
     if (user) {
       if (email) user.email = email;
       if (phone) user.phone = phone;
       user.updatedAt = new Date().toISOString();
+      persistUser(user).catch(() => {});
     }
 
     AuditService.log(
@@ -1249,6 +1271,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
     if (attendanceDurationHours !== undefined) service.attendanceDurationHours = Number(attendanceDurationHours);
     if (status) service.status = status;
     service.updatedAt = new Date().toISOString();
+    persistService(service).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1290,6 +1313,7 @@ export const deleteServiceHandler = (req: Request, res: Response) => {
     if (hasAttendance) {
       service.status = 'archived';
       service.updatedAt = new Date().toISOString();
+      persistService(service).catch(() => {});
       AuditService.log(
         req.user?.fullName || 'Admin',
         req.user?.roleName || 'admin',
@@ -1310,6 +1334,7 @@ export const deleteServiceHandler = (req: Request, res: Response) => {
 
     const idx = db.services.findIndex(s => s.id === req.params.id);
     db.services.splice(idx, 1);
+    persistDelete('services', req.params.id).catch(() => {});
     AuditService.log(
       req.user?.fullName || 'Admin',
       req.user?.roleName || 'admin',
@@ -1392,6 +1417,7 @@ export const createEventHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.events.push(newEvent);
+    persistEvent(newEvent).catch(() => {});
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'EVENT_CREATED', 'event', newEvent.id, req.user?.userId, null, newEvent);
     return res.status(201).json(newEvent);
   } catch (err: any) {
@@ -1425,6 +1451,7 @@ export const updateEventHandler = (req: Request, res: Response) => {
     if (registrationCapacity !== undefined) event.registrationCapacity = Number(registrationCapacity);
     if (status) event.status = status;
     event.updatedAt = new Date().toISOString();
+    persistEvent(event).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1454,6 +1481,7 @@ export const deleteEventHandler = (req: Request, res: Response) => {
 
     event.status = 'archived';
     event.updatedAt = new Date().toISOString();
+    persistEvent(event).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1583,6 +1611,7 @@ export const createPostHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.posts.unshift(newPost);
+    persistPost(newPost).catch(() => {});
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'POST_CREATED', 'post', newPost.id, req.user?.userId, null, newPost);
     return res.status(201).json(newPost);
   } catch (err: any) {
@@ -1609,6 +1638,7 @@ export const updatePostHandler = (req: Request, res: Response) => {
     if (isPinned !== undefined && isAdmin) post.isPinned = !!isPinned;
     if (status !== undefined) post.status = status;
     post.updatedAt = new Date().toISOString();
+    persistPost(post).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -1640,6 +1670,7 @@ export const deletePostHandler = (req: Request, res: Response) => {
 
     post.status = 'archived';
     post.updatedAt = new Date().toISOString();
+    persistPost(post).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -1738,6 +1769,7 @@ export const createHighlightHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.serviceHighlights.unshift(newHighlight);
+    persistServiceHighlight(newHighlight).catch(() => {});
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'HIGHLIGHT_CREATED', 'highlight', newHighlight.id, req.user?.userId, null, newHighlight);
     return res.status(201).json(newHighlight);
   } catch (err: any) {
@@ -1765,6 +1797,7 @@ export const updateHighlightHandler = (req: Request, res: Response) => {
     if (videoUrl !== undefined) highlight.videoUrl = videoUrl;
     if (isPublished !== undefined) highlight.isPublished = !!isPublished;
     highlight.updatedAt = new Date().toISOString();
+    persistServiceHighlight(highlight).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1794,6 +1827,7 @@ export const deleteHighlightHandler = (req: Request, res: Response) => {
 
     const idx = db.serviceHighlights.findIndex(h => h.id === req.params.id);
     db.serviceHighlights.splice(idx, 1);
+    persistDelete('service_highlights', req.params.id).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1850,6 +1884,7 @@ export const submitTestimonyHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.testimonies.unshift(newTestimony);
+    persistTestimony(newTestimony).catch(() => {});
     return res.status(201).json({
       success: true,
       message: 'Your testimony has been submitted and is awaiting pastoral review.',
@@ -1874,6 +1909,7 @@ export const reviewTestimonyHandler = (req: Request, res: Response) => {
     testimony.reviewedBy = req.user?.userId || IDS.USER_ADMIN;
     testimony.reviewedAt = new Date().toISOString();
     testimony.updatedAt = new Date().toISOString();
+    persistTestimony(testimony).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1910,6 +1946,7 @@ export const deleteTestimonyHandler = (req: Request, res: Response) => {
 
     const idx = db.testimonies.findIndex(t => t.id === req.params.id);
     db.testimonies.splice(idx, 1);
+    persistDelete('testimonies', req.params.id).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -1984,6 +2021,7 @@ export const broadcastNotificationHandler = (req: Request, res: Response) => {
       createdAt: new Date().toISOString()
     };
     db.notifications.unshift(newNotification);
+    persistNotification(newNotification).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2018,6 +2056,7 @@ export const deleteNotificationHandler = (req: Request, res: Response) => {
 
     const idx = db.notifications.findIndex(n => n.id === req.params.id);
     db.notifications.splice(idx, 1);
+    persistDelete('notifications', req.params.id).catch(() => {});
 
     AuditService.log(
       req.user?.fullName || 'Admin',
