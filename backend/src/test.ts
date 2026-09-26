@@ -15,7 +15,10 @@ import {
   updateServiceHandler,
   deleteServiceHandler,
   updateSettingsHandler,
-  broadcastNotificationHandler
+  broadcastNotificationHandler,
+  createPostHandler,
+  commentOnPostHandler,
+  reactToPostHandler
 } from './controllers/apiControllers';
 
 async function runTests() {
@@ -1313,6 +1316,144 @@ async function runTests() {
     if (mIdx1 >= 0) db.members.splice(mIdx1, 1);
     const uIdx2 = db.users.findIndex(u => u.id === orphanedRejectId);
     if (uIdx2 >= 0) db.users.splice(uIdx2, 1);
+
+    // =========================================================================
+    console.log('\n--- 17. Service Live Stream & Feed Post Policy Tests ---');
+
+    // TEST 133: Creating a service with liveStreamUrl
+    const adminUser = {
+      userId: IDS.USER_ADMIN,
+      adminLevel: 'super_admin',
+      fullName: 'Super Administrator',
+      roleName: 'super_admin',
+      branchId: IDS.BRANCH_HQ,
+      isAdmin: true
+    };
+
+    const createLiveSvc = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        name: 'Friday Live Miracle Night',
+        dayOfWeek: 'Friday',
+        startTime: '19:00:00',
+        expectedEndTime: '21:30:00',
+        liveStreamUrl: 'https://youtube.com/live/miraclenight'
+      },
+      user: adminUser
+    });
+    createServiceHandler(createLiveSvc.req, createLiveSvc.res);
+    assert(createLiveSvc.getStatus() === 201, 'Service with liveStreamUrl created successfully');
+    const liveSvc = createLiveSvc.getData();
+    assert(liveSvc?.liveStreamUrl === 'https://youtube.com/live/miraclenight', 'liveStreamUrl correctly populated on created service');
+
+    // TEST 134: Updating service liveStreamUrl
+    const updateLiveSvc = mockReqRes({
+      params: { id: liveSvc.id },
+      body: { liveStreamUrl: 'https://facebook.com/fpm/videos/123456' },
+      user: adminUser
+    });
+    updateServiceHandler(updateLiveSvc.req, updateLiveSvc.res);
+    assert(updateLiveSvc.getStatus() === 200, 'Service updated with new liveStreamUrl');
+    assert(updateLiveSvc.getData()?.liveStreamUrl === 'https://facebook.com/fpm/videos/123456', 'Service liveStreamUrl correctly updated to Facebook URL');
+
+    // TEST 135: Announcement creation enforces allowComments = false
+    const createAnnouncement = mockReqRes({
+      body: {
+        title: 'Special Fasting Announcement',
+        content: 'Join us for 3 days of fasting and prayer starting this Monday.',
+        postType: 'announcement',
+        allowComments: true // Should be overridden to false by backend policy
+      },
+      user: adminUser
+    });
+    createPostHandler(createAnnouncement.req, createAnnouncement.res);
+    assert(createAnnouncement.getStatus() === 201, 'Announcement created successfully');
+    const announcementPost = createAnnouncement.getData();
+    assert(announcementPost?.allowComments === false, 'Official Announcement strictly sets allowComments to false');
+
+    // TEST 136: Commenting on Announcement is rejected with 403
+    const commentOnAnnouncement = mockReqRes({
+      params: { postId: announcementPost.id },
+      body: { content: 'Will there be water breaking?' },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Member' }
+    });
+    commentOnPostHandler(commentOnAnnouncement.req, commentOnAnnouncement.res);
+    assert(commentOnAnnouncement.getStatus() === 403, 'Commenting on announcement is forbidden (403)');
+    assert(Boolean(commentOnAnnouncement.getData()?.error?.includes('not permitted on announcements')), 'Error explains comments not permitted on announcements');
+
+    // TEST 137: Reacting to Announcement with Amen reaction succeeds
+    const amenReaction = mockReqRes({
+      params: { postId: announcementPost.id },
+      body: { reactionType: 'amen' },
+      user: { userId: IDS.USER_SARAH }
+    });
+    reactToPostHandler(amenReaction.req, amenReaction.res);
+    assert(amenReaction.getStatus() === 200, 'Amen reaction on announcement succeeds');
+    assert(amenReaction.getData()?.likesCount === 1, 'Reaction count increments on announcement');
+
+    // TEST 138: Reacting to Announcement with non-amen/like reaction is rejected
+    const loveReaction = mockReqRes({
+      params: { postId: announcementPost.id },
+      body: { reactionType: 'praise' },
+      user: { userId: IDS.USER_SARAH }
+    });
+    reactToPostHandler(loveReaction.req, loveReaction.res);
+    assert(loveReaction.getStatus() === 400, 'Non-Amen reaction on announcement is rejected (400)');
+
+    // TEST 139: General Post with allowComments = true permits comments
+    const createGeneralPostAllowed = mockReqRes({
+      body: {
+        title: 'Community Outreach Photos',
+        content: 'Praise God for a glorious outreach today!',
+        postType: 'post',
+        allowComments: true
+      },
+      user: adminUser
+    });
+    createPostHandler(createGeneralPostAllowed.req, createGeneralPostAllowed.res);
+    assert(createGeneralPostAllowed.getStatus() === 201, 'General post created with allowComments = true');
+    const generalPostAllowed = createGeneralPostAllowed.getData();
+
+    const commentOnAllowed = mockReqRes({
+      params: { postId: generalPostAllowed.id },
+      body: { content: 'Hallelujah, glory to Jesus!' },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Member' }
+    });
+    commentOnPostHandler(commentOnAllowed.req, commentOnAllowed.res);
+    assert(commentOnAllowed.getStatus() === 201, 'Comment on allowed general post succeeds (201)');
+
+    // TEST 140: General Post with allowComments = false rejects comments
+    const createGeneralPostDisabled = mockReqRes({
+      body: {
+        title: 'Financial Integrity Report',
+        content: 'Quarterly financial summary published.',
+        postType: 'post',
+        allowComments: false
+      },
+      user: adminUser
+    });
+    createPostHandler(createGeneralPostDisabled.req, createGeneralPostDisabled.res);
+    assert(createGeneralPostDisabled.getStatus() === 201, 'General post created with allowComments = false');
+    const generalPostDisabled = createGeneralPostDisabled.getData();
+
+    const commentOnDisabled = mockReqRes({
+      params: { postId: generalPostDisabled.id },
+      body: { content: 'Where is the link to pdf?' },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Member' }
+    });
+    commentOnPostHandler(commentOnDisabled.req, commentOnDisabled.res);
+    assert(commentOnDisabled.getStatus() === 403, 'Comment on post with allowComments = false is forbidden (403)');
+    assert(Boolean(commentOnDisabled.getData()?.error?.includes('Comments are turned off')), 'Error explains comments are turned off');
+
+    // Clean up test services and posts
+    const sIdx = db.services.findIndex(s => s.id === liveSvc.id);
+    if (sIdx >= 0) db.services.splice(sIdx, 1);
+    const pIdx1 = db.posts.findIndex(p => p.id === announcementPost.id);
+    if (pIdx1 >= 0) db.posts.splice(pIdx1, 1);
+    const pIdx2 = db.posts.findIndex(p => p.id === generalPostAllowed.id);
+    if (pIdx2 >= 0) db.posts.splice(pIdx2, 1);
+    const pIdx3 = db.posts.findIndex(p => p.id === generalPostDisabled.id);
+    if (pIdx3 >= 0) db.posts.splice(pIdx3, 1);
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);

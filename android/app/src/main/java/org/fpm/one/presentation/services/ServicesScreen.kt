@@ -1,5 +1,7 @@
 package org.fpm.one.presentation.services
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +33,7 @@ import org.fpm.one.presentation.components.FpmCardSkeleton
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServicesScreen(viewModel: ServicesViewModel) {
+  val context = LocalContext.current
   val state by viewModel.state.collectAsState()
   var activeTab by remember { mutableIntStateOf(0) } // 0 = Schedule, 1 = Highlights
 
@@ -242,6 +246,46 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                       Column(horizontalAlignment = Alignment.End) {
                         Text("Attendance Timeout", fontSize = 10.sp, color = FpmTextSecondary)
                         Text("${svc.attendanceDurationHours} Hours", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
+                      }
+                    }
+
+                    if (!svc.liveStreamUrl.isNullOrBlank()) {
+                      Spacer(modifier = Modifier.height(10.dp))
+                      Surface(
+                        modifier = Modifier
+                          .fillMaxWidth()
+                          .clip(RoundedCornerShape(10.dp))
+                          .clickable {
+                            try {
+                              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(svc.liveStreamUrl))
+                              context.startActivity(intent)
+                            } catch (e: Exception) {
+                              // Ignore
+                            }
+                          },
+                        color = Color(0xFFDC2626)
+                      ) {
+                        Row(
+                          modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp, horizontal = 12.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.Center
+                        ) {
+                          Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                          )
+                          Spacer(modifier = Modifier.width(6.dp))
+                          Text(
+                            text = "Watch Service Live Online",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                          )
+                        }
                       }
                     }
                   }

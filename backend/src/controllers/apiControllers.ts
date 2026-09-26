@@ -1206,7 +1206,7 @@ export const createServiceHandler = (req: Request, res: Response) => {
       });
     }
 
-    const { branchId, name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours } = req.body;
+    const { branchId, name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, liveStreamUrl } = req.body;
     if (!branchId || !name || !dayOfWeek || !startTime || !expectedEndTime) {
       return res.status(400).json({ success: false, error: 'Branch, name, day, start time, and end time are required.' });
     }
@@ -1227,6 +1227,7 @@ export const createServiceHandler = (req: Request, res: Response) => {
       gracePeriodMinutes: gracePeriodMinutes || 15,
       earliestClockInMinutes: earliestClockInMinutes || 60,
       attendanceDurationHours: attendanceDurationHours || 4.0,
+      liveStreamUrl: liveStreamUrl ? liveStreamUrl.trim() : undefined,
       qrCodeToken: `FPM-SVC-${serviceId}`,
       status: 'active',
       createdAt: new Date().toISOString(),
@@ -1261,7 +1262,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
       return res.status(403).json({ success: false, error: 'Branch isolation violation: Cannot modify services of other branches.' });
     }
 
-    const { name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, status } = req.body;
+    const { name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, liveStreamUrl, status } = req.body;
     if (name) service.name = name;
     if (dayOfWeek) service.dayOfWeek = dayOfWeek;
     if (startTime) service.startTime = startTime;
@@ -1269,6 +1270,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
     if (gracePeriodMinutes !== undefined) service.gracePeriodMinutes = Number(gracePeriodMinutes);
     if (earliestClockInMinutes !== undefined) service.earliestClockInMinutes = Number(earliestClockInMinutes);
     if (attendanceDurationHours !== undefined) service.attendanceDurationHours = Number(attendanceDurationHours);
+    if (liveStreamUrl !== undefined) service.liveStreamUrl = liveStreamUrl ? liveStreamUrl.trim() : undefined;
     if (status) service.status = status;
     service.updatedAt = new Date().toISOString();
     persistService(service).catch(() => {});
@@ -1589,8 +1591,14 @@ export const getFeedHandler = (req: Request, res: Response) => {
 
 export const createPostHandler = (req: Request, res: Response) => {
   try {
-    const { title, content, scriptureReference, postType, visibility, branchId, mediaUrls } = req.body;
+    const { title, content, scriptureReference, postType, visibility, branchId, mediaUrls, allowComments } = req.body;
     if (!content) return res.status(400).json({ error: 'Content is required.' });
+
+    // Official announcements allow Amen reactions only, comments are disabled.
+    // General posts allow comments if permitted by admin (defaults to true).
+    const effectiveAllowComments = postType === 'announcement'
+      ? false
+      : (allowComments !== undefined ? !!allowComments : true);
 
     const newPost: PostItem = {
       id: uuidv4(),
@@ -1606,6 +1614,7 @@ export const createPostHandler = (req: Request, res: Response) => {
       likesCount: 0,
       commentsCount: 0,
       mediaUrls: mediaUrls || [],
+      allowComments: effectiveAllowComments,
       status: 'published',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1630,13 +1639,16 @@ export const updatePostHandler = (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Unauthorized to edit this post.' });
     }
 
-    const { title, content, scriptureReference, mediaUrls, isPinned, status } = req.body;
+    const { title, content, scriptureReference, mediaUrls, isPinned, status, allowComments } = req.body;
     if (title !== undefined) post.title = title;
     if (content !== undefined) post.content = content;
     if (scriptureReference !== undefined) post.scriptureReference = scriptureReference;
     if (mediaUrls !== undefined) post.mediaUrls = mediaUrls;
     if (isPinned !== undefined && isAdmin) post.isPinned = !!isPinned;
     if (status !== undefined) post.status = status;
+    if (allowComments !== undefined) {
+      post.allowComments = post.postType === 'announcement' ? false : !!allowComments;
+    }
     post.updatedAt = new Date().toISOString();
     persistPost(post).catch(() => {});
 
@@ -1697,20 +1709,29 @@ export const reactToPostHandler = (req: Request, res: Response) => {
   const post = db.posts.find(p => p.id === postId);
   if (!post) return res.status(404).json({ error: 'Post not found.' });
 
+  // Official announcements only permit Amen / like reaction
+  if (post.postType === 'announcement') {
+    if (reactionType && reactionType !== 'amen' && reactionType !== 'like') {
+      return res.status(400).json({ error: 'Only Amen reactions are permitted on official announcements.' });
+    }
+  }
+
+  const normalizedReaction = post.postType === 'announcement' ? 'amen' : (reactionType || 'like');
+
   const existingIdx = db.reactions.findIndex(r => r.postId === postId && r.userId === userId);
   if (existingIdx >= 0) {
-    if (db.reactions[existingIdx].reactionType === reactionType) {
+    if (db.reactions[existingIdx].reactionType === normalizedReaction) {
       db.reactions.splice(existingIdx, 1);
       post.likesCount = Math.max(0, post.likesCount - 1);
     } else {
-      db.reactions[existingIdx].reactionType = reactionType;
+      db.reactions[existingIdx].reactionType = normalizedReaction;
     }
   } else {
     db.reactions.push({
       id: uuidv4(),
       postId,
       userId,
-      reactionType,
+      reactionType: normalizedReaction,
       createdAt: new Date().toISOString()
     });
     post.likesCount += 1;
@@ -1725,6 +1746,14 @@ export const commentOnPostHandler = (req: Request, res: Response) => {
 
   const post = db.posts.find(p => p.id === postId);
   if (!post) return res.status(404).json({ error: 'Post not found.' });
+
+  if (post.postType === 'announcement') {
+    return res.status(403).json({ error: 'Comments are not permitted on announcements.' });
+  }
+
+  if (post.allowComments === false) {
+    return res.status(403).json({ error: 'Comments are turned off for this post.' });
+  }
 
   const newComment = {
     id: uuidv4(),

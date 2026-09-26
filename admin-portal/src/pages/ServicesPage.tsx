@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
-import { Clock, Plus, Calendar, AlertCircle, Edit2, Trash2, QrCode, Printer, Download, X } from 'lucide-react';
+import { Clock, Plus, Calendar, AlertCircle, Edit2, Trash2, QrCode, Printer, Download, X, Video, ExternalLink } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -53,6 +53,7 @@ export const ServicesPage: React.FC = () => {
     expectedEndTime: '10:30',
     gracePeriodMinutes: 15,
     attendanceDurationHours: 4.0,
+    liveStreamUrl: '',
     status: 'active'
   });
 
@@ -88,6 +89,7 @@ export const ServicesPage: React.FC = () => {
       expectedEndTime: '10:30',
       gracePeriodMinutes: 15,
       attendanceDurationHours: 4.0,
+      liveStreamUrl: '',
       status: 'active'
     });
     setCreateModalOpen(true);
@@ -103,6 +105,7 @@ export const ServicesPage: React.FC = () => {
       expectedEndTime: s.expectedEndTime?.substring(0, 5) || '10:30',
       gracePeriodMinutes: s.gracePeriodMinutes || 15,
       attendanceDurationHours: s.attendanceDurationHours || 4.0,
+      liveStreamUrl: s.liveStreamUrl || '',
       status: s.status || 'active'
     });
     setEditModalOpen(true);
@@ -122,7 +125,8 @@ export const ServicesPage: React.FC = () => {
         startTime: `${formData.startTime}:00`,
         expectedEndTime: `${formData.expectedEndTime}:00`,
         gracePeriodMinutes: Number(formData.gracePeriodMinutes),
-        attendanceDurationHours: Number(formData.attendanceDurationHours)
+        attendanceDurationHours: Number(formData.attendanceDurationHours),
+        liveStreamUrl: formData.liveStreamUrl.trim() || undefined
       });
       setCreateModalOpen(false);
       toast.success('Service schedule created successfully');
@@ -147,7 +151,8 @@ export const ServicesPage: React.FC = () => {
         startTime: `${formData.startTime}:00`,
         expectedEndTime: `${formData.expectedEndTime}:00`,
         gracePeriodMinutes: Number(formData.gracePeriodMinutes),
-        attendanceDurationHours: Number(formData.attendanceDurationHours)
+        attendanceDurationHours: Number(formData.attendanceDurationHours),
+        liveStreamUrl: formData.liveStreamUrl.trim() || undefined
       });
       setEditModalOpen(false);
       toast.success('Service schedule updated successfully');
@@ -239,6 +244,25 @@ export const ServicesPage: React.FC = () => {
                   <div className="text-xs text-slate-500 flex items-center justify-between pt-1">
                     <span>Branch: <strong className="text-slate-800">{branch?.name || 'Assigned Branch'}</strong></span>
                   </div>
+
+                  {s.liveStreamUrl && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-200/70 rounded-xl text-xs">
+                      <Video className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-rose-900 text-[11px] leading-tight">Live Stream Available</p>
+                        <p className="text-[10px] text-rose-600 truncate mt-0.5">{s.liveStreamUrl}</p>
+                      </div>
+                      <a
+                        href={s.liveStreamUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-1 bg-white hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 text-[11px] flex items-center gap-1 transition shrink-0"
+                      >
+                        <span>Open</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -376,6 +400,22 @@ export const ServicesPage: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Service Live Streaming Link (YouTube / Facebook)
+                </label>
+                <input
+                  type="url"
+                  value={formData.liveStreamUrl}
+                  onChange={e => setFormData({ ...formData, liveStreamUrl: e.target.value })}
+                  placeholder="https://youtube.com/live/... or https://facebook.com/.../live"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Members can tap this link in the mobile app to follow the service live on YouTube or Facebook.
+                </p>
+              </div>
+
               <div className="flex justify-end space-x-2 pt-2">
                 <button
                   type="button"
@@ -496,6 +536,22 @@ export const ServicesPage: React.FC = () => {
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Service Live Streaming Link (YouTube / Facebook)
+                </label>
+                <input
+                  type="url"
+                  value={formData.liveStreamUrl}
+                  onChange={e => setFormData({ ...formData, liveStreamUrl: e.target.value })}
+                  placeholder="https://youtube.com/live/... or https://facebook.com/.../live"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Members can tap this link in the mobile app to follow the service live on YouTube or Facebook.
+                </p>
               </div>
 
               <div className="flex justify-end space-x-2 pt-2">

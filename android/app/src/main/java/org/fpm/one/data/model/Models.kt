@@ -110,7 +110,8 @@ data class ServiceScheduleItem(
     val startTime: String,
     val expectedEndTime: String,
     val gracePeriodMinutes: Int = 15,
-    val attendanceDurationHours: Double = 4.0
+    val attendanceDurationHours: Double = 4.0,
+    val liveStreamUrl: String? = null
 )
 
 @Serializable
@@ -163,7 +164,23 @@ data class PostItem(
     val commentsCount: Int = 0,
     val mediaUrls: List<String> = emptyList(),
     val userReaction: String? = null,
+    val allowComments: Boolean = true,
     val createdAt: String
+)
+
+@Serializable
+data class CommentItem(
+    val id: String,
+    val postId: String,
+    val userId: String,
+    val userName: String,
+    val content: String,
+    val createdAt: String
+)
+
+@Serializable
+data class CreateCommentRequest(
+    val content: String
 )
 
 @Serializable

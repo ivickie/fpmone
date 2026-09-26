@@ -125,6 +125,7 @@ export interface ServiceSchedule {
   attendanceDurationHours: number; // default 4.0
   applicableDepartmentIds?: string[];
   qrCodeToken?: string;
+  liveStreamUrl?: string; // e.g. YouTube Live or Facebook Live stream URL
   status: 'active' | 'inactive' | 'archived';
   createdAt: string;
   updatedAt: string;
@@ -199,6 +200,7 @@ export interface PostItem {
   likesCount: number;
   commentsCount: number;
   mediaUrls: string[];
+  allowComments?: boolean; // Allowed on General Posts if permitted by admin; false for announcements
   status?: 'published' | 'draft' | 'archived';
   createdAt: string;
   updatedAt: string;

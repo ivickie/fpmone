@@ -60,4 +60,21 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
       loadHomeData()
     }
   }
+
+  fun submitComment(postId: String, content: String, onComplete: (Boolean, String?) -> Unit) {
+    if (content.isBlank()) {
+      onComplete(false, "Comment cannot be empty")
+      return
+    }
+    viewModelScope.launch {
+      val res = repository.commentOnPost(postId, content.trim())
+      if (res.isSuccess) {
+        loadHomeData()
+        onComplete(true, null)
+      } else {
+        val errMsg = res.exceptionOrNull()?.message ?: "Failed to post comment"
+        onComplete(false, errMsg)
+      }
+    }
+  }
 }

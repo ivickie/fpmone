@@ -11,6 +11,12 @@ import {
  */
 export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
   try {
+    // Non-destructive schema migrations for newly introduced fields
+    await query(`
+      ALTER TABLE services ADD COLUMN IF NOT EXISTS live_stream_url TEXT;
+      ALTER TABLE posts ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN DEFAULT TRUE;
+    `).catch((err: any) => console.warn('[DB SCHEMA MIGRATION]', err.message));
+
     const [
       branchesRes,
       rolesRes,
@@ -182,6 +188,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         gracePeriodMinutes: r.grace_period_minutes,
         earliestClockInMinutes: r.earliest_clock_in_minutes,
         attendanceDurationHours: Number(r.attendance_duration_hours) || 4.0,
+        liveStreamUrl: r.live_stream_url || undefined,
         status: r.status,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
@@ -264,6 +271,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         isPinned: !!r.is_pinned,
         likesCount: r.likes_count || 0,
         commentsCount: r.comments_count || 0,
+        allowComments: r.allow_comments !== undefined && r.allow_comments !== null ? !!r.allow_comments : (r.post_type !== 'announcement'),
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
       }));
@@ -602,8 +610,8 @@ export async function persistService(service: ServiceSchedule): Promise<void> {
   if (!isUuid(service.id) || !isUuid(service.branchId)) return;
   try {
     await query(`
-      INSERT INTO services (id, branch_id, name, day_of_week, start_time, expected_end_time, grace_period_minutes, earliest_clock_in_minutes, attendance_duration_hours, status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO services (id, branch_id, name, day_of_week, start_time, expected_end_time, grace_period_minutes, earliest_clock_in_minutes, attendance_duration_hours, live_stream_url, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         day_of_week = EXCLUDED.day_of_week,
@@ -612,13 +620,14 @@ export async function persistService(service: ServiceSchedule): Promise<void> {
         grace_period_minutes = EXCLUDED.grace_period_minutes,
         earliest_clock_in_minutes = EXCLUDED.earliest_clock_in_minutes,
         attendance_duration_hours = EXCLUDED.attendance_duration_hours,
+        live_stream_url = EXCLUDED.live_stream_url,
         status = EXCLUDED.status,
         updated_at = EXCLUDED.updated_at
     `, [
       service.id, service.branchId, service.name, service.dayOfWeek,
       service.startTime, service.expectedEndTime, service.gracePeriodMinutes,
       service.earliestClockInMinutes, service.attendanceDurationHours,
-      service.status, service.createdAt, service.updatedAt
+      service.liveStreamUrl || null, service.status, service.createdAt, service.updatedAt
     ]);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: services] ${err.message}`);
@@ -698,10 +707,11 @@ export async function persistPost(post: PostItem): Promise<void> {
   const authorId = isUuid(post.authorId) ? post.authorId : 'c1111111-1111-1111-1111-111111111111';
   const branchId = isUuid(post.branchId) ? post.branchId : null;
   const deptId = isUuid(post.departmentId) ? post.departmentId : null;
+  const allowComments = post.allowComments !== undefined ? post.allowComments : (post.postType !== 'announcement');
   try {
     await query(`
-      INSERT INTO posts (id, author_id, author_name, branch_id, department_id, visibility, title, content, scripture_reference, post_type, is_pinned, likes_count, comments_count, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO posts (id, author_id, author_name, branch_id, department_id, visibility, title, content, scripture_reference, post_type, is_pinned, likes_count, comments_count, allow_comments, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       ON CONFLICT (id) DO UPDATE SET
         author_name = EXCLUDED.author_name,
         branch_id = EXCLUDED.branch_id,
@@ -712,13 +722,14 @@ export async function persistPost(post: PostItem): Promise<void> {
         is_pinned = EXCLUDED.is_pinned,
         likes_count = EXCLUDED.likes_count,
         comments_count = EXCLUDED.comments_count,
+        allow_comments = EXCLUDED.allow_comments,
         updated_at = EXCLUDED.updated_at
     `, [
       post.id, authorId, post.authorName, branchId,
       deptId, post.visibility, post.title || null,
       post.content, post.scriptureReference || null, post.postType,
       post.isPinned, post.likesCount, post.commentsCount,
-      post.createdAt, post.updatedAt
+      allowComments, post.createdAt, post.updatedAt
     ]);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: posts] ${err.message}`);

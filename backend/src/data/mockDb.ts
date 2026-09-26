@@ -600,6 +600,7 @@ export class DatabaseStore {
       gracePeriodMinutes: 15,
       earliestClockInMinutes: 60,
       attendanceDurationHours: 4.0,
+      liveStreamUrl: 'https://www.youtube.com/live/fpmcathedral',
       status: 'active',
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
@@ -832,6 +833,7 @@ export class DatabaseStore {
       likesCount: 84,
       commentsCount: 16,
       mediaUrls: ['https://images.unsplash.com/photo-1544427920-c49ccfb85579?w=800'],
+      allowComments: false,
       createdAt: '2026-09-01T06:00:00Z',
       updatedAt: '2026-09-01T06:00:00Z'
     },
@@ -849,6 +851,7 @@ export class DatabaseStore {
       likesCount: 52,
       commentsCount: 9,
       mediaUrls: [],
+      allowComments: true,
       createdAt: '2026-09-05T12:00:00Z',
       updatedAt: '2026-09-05T12:00:00Z'
     }

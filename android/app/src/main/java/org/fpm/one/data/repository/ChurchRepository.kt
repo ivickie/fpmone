@@ -91,7 +91,7 @@ class ChurchRepository {
 
   suspend fun commentOnPost(postId: String, content: String): Result<Boolean> = withContext(Dispatchers.IO) {
     try {
-      val payload = """{"content":"$content"}"""
+      val payload = ApiClient.json.encodeToString(CreateCommentRequest.serializer(), CreateCommentRequest(content))
       ApiClient.post("/feed/$postId/comment", payload)
       Result.success(true)
     } catch (e: Exception) {

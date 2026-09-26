@@ -1,5 +1,7 @@
 package org.fpm.one.presentation.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.fpm.one.R
 import org.fpm.one.core.theme.*
+import org.fpm.one.data.model.PostItem
 import org.fpm.one.data.model.UserSession
 import org.fpm.one.presentation.components.*
 
@@ -40,7 +44,12 @@ fun HomeScreen(
   onNavigateToNotifications: () -> Unit,
   onOpenWorkerHub: () -> Unit
 ) {
+  val context = LocalContext.current
   val state by viewModel.state.collectAsState()
+  var activeCommentPost by remember { mutableStateOf<PostItem?>(null) }
+  var commentInputText by remember { mutableStateOf("") }
+  var isSubmittingComment by remember { mutableStateOf(false) }
+  var commentErrorMessage by remember { mutableStateOf<String?>(null) }
 
   Column(
     modifier = Modifier
@@ -178,72 +187,7 @@ fun HomeScreen(
           contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
           verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-          // 2. Quick Action Chips
-          item {
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-              Surface(
-                modifier = Modifier
-                  .clip(RoundedCornerShape(20.dp))
-                  .clickable(onClick = onNavigateToServices),
-                color = FpmSurfaceWhite,
-                border = androidx.compose.foundation.BorderStroke(1.dp, FpmBorderLight),
-                shadowElevation = 0.5.dp
-              ) {
-                Row(
-                  modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                  Icon(Icons.Default.Church, contentDescription = null, tint = FpmRoyalBlue, modifier = Modifier.size(16.dp))
-                  Text("Church Services", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
-                }
-              }
-
-              if (currentUser?.isWorker == true) {
-                Surface(
-                  modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .clickable(onClick = onOpenWorkerHub),
-                  color = FpmNavyDark,
-                  shadowElevation = 0.5.dp
-                ) {
-                  Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                  ) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = FpmGoldLight, modifier = Modifier.size(16.dp))
-                    Text("Worker Clock-In", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmSurfaceWhite)
-                  }
-                }
-              }
-
-              Surface(
-                modifier = Modifier
-                  .clip(RoundedCornerShape(20.dp))
-                  .clickable(onClick = onNavigateToNotifications),
-                color = FpmSurfaceWhite,
-                border = androidx.compose.foundation.BorderStroke(1.dp, FpmBorderLight),
-                shadowElevation = 0.5.dp
-              ) {
-                Row(
-                  modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                  Icon(Icons.Default.Campaign, contentDescription = null, tint = FpmGold, modifier = Modifier.size(16.dp))
-                  Text("Broadcasts", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
-                }
-              }
-            }
-          }
-
-          // 3. Upcoming Service Hero Card
+          // 2. Upcoming Service Hero Card
           if (state.nextService != null) {
             item {
               val svc = state.nextService!!
@@ -347,6 +291,42 @@ fun HomeScreen(
                         fontSize = 11.sp,
                         color = Color(0xFFE2E8F0)
                       )
+                    }
+
+                    if (!svc.liveStreamUrl.isNullOrBlank()) {
+                      Spacer(modifier = Modifier.height(12.dp))
+                      Surface(
+                        modifier = Modifier
+                          .clip(RoundedCornerShape(8.dp))
+                          .clickable {
+                            try {
+                              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(svc.liveStreamUrl))
+                              context.startActivity(intent)
+                            } catch (e: Exception) {
+                              // Ignore if no browser / app found
+                            }
+                          },
+                        color = Color(0xFFDC2626)
+                      ) {
+                        Row(
+                          modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                          Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                          )
+                          Text(
+                            text = "Watch Live Online",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                          )
+                        }
+                      }
                     }
                   }
                 }
@@ -573,7 +553,10 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                  horizontalArrangement = Arrangement.spacedBy(12.dp),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
                   TextButton(
                     onClick = { viewModel.reactToPost(post.id, "amen") },
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
@@ -583,13 +566,30 @@ fun HomeScreen(
                     Text(text = "Amen (${post.likesCount})", fontSize = 12.sp, color = FpmRoyalBlue, fontWeight = FontWeight.Bold)
                   }
 
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                  ) {
-                    Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = FpmTextSecondary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "${post.commentsCount} Comments", fontSize = 11.sp, color = FpmTextSecondary)
+                  if (post.postType != "announcement") {
+                    if (post.allowComments) {
+                      TextButton(
+                        onClick = {
+                          activeCommentPost = post
+                          commentInputText = ""
+                          commentErrorMessage = null
+                        },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                      ) {
+                        Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = FpmTextSecondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Comment (${post.commentsCount})", fontSize = 12.sp, color = FpmTextSecondary, fontWeight = FontWeight.Medium)
+                      }
+                    } else {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                      ) {
+                        Icon(Icons.Default.CommentsDisabled, contentDescription = null, tint = FpmTextSecondary.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Comments turned off", fontSize = 11.sp, color = FpmTextSecondary.copy(alpha = 0.6f), fontStyle = FontStyle.Italic)
+                      }
+                    }
                   }
                 }
               }
@@ -598,5 +598,96 @@ fun HomeScreen(
         }
       }
     }
+  }
+
+  // Comment Dialog
+  if (activeCommentPost != null) {
+    val post = activeCommentPost!!
+    AlertDialog(
+      onDismissRequest = {
+        if (!isSubmittingComment) {
+          activeCommentPost = null
+          commentInputText = ""
+          commentErrorMessage = null
+        }
+      },
+      title = {
+        Column {
+          Text("Add Comment", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
+          Text(
+            text = "To: ${post.title ?: post.authorName}",
+            fontSize = 12.sp,
+            color = FpmTextSecondary,
+            maxLines = 1
+          )
+        }
+      },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          OutlinedTextField(
+            value = commentInputText,
+            onValueChange = {
+              commentInputText = it
+              if (commentErrorMessage != null) commentErrorMessage = null
+            },
+            placeholder = { Text("Write your comment...", fontSize = 13.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 4,
+            enabled = !isSubmittingComment
+          )
+          if (commentErrorMessage != null) {
+            Text(
+              text = commentErrorMessage!!,
+              color = Color.Red,
+              fontSize = 12.sp
+            )
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            if (commentInputText.isBlank()) return@Button
+            isSubmittingComment = true
+            commentErrorMessage = null
+            viewModel.submitComment(post.id, commentInputText) { success, err ->
+              isSubmittingComment = false
+              if (success) {
+                activeCommentPost = null
+                commentInputText = ""
+              } else {
+                commentErrorMessage = err ?: "Failed to post comment"
+              }
+            }
+          },
+          enabled = !isSubmittingComment && commentInputText.isNotBlank(),
+          colors = ButtonDefaults.buttonColors(containerColor = FpmRoyalBlue)
+        ) {
+          if (isSubmittingComment) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(16.dp),
+              color = Color.White,
+              strokeWidth = 2.dp
+            )
+          } else {
+            Text("Post Comment", fontWeight = FontWeight.Bold)
+          }
+        }
+      },
+      dismissButton = {
+        TextButton(
+          onClick = {
+            activeCommentPost = null
+            commentInputText = ""
+            commentErrorMessage = null
+          },
+          enabled = !isSubmittingComment
+        ) {
+          Text("Cancel", color = FpmTextSecondary)
+        }
+      },
+      containerColor = Color.White,
+      shape = RoundedCornerShape(16.dp)
+    )
   }
 }

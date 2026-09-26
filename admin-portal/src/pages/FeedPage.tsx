@@ -28,7 +28,8 @@ export const FeedPage: React.FC = () => {
     postType: 'announcement',
     visibility: 'all',
     mediaUrl: '',
-    isPinned: false
+    isPinned: false,
+    allowComments: true
   });
 
   const fetchFeed = async () => {
@@ -55,7 +56,8 @@ export const FeedPage: React.FC = () => {
       postType: 'announcement',
       visibility: 'all',
       mediaUrl: '',
-      isPinned: false
+      isPinned: false,
+      allowComments: true
     });
     setModalOpen(true);
   };
@@ -69,7 +71,8 @@ export const FeedPage: React.FC = () => {
       postType: p.postType || 'post',
       visibility: p.visibility || 'all',
       mediaUrl: p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls[0] : '',
-      isPinned: !!p.isPinned
+      isPinned: !!p.isPinned,
+      allowComments: p.allowComments !== undefined ? !!p.allowComments : (p.postType !== 'announcement')
     });
     setEditModalOpen(true);
   };
@@ -90,7 +93,8 @@ export const FeedPage: React.FC = () => {
         postType: formData.postType,
         visibility: formData.visibility,
         branchId: selectedBranchId || undefined,
-        mediaUrls: formData.mediaUrl ? [formData.mediaUrl] : []
+        mediaUrls: formData.mediaUrl ? [formData.mediaUrl] : [],
+        allowComments: formData.postType === 'announcement' ? false : formData.allowComments
       });
       setModalOpen(false);
       toast.success('Post published successfully');
@@ -112,7 +116,8 @@ export const FeedPage: React.FC = () => {
         content: formData.content,
         scriptureReference: formData.scriptureReference || undefined,
         isPinned: formData.isPinned,
-        mediaUrls: formData.mediaUrl ? [formData.mediaUrl] : []
+        mediaUrls: formData.mediaUrl ? [formData.mediaUrl] : [],
+        allowComments: formData.postType === 'announcement' ? false : formData.allowComments
       });
       setEditModalOpen(false);
       toast.success('Post updated successfully');
@@ -206,15 +211,28 @@ export const FeedPage: React.FC = () => {
               )}
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
                   <span className="flex items-center space-x-1.5 font-semibold text-slate-700">
                     <ThumbsUp className="w-4 h-4 text-blue-600" />
-                    <span>{p.likesCount} Reactions</span>
+                    <span>{p.likesCount} {p.postType === 'announcement' ? 'Amen' : 'Reactions'}</span>
                   </span>
                   <span className="flex items-center space-x-1.5 font-semibold text-slate-700">
                     <MessageSquare className="w-4 h-4 text-slate-500" />
                     <span>{p.commentsCount} Comments</span>
                   </span>
+                  {p.postType === 'announcement' ? (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Amen Only
+                    </span>
+                  ) : p.allowComments === false ? (
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                      Comments Off
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                      Comments Enabled
+                    </span>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -316,6 +334,28 @@ export const FeedPage: React.FC = () => {
                 />
               </div>
 
+              {formData.postType === 'announcement' ? (
+                <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Official Announcement Policy:</span> Members can react with <strong>Amen</strong> only. Member comments are automatically disabled.
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="createAllowComments"
+                    checked={formData.allowComments}
+                    onChange={e => setFormData({ ...formData, allowComments: e.target.checked })}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="createAllowComments" className="font-semibold text-slate-700 cursor-pointer">
+                    Allow members to comment on this post
+                  </label>
+                </div>
+              )}
+
               <div className="flex justify-end space-x-2 pt-2">
                 <button
                   type="button"
@@ -395,6 +435,28 @@ export const FeedPage: React.FC = () => {
                   Pin this post to the top of church feed
                 </label>
               </div>
+
+              {formData.postType === 'announcement' ? (
+                <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Official Announcement Policy:</span> Members can react with <strong>Amen</strong> only. Member comments are automatically disabled.
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="editAllowComments"
+                    checked={formData.allowComments}
+                    onChange={e => setFormData({ ...formData, allowComments: e.target.checked })}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="editAllowComments" className="font-semibold text-slate-700 cursor-pointer">
+                    Allow members to comment on this post
+                  </label>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-2 pt-2">
                 <button
