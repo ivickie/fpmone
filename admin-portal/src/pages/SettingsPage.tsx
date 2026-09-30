@@ -189,7 +189,7 @@ export const SettingsPage: React.FC = () => {
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
             <span className="text-[10px] font-bold text-slate-400 uppercase block">API Engine</span>
             <span className="font-bold text-slate-800">Node / TypeScript REST API</span>
-            <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Online • localhost:5000</p>
+            <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Online • FPM REST Engine</p>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">

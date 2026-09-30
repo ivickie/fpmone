@@ -15,6 +15,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust reverse proxy (Vercel, Nginx) for protocol, host, and client IP
+app.set('trust proxy', 1);
+
 // Security Headers Middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -82,13 +85,17 @@ app.use(cors({
     if (!origin || process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    // Allow any local network IP (192.168.x.x, 10.x.x.x, 172.x.x.x, localhost)
-    if (
-      allowedOrigins.includes(origin) ||
-      /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)
-    ) {
-      return callback(null, true);
-    }
+    try {
+      const hostname = new URL(origin).hostname;
+      // Allow configured origins, Vercel deployments, and local LAN addresses
+      if (
+        allowedOrigins.includes(origin) ||
+        hostname.endsWith('.vercel.app') ||
+        /^localhost$|^127\.0\.0\.1$|^192\.168\.\d+\.\d+$|^10\.\d+\.\d+\.\d+$|^172\.\d+\.\d+\.\d+$/.test(hostname)
+      ) {
+        return callback(null, true);
+      }
+    } catch (_) {}
     callback(new Error('Blocked by CORS policy'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -149,33 +156,49 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// Automatic 4-hour clock-out cron worker (runs every 10 minutes)
-setInterval(() => {
-  try {
-    const expiredCount = AttendanceService.autoClockOutExpiredSessions();
-    if (expiredCount > 0) {
-      console.log(`[BACKGROUND CRON] Automatically clocked out ${expiredCount} expired session(s).`);
+// Automatic 4-hour clock-out cron worker (runs in persistent standalone server environment)
+if (!process.env.VERCEL) {
+  setInterval(() => {
+    try {
+      const expiredCount = AttendanceService.autoClockOutExpiredSessions();
+      if (expiredCount > 0) {
+        console.log(`[BACKGROUND CRON] Automatically clocked out ${expiredCount} expired session(s).`);
+      }
+    } catch (err) {
+      console.error('[BACKGROUND CRON ERROR]', err);
     }
-  } catch (err) {
-    console.error('[BACKGROUND CRON ERROR]', err);
-  }
-}, 10 * 60 * 1000);
+  }, 10 * 60 * 1000);
+}
 
-export const server = app.listen(Number(PORT), '0.0.0.0', async () => {
-  console.log(`=======================================================`);
-  console.log(`  FAITH PREACHERS MINISTRIES INT'L - FPM GLOBAL API SERVER`);
-  console.log(`  Running on: http://0.0.0.0:${PORT}`);
-  console.log(`  LAN URL:    http://10.164.108.241:${PORT}`);
-  console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`=======================================================`);
-  DiscoveryService.start(5001, Number(PORT));
-
-  // Initialize and hydrate state from Supabase PostgreSQL
-  try {
-    await db.initFromPostgres();
-  } catch (err: any) {
-    console.warn('[SERVER] Initial Supabase PostgreSQL hydration warning:', err.message);
+// Ensure DB state is hydrated from Supabase PostgreSQL (handles serverless cold starts & standalone boots)
+let dbHydrationPromise: Promise<boolean> | null = null;
+export const ensureDbHydrated = (): Promise<boolean> => {
+  if (!dbHydrationPromise) {
+    dbHydrationPromise = db.initFromPostgres().catch((err: any) => {
+      console.warn('[SERVER] Supabase PostgreSQL hydration warning:', err.message);
+      return false;
+    });
   }
+  return dbHydrationPromise;
+};
+
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  await ensureDbHydrated();
+  next();
 });
+
+export let server: any;
+if (!process.env.VERCEL) {
+  server = app.listen(Number(PORT), '0.0.0.0', async () => {
+    console.log(`=======================================================`);
+    console.log(`  FAITH PREACHERS MINISTRIES INT'L - FPM GLOBAL API SERVER`);
+    console.log(`  Running on: http://0.0.0.0:${PORT}`);
+    console.log(`  LAN URL:    http://10.164.108.241:${PORT}`);
+    console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`=======================================================`);
+    DiscoveryService.start(5001, Number(PORT));
+    await ensureDbHydrated();
+  });
+}
 
 export default app;

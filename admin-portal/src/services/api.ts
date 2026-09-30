@@ -1,7 +1,18 @@
-const API_HOST = typeof window !== 'undefined' && window.location.hostname
-  ? window.location.hostname
-  : '192.168.1.234';
-const API_BASE = `http://${API_HOST}:5000/api`;
+const getApiBase = (): string => {
+  if (import.meta.env.VITE_API_URL) {
+    return (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    // If accessed directly via mobile on LAN port 3000 without proxy
+    if (window.location.port === '3000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return `http://${window.location.hostname}:5000/api`;
+    }
+    return '/api';
+  }
+  return '/api';
+};
+
+export const API_BASE = getApiBase();
 
 export const getAuthToken = () => localStorage.getItem('fpm_admin_token');
 export const setAuthToken = (token: string) => localStorage.setItem('fpm_admin_token', token);

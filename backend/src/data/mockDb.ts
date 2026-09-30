@@ -109,7 +109,7 @@ export class DatabaseStore {
       email: 'hq@faithpreachers.org',
       branchPastorName: 'Pastor David Adeleke',
       branchPastorId: IDS.USER_PASTOR,
-      logoUrl: 'http://localhost:5000/assets/church-logo.png',
+      logoUrl: '/church-logo.png',
       status: 'active',
       isHeadquarters: true,
       createdAt: '2024-01-01T00:00:00Z',

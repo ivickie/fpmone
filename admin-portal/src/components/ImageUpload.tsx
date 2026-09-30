@@ -59,15 +59,17 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     if (url.startsWith('blob:') || url.startsWith('data:')) {
       return url;
     }
-    const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
-    if (url.includes('/uploads/')) {
-      const idx = url.indexOf('/uploads/');
-      return `http://${host}:5000${url.substring(idx)}`;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
     }
-    if (url.startsWith('/')) {
-      return `http://${host}:5000${url}`;
+    if (typeof window !== 'undefined') {
+      if (window.location.port === '3000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        const host = window.location.hostname;
+        const normalized = url.startsWith('/') ? url : `/${url}`;
+        return `http://${host}:5000${normalized}`;
+      }
     }
-    return url;
+    return url.startsWith('/') ? url : `/${url}`;
   };
 
   const handleFileSelect = async (file: File) => {
