@@ -85,14 +85,14 @@ fun MainScreen(
             Surface(
               color = FpmSurfaceWhite,
               shadowElevation = 8.dp,
-              border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmBorderLight)
+              border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmBorderSubtle)
             ) {
               NavigationBar(
                 containerColor = FpmSurfaceWhite,
                 tonalElevation = 0.dp,
                 modifier = Modifier
-                  .height(80.dp)
-                  .padding(top = 10.dp, bottom = 6.dp)
+                  .height(72.dp)
+                  .padding(top = 6.dp, bottom = 4.dp)
               ) {
                 tabs.forEach { tab ->
                   val isSelected = selectedTab == tab
@@ -101,7 +101,7 @@ fun MainScreen(
                       Icon(
                         imageVector = tab.icon,
                         contentDescription = tab.title,
-                        tint = if (isSelected) FpmCrimson else FpmTextSecondary
+                        tint = if (isSelected) FpmNavyDark else FpmTextMuted
                       )
                     },
                     label = {
@@ -109,17 +109,17 @@ fun MainScreen(
                         text = tab.title,
                         fontSize = 10.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) FpmCrimson else FpmTextSecondary
+                        color = if (isSelected) FpmNavyDark else FpmTextMuted
                       )
                     },
                     selected = isSelected,
                     onClick = { selectedTab = tab },
                     colors = NavigationBarItemDefaults.colors(
-                      indicatorColor = FpmCrimson.copy(alpha = 0.1f),
-                      selectedIconColor = FpmCrimson,
-                      selectedTextColor = FpmCrimson,
-                      unselectedIconColor = FpmTextSecondary,
-                      unselectedTextColor = FpmTextSecondary
+                      indicatorColor = FpmGoldSubtle,
+                      selectedIconColor = FpmNavyDark,
+                      selectedTextColor = FpmNavyDark,
+                      unselectedIconColor = FpmTextMuted,
+                      unselectedTextColor = FpmTextMuted
                     )
                   )
                 }

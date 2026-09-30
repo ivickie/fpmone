@@ -27,7 +27,7 @@ export interface UploadFileOptions {
 export class StorageService {
   private static bucketName = 'fpm-media';
   private static supabase: SupabaseClient | null = null;
-  private static allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  private static allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
   private static maxFileSizeBytes = 10 * 1024 * 1024; // 10 MB max ceiling
 
   private static getClient(): SupabaseClient | null {
@@ -85,6 +85,25 @@ export class StorageService {
       return;
     }
 
+    if (entityType === 'sunday-moment') {
+      // Branch members and workers can upload Sunday moments for their own branch
+      if (branchId && userBranchId && branchId !== userBranchId && adminLevel !== 'super_admin') {
+        throw new Error('Branch isolation violation: You can only upload Sunday moments for your assigned branch.');
+      }
+      return;
+    }
+
+    // Branch cover photo requires administrator privileges
+    if (entityType === 'branch') {
+      if (adminLevel !== 'super_admin' && adminLevel !== 'branch_admin') {
+        throw new Error('Unauthorized. Only administrators can upload church branch images.');
+      }
+      if (adminLevel === 'branch_admin' && branchId && userBranchId && branchId !== userBranchId) {
+        throw new Error('Branch isolation violation: You can only upload images for your assigned branch.');
+      }
+      return;
+    }
+
     // Official church entities require admin or authorized role
     if (adminLevel === 'branch_admin') {
       if (branchId && userBranchId && branchId !== userBranchId) {
@@ -121,6 +140,10 @@ export class StorageService {
         return `profiles/${eId}/${file}`;
       case 'church-asset':
         return `church-assets/${bId}/${file}`;
+      case 'branch':
+        return `branch-assets/${bId}/cover/${file}`;
+      case 'sunday-moment':
+        return `sunday-moments/${bId}/${file}`;
       default:
         return `general/${bId}/${file}`;
     }
@@ -135,7 +158,7 @@ export class StorageService {
 
     // 2. MIME type validation
     if (!this.allowedMimeTypes.includes(options.mimeType.toLowerCase())) {
-      throw new Error(`Invalid file type: ${options.mimeType}. Only JPEG, PNG, and WEBP images are supported.`);
+      throw new Error(`Invalid file type: ${options.mimeType}. Only JPEG, PNG, and WEBP images are supported (along with MP4 and WebM videos).`);
     }
 
     // 3. File size limit validation

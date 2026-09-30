@@ -18,8 +18,26 @@ import {
   broadcastNotificationHandler,
   createPostHandler,
   commentOnPostHandler,
-  reactToPostHandler
+  reactToPostHandler,
+  getSundayMomentsHandler,
+  createSundayMomentHandler,
+  deleteSundayMomentHandler,
+  getFinanceCategoriesHandler,
+  getFinanceDashboardHandler,
+  getFinanceTransactionsHandler,
+  getFinanceTransactionByIdHandler,
+  createFinanceTransactionHandler,
+  updateFinanceTransactionHandler,
+  voidFinanceTransactionHandler,
+  getFinanceOpeningBalanceHandler,
+  setFinanceOpeningBalanceHandler,
+  getFinanceMonthlyStatementHandler,
+  getFinanceAnnualStatementHandler,
+  getFinanceCategoryAnalysisHandler,
+  exportFinanceReportHandler
 } from './controllers/apiControllers';
+import { FinanceService } from './services/financeService';
+import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from './data/mockDb';
 
 async function runTests() {
   console.log('====================================================');
@@ -1454,6 +1472,465 @@ async function runTests() {
     if (pIdx2 >= 0) db.posts.splice(pIdx2, 1);
     const pIdx3 = db.posts.findIndex(p => p.id === generalPostDisabled.id);
     if (pIdx3 >= 0) db.posts.splice(pIdx3, 1);
+
+    // --- 18. Branch Cover Image & Sunday Moments Tests ---
+    console.log('\n--- 18. Branch Cover Image & Sunday Moments Tests ---');
+    
+    // Test 1: Admin can update branch coverImageUrl
+    const updateBranchCover = mockReqRes({
+      params: { id: IDS.BRANCH_HQ },
+      body: { coverImageUrl: 'http://localhost:5000/uploads/fpm-media/branch-assets/b1111111/cover/cathedral-hq.webp' },
+      user: adminUser
+    });
+    updateBranchHandler(updateBranchCover.req, updateBranchCover.res);
+    assert(updateBranchCover.getStatus() === 200, 'Admin can update branch cover image');
+    assert(db.branches.find(b => b.id === IDS.BRANCH_HQ)?.coverImageUrl?.includes('cathedral-hq.webp') === true, 'Branch coverImageUrl updated in database');
+
+    // Test 2: Unauthorized member cannot edit branch
+    const memberEditBranch = mockReqRes({
+      params: { id: IDS.BRANCH_HQ },
+      body: { coverImageUrl: 'http://evil.com/fake.jpg' },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Worker', adminLevel: 'none', roleName: 'Worker', branchId: IDS.BRANCH_HQ }
+    });
+    updateBranchHandler(memberEditBranch.req, memberEditBranch.res);
+    assert(memberEditBranch.getStatus() === 403, 'Unauthorized user cannot modify branch cover image (403)');
+
+    // Test 3: Member of Branch HQ can upload Sunday Moment for Branch HQ
+    const createMomentSuccess = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/hq-praise.jpg',
+        caption: 'Joyful Sunday praise and worship at Cathedral of Grace!',
+        sundayDate: '2026-09-27'
+      },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Williams', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
+    });
+    await createSundayMomentHandler(createMomentSuccess.req, createMomentSuccess.res);
+    assert(createMomentSuccess.getStatus() === 201, 'Member can upload a Sunday Moment for their assigned branch');
+    const createdMoment = createMomentSuccess.getData();
+    assert(createdMoment?.branchId === IDS.BRANCH_HQ, 'Created Sunday moment has correct branchId');
+    assert(createdMoment?.sundayDate === '2026-09-27', 'Created Sunday moment has correct sundayDate');
+
+    // Test 4: Member of Branch HQ CANNOT upload to Lekki Branch
+    const crossBranchMoment = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_LEKKI,
+        mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/cross-branch.jpg',
+        caption: 'Attempting to inject into Lekki'
+      },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Williams', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
+    });
+    await createSundayMomentHandler(crossBranchMoment.req, crossBranchMoment.res);
+    assert(crossBranchMoment.getStatus() === 403, 'Member cannot upload a Sunday moment to another branch (403)');
+
+    // Test 5: Gallery filters correctly by branch and sundayDate
+    const listHqMoments = mockReqRes({
+      query: { branchId: IDS.BRANCH_HQ, sundayDate: '2026-09-27' },
+      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    });
+    getSundayMomentsHandler(listHqMoments.req, listHqMoments.res);
+    assert(listHqMoments.getStatus() === 200, 'Gallery retrieves moments for branch and date');
+    const hqMoments = listHqMoments.getData();
+    assert(Array.isArray(hqMoments) && hqMoments.length >= 1, 'Gallery returns matching approved moments');
+
+    const listLekkiMoments = mockReqRes({
+      query: { branchId: IDS.BRANCH_LEKKI },
+      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    });
+    getSundayMomentsHandler(listLekkiMoments.req, listLekkiMoments.res);
+    assert(listLekkiMoments.getStatus() === 200, 'Gallery handles empty branch correctly');
+    assert(Array.isArray(listLekkiMoments.getData()) && listLekkiMoments.getData().length === 0, 'No unrelated moments returned for Lekki');
+
+    // Test 6: Member cannot delete another member's Sunday Moment
+    const unauthorizedDelete = mockReqRes({
+      params: { id: createdMoment.id },
+      user: { userId: IDS.USER_JOHN, fullName: 'John Mensah', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
+    });
+    await deleteSundayMomentHandler(unauthorizedDelete.req, unauthorizedDelete.res);
+    assert(unauthorizedDelete.getStatus() === 403, 'Member cannot delete another members media upload (403)');
+
+    // Test 7: Owner can delete their own Sunday Moment
+    const ownerDelete = mockReqRes({
+      params: { id: createdMoment.id },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Williams', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
+    });
+    await deleteSundayMomentHandler(ownerDelete.req, ownerDelete.res);
+    assert(ownerDelete.getStatus() === 200, 'Owner can delete their own Sunday Moment');
+    assert(db.sundayMoments.some(m => m.id === createdMoment.id) === false, 'Sunday moment successfully removed from store');
+
+    // =========================================================================
+    // SECTION 12: FINANCE MODULE TESTS
+    // =========================================================================
+    console.log('\n--- 12. Finance Module & Authoritative Ledger Engine ---');
+
+    // Setup Test Users
+    const superAdminUser = {
+      userId: IDS.USER_ADMIN,
+      fullName: 'Ezekiel Adeyemi',
+      email: 'admin@fpmchurch.org',
+      roleCode: 'SUPER_ADMIN',
+      roleName: 'Senior Pastor',
+      adminLevel: 'super_admin',
+      branchId: IDS.BRANCH_HQ,
+      branchName: 'Cathedral of Grace (HQ)'
+    };
+
+    const branchPastorUser = {
+      userId: 'user-bp-lekki',
+      fullName: 'Pastor John Lekki',
+      email: 'pastor.lekki@fpmchurch.org',
+      roleCode: 'BRANCH_PASTOR',
+      roleName: 'Branch Pastor',
+      adminLevel: 'branch_admin',
+      branchId: IDS.BRANCH_LEKKI,
+      branchName: 'Lekki City of Light'
+    };
+
+    const churchAdminUser = {
+      userId: 'user-ca-hq',
+      fullName: 'HQ Admin Brother',
+      email: 'hq.admin@fpmchurch.org',
+      roleCode: 'BRANCH_ADMIN',
+      roleName: 'Church Administrator',
+      adminLevel: 'church_admin',
+      branchId: IDS.BRANCH_HQ,
+      branchName: 'Cathedral of Grace (HQ)'
+    };
+
+    const unauthorizedWorkerUser = {
+      userId: IDS.USER_SARAH,
+      fullName: 'Sarah Williams',
+      email: 'worker.sarah@fpmchurch.org',
+      roleCode: 'WORKER',
+      roleName: 'Worker',
+      adminLevel: 'none',
+      branchId: IDS.BRANCH_HQ,
+      branchName: 'Cathedral of Grace (HQ)'
+    };
+
+    // TEST 138: Category and payment method availability
+    const catReqRes = mockReqRes({});
+    getFinanceCategoriesHandler(catReqRes.req, catReqRes.res);
+    assert(catReqRes.getStatus() === 200, 'Categories endpoint returns 200');
+    const catData = catReqRes.getData();
+    assert(catData.incomeCategories.includes('Tithe') && catData.incomeCategories.includes('Offering') && catData.incomeCategories.includes('POS Payments'), 'Mandatory income categories verified');
+    assert(catData.expenseCategories.includes('Salaries') && catData.expenseCategories.includes('Keyboard/Instrument Rental') && catData.expenseCategories.includes('Data/Internet'), 'Mandatory expense categories verified');
+    assert(catData.paymentMethods.includes('Bank Transfer') && catData.paymentMethods.includes('Cash') && catData.paymentMethods.includes('POS'), 'Mandatory payment methods verified');
+
+    // TEST 139: RBAC authorization check
+    assert(FinanceService.isAuthorized(superAdminUser as any) === true, 'Super Admin is authorized for finance');
+    assert(FinanceService.isAuthorized(branchPastorUser as any) === true, 'Branch Pastor is authorized for finance');
+    assert(FinanceService.isAuthorized(churchAdminUser as any) === true, 'Church Admin is authorized for finance');
+    assert(FinanceService.isAuthorized(unauthorizedWorkerUser as any) === false, 'Worker is NOT authorized for finance');
+
+    // TEST 140: Worker accessing finance is rejected with 403
+    const workerForbiddenReq = mockReqRes({ user: unauthorizedWorkerUser });
+    getFinanceDashboardHandler(workerForbiddenReq.req, workerForbiddenReq.res);
+    assert(workerForbiddenReq.getStatus() === 403, 'Worker rejected from finance dashboard with 403');
+
+    // Clean up any existing finance test transactions/balances for clean test isolation
+    db.financeTransactions = [];
+    db.financeOpeningBalances = [];
+
+    // TEST 141: Establish initial opening balance baseline for HQ (2026-01: ₦500,000)
+    const setBaselineReq = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        year: 2026,
+        month: 1,
+        amount: 500000,
+        notes: 'Initial opening balance baseline for 2026'
+      },
+      user: superAdminUser
+    });
+    setFinanceOpeningBalanceHandler(setBaselineReq.req, setBaselineReq.res);
+    assert(setBaselineReq.getStatus() === 200, 'Initial opening balance established successfully');
+    const baselineRecord = setBaselineReq.getData()?.openingBalance;
+    assert(baselineRecord?.amount === 500000, 'Baseline amount is 500,000');
+    assert(baselineRecord?.isInitial === true, 'isInitial flag set to true');
+
+    // TEST 142: Verify January 2026 Opening Balance calculation equals baseline
+    const janOpening = FinanceService.calculateBranchOpeningBalance(IDS.BRANCH_HQ, 2026, 1);
+    assert(janOpening === 500000, 'January 2026 opening balance matches baseline 500,000');
+
+    // TEST 143: Transaction validation - rejects negative or zero amount
+    const invalidAmountReq = mockReqRes({
+      body: {
+        transactionType: 'income',
+        category: 'Tithe',
+        amount: -500,
+        transactionDate: '2026-01-05',
+        description: 'Invalid negative tithe'
+      },
+      user: superAdminUser
+    });
+    createFinanceTransactionHandler(invalidAmountReq.req, invalidAmountReq.res);
+    assert(invalidAmountReq.getStatus() === 400, 'Negative amount rejected with 400');
+
+    // TEST 144: Transaction validation - rejects invalid date
+    const invalidDateReq = mockReqRes({
+      body: {
+        transactionType: 'income',
+        category: 'Tithe',
+        amount: 10000,
+        transactionDate: 'invalid-date',
+        description: 'Tithe with bad date'
+      },
+      user: superAdminUser
+    });
+    createFinanceTransactionHandler(invalidDateReq.req, invalidDateReq.res);
+    assert(invalidDateReq.getStatus() === 400, 'Invalid transaction date rejected with 400');
+
+    // TEST 145: Create Month 1 Income Transaction (Tithe: ₦250,000)
+    const createIncome1 = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        transactionType: 'income',
+        category: 'Tithe',
+        amount: 250000,
+        transactionDate: '2026-01-10',
+        description: 'Sunday Tithe Remittance',
+        paymentMethod: 'Bank Transfer',
+        referenceNumber: 'TRX-JAN-001'
+      },
+      user: superAdminUser
+    });
+    createFinanceTransactionHandler(createIncome1.req, createIncome1.res);
+    assert(createIncome1.getStatus() === 201, 'Month 1 Tithe income created successfully (201)');
+    const txIncome1 = createIncome1.getData()?.transaction;
+    assert(txIncome1?.amount === 250000, 'Income amount recorded as 250,000');
+    assert(txIncome1?.status === 'active', 'Transaction status is active');
+
+    // TEST 146: Create Month 1 Expense Transaction (Salaries: ₦100,000)
+    const createExpense1 = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        transactionType: 'expense',
+        category: 'Salaries',
+        amount: 100000,
+        transactionDate: '2026-01-25',
+        description: 'Staff salaries for January',
+        paymentMethod: 'Bank Transfer',
+        referenceNumber: 'EXP-JAN-001'
+      },
+      user: superAdminUser
+    });
+    createFinanceTransactionHandler(createExpense1.req, createExpense1.res);
+    assert(createExpense1.getStatus() === 201, 'Month 1 Salaries expense created successfully (201)');
+    const txExpense1 = createExpense1.getData()?.transaction;
+    assert(txExpense1?.amount === 100000, 'Expense amount recorded as 100,000');
+
+    // TEST 147: January Monthly Statement:
+    // Opening (500k) + Income (250k) - Expenses (100k) = Closing (650k)
+    const janStmtReq = mockReqRes({
+      query: { branchId: IDS.BRANCH_HQ, year: 2026, month: 1 },
+      user: superAdminUser
+    });
+    getFinanceMonthlyStatementHandler(janStmtReq.req, janStmtReq.res);
+    assert(janStmtReq.getStatus() === 200, 'January statement retrieved successfully');
+    const janStmt = janStmtReq.getData();
+    assert(janStmt.openingBalance === 500000, 'January opening balance is 500,000');
+    assert(janStmt.totalIncome === 250000, 'January total income is 250,000');
+    assert(janStmt.totalExpenses === 100000, 'January total expenses is 100,000');
+    assert(janStmt.closingBalance === 650000, 'January closing balance is 650,000');
+
+    // TEST 148: LEDGER CONTINUITY - February 2026 Opening Balance dynamically equals January Closing Balance (650k)
+    const febOpening = FinanceService.calculateBranchOpeningBalance(IDS.BRANCH_HQ, 2026, 2);
+    assert(febOpening === 650000, 'February Opening Balance (650,000) dynamically equals January Closing Balance');
+
+    // TEST 149: Record February Transactions:
+    // Offering: ₦150,000; Utilities: ₦50,000
+    // Expected February Closing: 650k + 150k - 50k = 750k
+    const createIncomeFeb = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        transactionType: 'income',
+        category: 'Offering',
+        amount: 150000,
+        transactionDate: '2026-02-12',
+        description: 'Midweek offering',
+        paymentMethod: 'Cash'
+      },
+      user: superAdminUser
+    });
+    createFinanceTransactionHandler(createIncomeFeb.req, createIncomeFeb.res);
+    assert(createIncomeFeb.getStatus() === 201, 'February offering created');
+
+    const createExpenseFeb = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        transactionType: 'expense',
+        category: 'Utilities',
+        amount: 50000,
+        transactionDate: '2026-02-20',
+        description: 'Power and generator fueling',
+        paymentMethod: 'Bank Transfer'
+      },
+      user: superAdminUser
+    });
+    createFinanceTransactionHandler(createExpenseFeb.req, createExpenseFeb.res);
+    assert(createExpenseFeb.getStatus() === 201, 'February utilities expense created');
+
+    const febStmt = FinanceService.getMonthlyStatement(IDS.BRANCH_HQ, 2026, 2, superAdminUser as any);
+    assert(febStmt.openingBalance === 650000, 'February statement opening balance is 650,000');
+    assert(febStmt.totalIncome === 150000, 'February total income is 150,000');
+    assert(febStmt.totalExpenses === 50000, 'February total expenses is 50,000');
+    assert(febStmt.closingBalance === 750000, 'February closing balance is 750,000');
+
+    // TEST 150: LEDGER CONTINUITY - March 2026 Opening Balance equals February Closing Balance (750k)
+    const marOpening = FinanceService.calculateBranchOpeningBalance(IDS.BRANCH_HQ, 2026, 3);
+    assert(marOpening === 750000, 'March Opening Balance (750,000) dynamically equals February Closing Balance');
+
+    // TEST 151: Transaction Edit requires audit reason
+    const editWithoutReason = mockReqRes({
+      params: { id: txIncome1.id },
+      body: { amount: 300000 },
+      user: superAdminUser
+    });
+    updateFinanceTransactionHandler(editWithoutReason.req, editWithoutReason.res);
+    assert(editWithoutReason.getStatus() === 400, 'Updating transaction without editReason is rejected (400)');
+
+    // TEST 152: Updating January transaction with audit reason dynamically updates February and March balances
+    // Change January tithe from 250k to 300k (+50k)
+    // January Closing should become 700k
+    // February Opening becomes 700k, February Closing becomes 800k
+    // March Opening becomes 800k
+    const editWithReason = mockReqRes({
+      params: { id: txIncome1.id },
+      body: {
+        amount: 300000,
+        editReason: 'Reconciled additional transfer slip from deacon board'
+      },
+      user: superAdminUser
+    });
+    updateFinanceTransactionHandler(editWithReason.req, editWithReason.res);
+    assert(editWithReason.getStatus() === 200, 'Updating transaction with audit reason succeeds (200)');
+    assert(editWithReason.getData()?.transaction?.amount === 300000, 'Updated transaction amount is 300,000');
+
+    const newJanStmt = FinanceService.getMonthlyStatement(IDS.BRANCH_HQ, 2026, 1, superAdminUser as any);
+    assert(newJanStmt.closingBalance === 700000, 'January closing balance updated dynamically to 700,000');
+
+    const newFebOpening = FinanceService.calculateBranchOpeningBalance(IDS.BRANCH_HQ, 2026, 2);
+    assert(newFebOpening === 700000, 'February opening balance updated dynamically to 700,000');
+
+    const newMarOpening = FinanceService.calculateBranchOpeningBalance(IDS.BRANCH_HQ, 2026, 3);
+    assert(newMarOpening === 800000, 'March opening balance updated dynamically to 800,000');
+
+    // TEST 153: Branch Isolation - Branch Pastor cannot update HQ transaction
+    const bpCrossBranchEdit = mockReqRes({
+      params: { id: txIncome1.id },
+      body: { amount: 400000, editReason: 'Unauthorized cross-branch update' },
+      user: branchPastorUser
+    });
+    updateFinanceTransactionHandler(bpCrossBranchEdit.req, bpCrossBranchEdit.res);
+    assert(bpCrossBranchEdit.getStatus() === 403, 'Cross-branch edit strictly blocked with 403');
+
+    // TEST 154: Branch BOLA Protection - Branch Pastor creating transaction for HQ is forced to their assigned branch
+    const bpSpoofedCreate = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ, // Spoofed branch ID
+        transactionType: 'income',
+        category: 'Offering',
+        amount: 25000,
+        transactionDate: '2026-02-15',
+        description: 'Lekki branch offering recorded by Lekki pastor'
+      },
+      user: branchPastorUser
+    });
+    createFinanceTransactionHandler(bpSpoofedCreate.req, bpSpoofedCreate.res);
+    assert(bpSpoofedCreate.getStatus() === 201, 'Branch pastor transaction created');
+    const createdLekkiTx = bpSpoofedCreate.getData()?.transaction;
+    assert(createdLekkiTx?.branchId === IDS.BRANCH_LEKKI, 'BOLA Protection: Branch ID was forced to Lekki branch');
+
+    // TEST 155: Voiding transaction without reason fails
+    const voidWithoutReason = mockReqRes({
+      params: { id: createdLekkiTx.id },
+      body: {},
+      user: branchPastorUser
+    });
+    voidFinanceTransactionHandler(voidWithoutReason.req, voidWithoutReason.res);
+    assert(voidWithoutReason.getStatus() === 400, 'Voiding without reason rejected (400)');
+
+    // TEST 156: Voiding transaction with reason marks status as voided and excludes from totals
+    const voidWithReason = mockReqRes({
+      params: { id: createdLekkiTx.id },
+      body: { reason: 'Duplicate entry entered in error' },
+      user: branchPastorUser
+    });
+    voidFinanceTransactionHandler(voidWithReason.req, voidWithReason.res);
+    assert(voidWithReason.getStatus() === 200, 'Voiding with reason succeeds (200)');
+    const voidedTx = voidWithReason.getData()?.transaction;
+    assert(voidedTx?.status === 'voided', 'Transaction status is voided');
+    assert(voidedTx?.voidReason === 'Duplicate entry entered in error', 'Void reason recorded');
+
+    // Verify Lekki branch statement has 0 income because the single transaction was voided
+    const lekkiStmt = FinanceService.getMonthlyStatement(IDS.BRANCH_LEKKI, 2026, 2, branchPastorUser as any);
+    assert(lekkiStmt.totalIncome === 0, 'Voided transaction successfully excluded from financial statement');
+
+    // TEST 157: Annual Statement Reconciliation
+    // Annual Opening == Month 1 Opening
+    // Sequential continuity: Month N+1 opening == Month N closing
+    // Annual Closing strictly equals December (Month 12) closing
+    const annualStmtReq = mockReqRes({
+      query: { branchId: IDS.BRANCH_HQ, year: 2026 },
+      user: superAdminUser
+    });
+    getFinanceAnnualStatementHandler(annualStmtReq.req, annualStmtReq.res);
+    assert(annualStmtReq.getStatus() === 200, 'Annual statement generated successfully (200)');
+    const annualData = annualStmtReq.getData();
+    assert(annualData.months.length === 12, 'Annual statement contains all 12 calendar months');
+    assert(annualData.annualOpeningBalance === annualData.months[0].openingBalance, 'Annual opening balance equals January opening balance');
+    assert(annualData.annualClosingBalance === annualData.months[11].closingBalance, 'Annual closing balance reconciles with December closing balance');
+
+    let continuityVerified = true;
+    for (let i = 0; i < 11; i++) {
+      if (annualData.months[i].closingBalance !== annualData.months[i + 1].openingBalance) {
+        continuityVerified = false;
+        break;
+      }
+    }
+    assert(continuityVerified, '12-month ledger continuity mathematically verified');
+
+    // TEST 158: Category Analysis
+    const catAnalysisReq = mockReqRes({
+      query: { type: 'income', branchId: IDS.BRANCH_HQ, year: 2026 },
+      user: superAdminUser
+    });
+    getFinanceCategoryAnalysisHandler(catAnalysisReq.req, catAnalysisReq.res);
+    assert(catAnalysisReq.getStatus() === 200, 'Category analysis returns 200');
+    const catAnalysis = catAnalysisReq.getData();
+    assert(catAnalysis.totalAmount === 450000, 'Category analysis total income is 450,000 (300k Tithe + 150k Offering)');
+    const titheCat = catAnalysis.categories.find((c: any) => c.category === 'Tithe');
+    assert(titheCat?.amount === 300000, 'Tithe breakdown amount is 300,000');
+    assert(titheCat?.percentage > 0, 'Tithe percentage calculated');
+
+    // TEST 159: Executive Dashboard Summary
+    const dashReq = mockReqRes({
+      query: { branchId: 'all', year: 2026, month: 2 },
+      user: superAdminUser
+    });
+    getFinanceDashboardHandler(dashReq.req, dashReq.res);
+    assert(dashReq.getStatus() === 200, 'Dashboard summary returns 200');
+    const dashData = dashReq.getData();
+    assert(dashData.mtdIncome === 150000, 'Dashboard MTD income verified');
+    assert(dashData.ytdIncome === 450000, 'Dashboard YTD income verified');
+    assert(Array.isArray(dashData.monthlyTrend) && dashData.monthlyTrend.length === 12, 'Monthly trend array of 12 months present');
+    assert(Array.isArray(dashData.branchComparison) && dashData.branchComparison.length > 0, 'Super admin receives multi-branch comparison table');
+
+    // TEST 160: CSV Export contains official church name
+    const csvExportReq = mockReqRes({
+      query: { reportType: 'monthly_statement', branchId: IDS.BRANCH_HQ, year: 2026, month: 1 },
+      user: superAdminUser
+    });
+    exportFinanceReportHandler(csvExportReq.req, csvExportReq.res);
+    assert(csvExportReq.getStatus() === 200, 'CSV export generated successfully');
+    const csvData = csvExportReq.getData();
+    assert(csvData.filename.includes('FPM_Finance_Monthly_Statement'), 'Filename is properly formatted');
+    assert(csvData.content.includes("FAITH PREACHERS MINISTRIES INT'L (FPM GLOBAL)"), 'CSV header includes official ministry title');
+    assert(csvData.content.includes("OPENING BALANCE"), 'CSV content includes opening balance');
+    assert(csvData.content.includes("TOTAL INCOME"), 'CSV content includes total income');
+    assert(csvData.content.includes("TOTAL EXPENSES"), 'CSV content includes total expenses');
+
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);

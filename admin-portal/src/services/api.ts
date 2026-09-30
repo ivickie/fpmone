@@ -240,5 +240,103 @@ export const api = {
     apiRequest('/department-reports', { method: 'POST', body: JSON.stringify(data) }),
   reviewDepartmentReport: (id: string, data: { status?: string; reviewNotes?: string }) =>
     apiRequest(`/department-reports/${id}/review`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteDepartmentReport: (id: string) => apiRequest(`/department-reports/${id}`, { method: 'DELETE' })
+  deleteDepartmentReport: (id: string) => apiRequest(`/department-reports/${id}`, { method: 'DELETE' }),
+
+  // Finance
+  getFinanceCategories: () => apiRequest('/finance/categories'),
+  getFinanceDashboard: (params: { branchId?: string; year?: number; month?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    if (params.month) qs.append('month', String(params.month));
+    return apiRequest(`/finance/dashboard${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
+  getFinanceTransactions: (params: {
+    branchId?: string;
+    transactionType?: 'income' | 'expense';
+    category?: string;
+    paymentMethod?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    month?: string;
+    year?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '' && val !== 'all') {
+        qs.append(key, String(val));
+      }
+    });
+    return apiRequest(`/finance/transactions${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
+  getFinanceTransactionById: (id: string) => apiRequest(`/finance/transactions/${id}`),
+  createFinanceTransaction: (data: {
+    branchId?: string;
+    transactionType: 'income' | 'expense';
+    category: string;
+    amount: number;
+    transactionDate: string;
+    description: string;
+    referenceNumber?: string;
+    paymentMethod?: string;
+  }) => apiRequest('/finance/transactions', { method: 'POST', body: JSON.stringify(data) }),
+  updateFinanceTransaction: (id: string, data: {
+    amount?: number;
+    category?: string;
+    transactionDate?: string;
+    description?: string;
+    referenceNumber?: string;
+    paymentMethod?: string;
+    editReason: string;
+  }) => apiRequest(`/finance/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  voidFinanceTransaction: (id: string, reason: string) =>
+    apiRequest(`/finance/transactions/${id}/void`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getFinanceOpeningBalance: (params: { branchId?: string; year?: number; month?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    if (params.month) qs.append('month', String(params.month));
+    return apiRequest(`/finance/opening-balance${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
+  setFinanceOpeningBalance: (data: {
+    branchId: string;
+    year: number;
+    month: number;
+    amount: number;
+    notes?: string;
+  }) => apiRequest('/finance/opening-balance', { method: 'POST', body: JSON.stringify(data) }),
+  getFinanceMonthlyStatement: (params: { branchId?: string; year?: number; month?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    if (params.month) qs.append('month', String(params.month));
+    return apiRequest(`/finance/statements/monthly${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
+  getFinanceAnnualStatement: (params: { branchId?: string; year?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    return apiRequest(`/finance/statements/annual${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
+  getFinanceCategoryAnalysis: (params: { type: 'income' | 'expense'; branchId?: string; year?: number; month?: number }) => {
+    const qs = new URLSearchParams();
+    qs.append('type', params.type);
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    if (params.month) qs.append('month', String(params.month));
+    return apiRequest(`/finance/analysis?${qs.toString()}`);
+  },
+  exportFinanceReport: (params: { reportType: string; branchId?: string; year?: number; month?: number; format?: string }) => {
+    const qs = new URLSearchParams();
+    qs.append('reportType', params.reportType);
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    if (params.month) qs.append('month', String(params.month));
+    if (params.format) qs.append('format', params.format);
+    return apiRequest(`/finance/export?${qs.toString()}`);
+  }
 };

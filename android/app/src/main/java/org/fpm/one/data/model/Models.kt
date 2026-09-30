@@ -30,7 +30,8 @@ data class UserSession(
     val roleName: String,
     val roleCode: String,
     val isWorker: Boolean,
-    val workerDetails: WorkerDetails? = null
+    val workerDetails: WorkerDetails? = null,
+    val profilePictureUrl: String? = null
 )
 
 @Serializable
@@ -80,7 +81,33 @@ data class BranchItem(
     val country: String = "Nigeria",
     val phone: String? = null,
     val email: String? = null,
-    val branchPastorName: String? = null
+    val branchPastorName: String? = null,
+    val coverImageUrl: String? = null,
+    val imageUrl: String? = null,
+    val logoUrl: String? = null
+)
+
+@Serializable
+data class SundayMomentItem(
+    val id: String,
+    val branchId: String,
+    val uploadedBy: String,
+    val uploadedByName: String? = null,
+    val uploadedByRole: String? = null,
+    val mediaUrl: String,
+    val thumbnailUrl: String? = null,
+    val caption: String? = null,
+    val sundayDate: String,
+    val status: String = "approved",
+    val createdAt: String
+)
+
+@Serializable
+data class CreateSundayMomentRequest(
+    val branchId: String,
+    val mediaUrl: String,
+    val caption: String? = null,
+    val sundayDate: String? = null
 )
 
 @Serializable
@@ -111,7 +138,8 @@ data class ServiceScheduleItem(
     val expectedEndTime: String,
     val gracePeriodMinutes: Int = 15,
     val attendanceDurationHours: Double = 4.0,
-    val liveStreamUrl: String? = null
+    val liveStreamUrl: String? = null,
+    val imageUrl: String? = null
 )
 
 @Serializable
@@ -208,7 +236,9 @@ data class ServiceHighlightItem(
     val summary: String,
     val scripture: String? = null,
     val keyPoints: List<String> = emptyList(),
-    val quote: String? = null
+    val quote: String? = null,
+    val photos: List<String> = emptyList(),
+    val videoUrl: String? = null
 )
 
 @Serializable

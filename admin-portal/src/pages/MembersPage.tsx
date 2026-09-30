@@ -1295,7 +1295,7 @@ export const MembersPage: React.FC = () => {
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl space-y-4 border border-slate-200">
             <img
               src="/church-logo.png"
-              alt="Faith Preachers Ministry"
+              alt="Faith Preachers Ministries Int'l"
               className="w-14 h-14 rounded-full object-cover ring-2 ring-amber-400 mx-auto shadow-md bg-white"
             />
             <div>

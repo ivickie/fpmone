@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,13 +23,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.SubcomposeAsyncImage
+import kotlinx.coroutines.launch
 import org.fpm.one.R
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.UserSession
-import org.fpm.one.presentation.components.FpmButton
-import org.fpm.one.presentation.components.FpmCard
-import org.fpm.one.presentation.components.FpmTopBar
+import org.fpm.one.presentation.components.*
 
 @Composable
 fun ProfileScreen(
@@ -36,7 +41,7 @@ fun ProfileScreen(
   onNavigateToNotifications: () -> Unit,
   onLogout: () -> Unit
 ) {
-  val user = remember { SessionManager.getUserSession() }
+  val user by SessionManager.getInstance().currentUser.collectAsState()
   var showLogoutConfirm by remember { mutableStateOf(false) }
 
   Scaffold(
@@ -51,7 +56,7 @@ fun ProfileScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmSlateBg),
+        .background(FpmIvoryBg),
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -94,7 +99,7 @@ fun ProfileScreen(
             ),
             ProfileOptionItem(
               icon = Icons.Default.Church,
-              title = "About Faith Preachers Ministry",
+              title = "About Faith Preachers Ministries Int'l",
               subtitle = "Global vision, tenets of faith, and leadership",
               onClick = {}
             )
@@ -111,8 +116,8 @@ fun ProfileScreen(
           FpmButton(
             text = "Log Out from FPM Global",
             onClick = { showLogoutConfirm = true },
-            containerColor = FpmCrimson,
-            icon = Icons.Default.Logout,
+            containerColor = FpmError,
+            icon = Icons.AutoMirrored.Filled.Logout,
             modifier = Modifier.fillMaxWidth()
           )
 
@@ -129,7 +134,7 @@ fun ProfileScreen(
           ) {
             Image(
               painter = painterResource(id = R.drawable.church_logo),
-              contentDescription = "Faith Preachers Ministry Emblem",
+              contentDescription = "Faith Preachers Ministries Int'l Emblem",
               modifier = Modifier
                 .size(46.dp)
                 .clip(CircleShape)
@@ -170,7 +175,7 @@ fun ProfileScreen(
             SessionManager.clearSession()
             onLogout()
           },
-          colors = ButtonDefaults.buttonColors(containerColor = FpmCrimson),
+          colors = ButtonDefaults.buttonColors(containerColor = FpmError),
           shape = RoundedCornerShape(10.dp)
         ) {
           Text("Sign Out")
@@ -187,29 +192,131 @@ fun ProfileScreen(
 
 @Composable
 fun ProfileHeaderCard(user: UserSession?) {
+  val context = LocalContext.current
+  val coroutineScope = rememberCoroutineScope()
+  var isUploading by remember { mutableStateOf(false) }
+
+  val photoLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetContent()
+  ) { uri ->
+    if (uri != null) {
+      coroutineScope.launch {
+        try {
+          isUploading = true
+          val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+          if (bytes == null || bytes.isEmpty()) {
+            android.widget.Toast.makeText(context, "Could not read selected photo", android.widget.Toast.LENGTH_SHORT).show()
+            return@launch
+          }
+          val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+          val ext = if (mimeType.contains("png")) "png" else if (mimeType.contains("webp")) "webp" else "jpg"
+          val filename = "profile_${System.currentTimeMillis()}.$ext"
+
+          val result = org.fpm.one.core.network.ApiClient.updateProfilePicture(bytes, filename, mimeType)
+          result.onSuccess { publicUrl ->
+            val updated = user?.copy(profilePictureUrl = publicUrl)
+            if (updated != null) {
+              SessionManager.updateCachedUser(updated)
+            }
+            android.widget.Toast.makeText(context, "Profile photo updated successfully!", android.widget.Toast.LENGTH_SHORT).show()
+          }.onFailure { err ->
+            android.widget.Toast.makeText(context, "Failed to update profile photo: ${err.message}", android.widget.Toast.LENGTH_LONG).show()
+          }
+        } catch (e: Exception) {
+          android.widget.Toast.makeText(context, "Error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+        } finally {
+          isUploading = false
+        }
+      }
+    }
+  }
+
   FpmCard(modifier = Modifier.fillMaxWidth()) {
     Row(
       modifier = Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically
     ) {
       Box(
-        modifier = Modifier
-          .size(68.dp)
-          .clip(CircleShape)
-          .background(
-            Brush.linearGradient(
-              colors = listOf(FpmNavyDark, FpmRoyalBlue)
-            )
-          )
-          .border(2.dp, FpmGold, CircleShape),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.size(76.dp)
       ) {
-        Text(
-          text = (user?.firstName?.take(1) ?: "F") + (user?.lastName?.take(1) ?: "P"),
-          fontSize = 24.sp,
-          fontWeight = FontWeight.Black,
-          color = FpmGoldLight
-        )
+        Box(
+          modifier = Modifier
+            .size(70.dp)
+            .clip(CircleShape)
+            .border(2.dp, FpmGold, CircleShape)
+            .background(
+              Brush.linearGradient(
+                colors = listOf(FpmNavyDark, FpmRoyalBlue)
+              )
+            )
+            .clickable(enabled = !isUploading) { photoLauncher.launch("image/*") },
+          contentAlignment = Alignment.Center
+        ) {
+          if (!user?.profilePictureUrl.isNullOrBlank()) {
+            SubcomposeAsyncImage(
+              model = org.fpm.one.core.network.ApiClient.resolveMediaUrl(user?.profilePictureUrl),
+              contentDescription = user?.fullName,
+              contentScale = ContentScale.Crop,
+              modifier = Modifier.fillMaxSize(),
+              loading = {
+                Box(
+                  modifier = Modifier
+                    .fillMaxSize()
+                    .shimmerEffect()
+                )
+              },
+              error = {
+                Text(
+                  text = (user?.firstName?.take(1) ?: "F") + (user?.lastName?.take(1) ?: "P"),
+                  fontSize = 24.sp,
+                  fontWeight = FontWeight.Black,
+                  color = FpmGoldLight
+                )
+              }
+            )
+          } else {
+            Text(
+              text = (user?.firstName?.take(1) ?: "F") + (user?.lastName?.take(1) ?: "P"),
+              fontSize = 24.sp,
+              fontWeight = FontWeight.Black,
+              color = FpmGoldLight
+            )
+          }
+
+          if (isUploading) {
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .background(FpmNavyDeep.copy(alpha = 0.65f)),
+              contentAlignment = Alignment.Center
+            ) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = FpmGold,
+                strokeWidth = 2.5.dp
+              )
+            }
+          }
+        }
+
+        // Camera badge button
+        IconButton(
+          onClick = { photoLauncher.launch("image/*") },
+          enabled = !isUploading,
+          modifier = Modifier
+            .size(26.dp)
+            .align(Alignment.BottomEnd)
+            .clip(CircleShape)
+            .background(FpmGold)
+            .border(1.5.dp, FpmSurfaceWhite, CircleShape)
+        ) {
+          Icon(
+            imageVector = Icons.Default.CameraAlt,
+            contentDescription = "Upload Profile Photo",
+            tint = FpmNavyDeep,
+            modifier = Modifier.size(14.dp)
+          )
+        }
       }
 
       Spacer(modifier = Modifier.width(16.dp))
@@ -341,17 +448,17 @@ fun MinistryDetailsCard(user: UserSession?) {
       Spacer(modifier = Modifier.height(12.dp))
 
       MinistryDetailRow(label = "Church Branch", value = user?.branchName ?: "Lagos Cathedral HQ")
-      Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+      HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
 
       MinistryDetailRow(label = "Ministry Role", value = user?.roleName ?: "Member")
-      Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+      HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
 
       if (user?.isWorker == true) {
         MinistryDetailRow(label = "Department", value = user.workerDetails?.departmentName ?: "Worker")
-        Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
 
         MinistryDetailRow(label = "Position", value = user.workerDetails?.positionName ?: "Member")
-        Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
 
         MinistryDetailRow(label = "Worker ID Code", value = user.workerDetails?.workerCode ?: "FPM-0001")
       } else {
@@ -431,7 +538,7 @@ fun OptionsGroupCard(items: List<ProfileOptionItem>) {
         }
 
         if (index < items.size - 1) {
-          Divider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 4.dp))
+          HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 4.dp))
         }
       }
     }

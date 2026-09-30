@@ -20,6 +20,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { FinancePage } from './pages/FinancePage';
 import { api } from './services/api';
 
 const AppContent: React.FC = () => {
@@ -78,6 +79,7 @@ const AppContent: React.FC = () => {
     testimonies: { title: 'Testimonies Moderation Queue', subtitle: 'Review member miracle testimonies prior to public dissemination' },
     attendance: { title: 'Live Worker Attendance Console', subtitle: 'Monitor today\'s clock-ins, grace periods, late tagging, and timeouts' },
     reports: { title: 'Monthly Attendance Matrix & Analytics', subtitle: 'Worker punctuality rates, matrix grid (✓, L, A, E), and exports' },
+    finance: { title: 'Finance, Treasury & General Ledger', subtitle: 'Authoritative financial ledger, income & expenses, monthly/annual statements, and audit analytics' },
     notifications: { title: 'Push Notification Dispatcher', subtitle: 'Broadcast targeted mobile push messages and urgent alerts' },
     audit: { title: 'Administrative Audit Trail', subtitle: 'Immutable security log of all sensitive actions and approvals' },
     settings: { title: 'System Policies & Configuration', subtitle: 'Configure attendance rules, auto clock-out limits, and grace periods' }
@@ -117,6 +119,7 @@ const AppContent: React.FC = () => {
           {currentTab === 'testimonies' && <TestimoniesPage />}
           {currentTab === 'attendance' && <AttendancePage />}
           {currentTab === 'reports' && <ReportsPage />}
+          {currentTab === 'finance' && <FinancePage branches={branches} />}
           {currentTab === 'notifications' && <NotificationsPage />}
           {currentTab === 'audit' && <AuditLogsPage />}
           {currentTab === 'settings' && <SettingsPage />}

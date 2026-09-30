@@ -6,10 +6,11 @@ import { MemberService } from '../services/memberService';
 import { AttendanceService } from '../services/attendanceService';
 import { AuditService } from '../services/auditService';
 import { StorageService } from '../services/storageService';
+import { FinanceService } from '../services/financeService';
 import {
   Branch, Department, DepartmentPosition, EventItem, PostItem,
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
-  DepartmentReport
+  DepartmentReport, SundayMoment
 } from '../types';
 import {
   persistService, persistDepartmentReport, persistDelete, persistDepartment,
@@ -56,7 +57,7 @@ export const getProfileHandler = (req: Request, res: Response) => {
 export const updateProfileHandler = (req: Request, res: Response) => {
   try {
     const { phone, residentialAddress, emergencyContactName, emergencyContactPhone, profilePictureUrl } = req.body;
-    const member = db.members.find(m => m.id === req.user?.memberId);
+    const member = db.members.find(m => m.id === req.user?.memberId || m.userId === req.user?.userId);
     if (!member) return res.status(404).json({ error: 'Member not found.' });
 
     if (phone) {
@@ -92,7 +93,7 @@ export const createBranchHandler = (req: Request, res: Response) => {
     if (req.user?.adminLevel !== 'super_admin') {
       return res.status(403).json({ success: false, error: 'Super Administrator privileges required to create branches.' });
     }
-    const { name, branchCode, address, city, state, country, phone, email, branchPastorName, logoUrl } = req.body;
+    const { name, branchCode, address, city, state, country, phone, email, branchPastorName, logoUrl, coverImageUrl, imageUrl } = req.body;
     if (!name || !branchCode || !address || !city) {
       return res.status(400).json({ success: false, error: 'Name, branch code, address, and city are required.' });
     }
@@ -109,6 +110,8 @@ export const createBranchHandler = (req: Request, res: Response) => {
       email,
       branchPastorName,
       logoUrl,
+      coverImageUrl: coverImageUrl || imageUrl,
+      imageUrl: imageUrl || coverImageUrl,
       status: 'active',
       isHeadquarters: false,
       createdAt: new Date().toISOString(),
@@ -1206,7 +1209,7 @@ export const createServiceHandler = (req: Request, res: Response) => {
       });
     }
 
-    const { branchId, name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, liveStreamUrl } = req.body;
+    const { branchId, name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, liveStreamUrl, imageUrl } = req.body;
     if (!branchId || !name || !dayOfWeek || !startTime || !expectedEndTime) {
       return res.status(400).json({ success: false, error: 'Branch, name, day, start time, and end time are required.' });
     }
@@ -1228,6 +1231,7 @@ export const createServiceHandler = (req: Request, res: Response) => {
       earliestClockInMinutes: earliestClockInMinutes || 60,
       attendanceDurationHours: attendanceDurationHours || 4.0,
       liveStreamUrl: liveStreamUrl ? liveStreamUrl.trim() : undefined,
+      imageUrl: imageUrl ? imageUrl.trim() : undefined,
       qrCodeToken: `FPM-SVC-${serviceId}`,
       status: 'active',
       createdAt: new Date().toISOString(),
@@ -1262,7 +1266,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
       return res.status(403).json({ success: false, error: 'Branch isolation violation: Cannot modify services of other branches.' });
     }
 
-    const { name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, liveStreamUrl, status } = req.body;
+    const { name, dayOfWeek, startTime, expectedEndTime, gracePeriodMinutes, earliestClockInMinutes, attendanceDurationHours, liveStreamUrl, imageUrl, status } = req.body;
     if (name) service.name = name;
     if (dayOfWeek) service.dayOfWeek = dayOfWeek;
     if (startTime) service.startTime = startTime;
@@ -1271,6 +1275,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
     if (earliestClockInMinutes !== undefined) service.earliestClockInMinutes = Number(earliestClockInMinutes);
     if (attendanceDurationHours !== undefined) service.attendanceDurationHours = Number(attendanceDurationHours);
     if (liveStreamUrl !== undefined) service.liveStreamUrl = liveStreamUrl ? liveStreamUrl.trim() : undefined;
+    if (imageUrl !== undefined) service.imageUrl = imageUrl ? imageUrl.trim() : undefined;
     if (status) service.status = status;
     service.updatedAt = new Date().toISOString();
     persistService(service).catch(() => {});
@@ -1603,7 +1608,7 @@ export const createPostHandler = (req: Request, res: Response) => {
     const newPost: PostItem = {
       id: uuidv4(),
       authorId: req.user?.userId || IDS.USER_ADMIN,
-      authorName: req.user?.fullName || 'Faith Preachers Ministry',
+      authorName: req.user?.fullName || "Faith Preachers Ministries Int'l",
       branchId: branchId || req.user?.branchId,
       visibility: visibility || 'all',
       title,
@@ -1778,7 +1783,16 @@ export const getHighlightsHandler = (req: Request, res: Response) => {
 export const createHighlightHandler = (req: Request, res: Response) => {
   try {
     const { branchId, title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl } = req.body;
-    if (!title || !speaker || !summary) {
+    const finalSpeaker = speaker || req.body.preacher;
+    const finalSummary = summary || req.body.summaryNotes;
+    const finalScripture = scripture || req.body.keyScripture;
+    const rawPhotos = Array.isArray(photos) ? photos : (Array.isArray(req.body.mediaUrls) ? req.body.mediaUrls : (photos ? [photos] : []));
+    if (rawPhotos.length > 5) {
+      return res.status(400).json({ error: 'Maximum 5 pictures allowed per sermon recap.' });
+    }
+    const finalPhotos = rawPhotos.slice(0, 5);
+
+    if (!title || !finalSpeaker || !finalSummary) {
       return res.status(400).json({ error: 'Title, speaker, and summary are required.' });
     }
     const newHighlight = {
@@ -1786,13 +1800,13 @@ export const createHighlightHandler = (req: Request, res: Response) => {
       branchId: branchId || IDS.BRANCH_HQ,
       highlightDate: new Date().toISOString().split('T')[0],
       title,
-      speaker,
-      summary,
-      scripture,
+      speaker: finalSpeaker,
+      summary: finalSummary,
+      scripture: finalScripture,
       keyPoints: keyPoints || [],
       quote,
-      photos: photos || [],
-      videoUrl,
+      photos: finalPhotos,
+      videoUrl: typeof videoUrl === 'string' ? videoUrl : undefined,
       isPublished: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1816,14 +1830,25 @@ export const updateHighlightHandler = (req: Request, res: Response) => {
     }
 
     const { title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl, isPublished } = req.body;
+    const finalSpeaker = speaker || req.body.preacher;
+    const finalSummary = summary || req.body.summaryNotes;
+    const finalScripture = scripture !== undefined ? scripture : req.body.keyScripture;
+    const finalPhotos = photos !== undefined ? photos : req.body.mediaUrls;
+
     if (title) highlight.title = title;
-    if (speaker) highlight.speaker = speaker;
-    if (summary) highlight.summary = summary;
-    if (scripture !== undefined) highlight.scripture = scripture;
+    if (finalSpeaker) highlight.speaker = finalSpeaker;
+    if (finalSummary) highlight.summary = finalSummary;
+    if (finalScripture !== undefined) highlight.scripture = finalScripture;
     if (keyPoints !== undefined) highlight.keyPoints = keyPoints;
     if (quote !== undefined) highlight.quote = quote;
-    if (photos !== undefined) highlight.photos = photos;
-    if (videoUrl !== undefined) highlight.videoUrl = videoUrl;
+    if (finalPhotos !== undefined) {
+      const parsedPhotos = Array.isArray(finalPhotos) ? finalPhotos : [finalPhotos];
+      if (parsedPhotos.length > 5) {
+        return res.status(400).json({ error: 'Maximum 5 pictures allowed per sermon recap.' });
+      }
+      highlight.photos = parsedPhotos.slice(0, 5);
+    }
+    if (videoUrl !== undefined) highlight.videoUrl = typeof videoUrl === 'string' ? videoUrl : undefined;
     if (isPublished !== undefined) highlight.isPublished = !!isPublished;
     highlight.updatedAt = new Date().toISOString();
     persistServiceHighlight(highlight).catch(() => {});
@@ -2183,9 +2208,9 @@ export const uploadAvatarHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'No image file provided.' });
     }
 
-    // Strict 1MB ceiling enforcement (1,048,576 bytes)
-    if (file.size > 1024 * 1024) {
-      return res.status(400).json({ success: false, error: 'Profile photo exceeds 1MB limit. Please select an image under 1MB.' });
+    // Strict 10MB ceiling enforcement (10,485,760 bytes)
+    if (file.size > 10 * 1024 * 1024) {
+      return res.status(400).json({ success: false, error: 'Profile photo exceeds 10MB limit. Please select an image under 10MB.' });
     }
 
     if (!file.mimetype.startsWith('image/')) {
@@ -2662,4 +2687,437 @@ export const deleteDepartmentReportHandler = async (req: Request, res: Response)
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// =============================================================================
+// SUNDAY MOMENTS CONTROLLER
+// =============================================================================
+export const getSundayMomentsHandler = (req: Request, res: Response) => {
+  try {
+    const { branchId, sundayDate } = req.query as { branchId?: string; sundayDate?: string };
+    let moments = [...(db.sundayMoments || [])];
+
+    if (branchId) {
+      moments = moments.filter(m => m.branchId === branchId);
+    }
+
+    if (sundayDate) {
+      moments = moments.filter(m => m.sundayDate === sundayDate);
+    }
+
+    // Regular members only see approved moments; admins can see pending
+    const user = req.user;
+    const isBranchAdminOrHigher = user?.adminLevel === 'super_admin' || 
+      (user?.adminLevel === 'branch_admin' && (!branchId || user.branchId === branchId));
+
+    if (!isBranchAdminOrHigher) {
+      moments = moments.filter(m => m.status === 'approved');
+    }
+
+    // Sort by createdAt descending
+    moments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return res.json(moments);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const createSundayMomentHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const { branchId, mediaUrl, thumbnailUrl, caption, sundayDate } = req.body;
+    if (!branchId || !mediaUrl) {
+      return res.status(400).json({ success: false, error: 'Branch ID and media URL are required.' });
+    }
+
+    // Enforce branch-level authorization
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const userBranch = user.branchId;
+
+    if (!isSuperAdmin && userBranch && userBranch !== branchId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Branch isolation violation: You can only upload Sunday moments for your assigned branch.'
+      });
+    }
+
+    // Calculate recent Sunday date if not provided
+    let calculatedSunday = sundayDate;
+    if (!calculatedSunday) {
+      const now = new Date();
+      const day = now.getDay();
+      const diff = day === 0 ? 0 : day;
+      const recentSunday = new Date(now);
+      recentSunday.setDate(now.getDate() - diff);
+      calculatedSunday = recentSunday.toISOString().split('T')[0];
+    }
+
+    const newMoment: SundayMoment = {
+      id: uuidv4(),
+      branchId,
+      uploadedBy: user.userId,
+      uploadedByName: user.fullName || 'Church Member',
+      uploadedByRole: user.roleName || 'Member',
+      mediaUrl,
+      thumbnailUrl: thumbnailUrl || mediaUrl,
+      caption: caption ? String(caption).trim() : undefined,
+      sundayDate: calculatedSunday,
+      status: 'approved',
+      createdAt: new Date().toISOString()
+    };
+
+    if (!db.sundayMoments) {
+      db.sundayMoments = [];
+    }
+    db.sundayMoments.unshift(newMoment);
+
+    AuditService.log(
+      user.fullName,
+      user.roleName,
+      'SUNDAY_MOMENT_CREATED',
+      'sunday_moment',
+      newMoment.id,
+      user.userId,
+      null,
+      newMoment
+    );
+
+    return res.status(201).json(newMoment);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const deleteSundayMomentHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const { id } = req.params;
+    const momentIndex = (db.sundayMoments || []).findIndex(m => m.id === id);
+    if (momentIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Sunday moment not found.' });
+    }
+
+    const moment = db.sundayMoments[momentIndex];
+    const isOwner = moment.uploadedBy === user.userId;
+    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isBranchAdmin = user.adminLevel === 'branch_admin' && user.branchId === moment.branchId;
+
+    if (!isOwner && !isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to delete this Sunday moment. Members cannot delete other members uploads.'
+      });
+    }
+
+    db.sundayMoments.splice(momentIndex, 1);
+
+    AuditService.log(
+      user.fullName,
+      user.roleName,
+      'SUNDAY_MOMENT_DELETED',
+      'sunday_moment',
+      id,
+      user.userId
+    );
+
+    return res.json({ success: true, message: 'Sunday moment deleted successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// =============================================================================
+// FINANCE CONTROLLER
+// =============================================================================
+export const getFinanceCategoriesHandler = (req: Request, res: Response) => {
+  try {
+    const categories = FinanceService.getCategories();
+    return res.json({ success: true, ...categories });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceDashboardHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to access finance module.' });
+    }
+
+    const now = new Date();
+    const year = parseInt(req.query.year as string, 10) || now.getFullYear();
+    const month = parseInt(req.query.month as string, 10) || (now.getMonth() + 1);
+    const branchId = req.query.branchId as string;
+
+    const summary = FinanceService.getDashboardSummary(branchId, year, month, user);
+    return res.json({ success: true, ...summary });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceTransactionsHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to access finance module.' });
+    }
+
+    const {
+      branchId,
+      transactionType,
+      category,
+      paymentMethod,
+      status,
+      startDate,
+      endDate,
+      month,
+      year,
+      search,
+      page,
+      limit
+    } = req.query;
+
+    const result = FinanceService.getTransactions({
+      branchId: branchId as string,
+      transactionType: transactionType as 'income' | 'expense',
+      category: category as string,
+      paymentMethod: paymentMethod as string,
+      status: status as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+      month: month as string,
+      year: year as string,
+      search: search as string,
+      page: page ? parseInt(page as string, 10) : undefined,
+      limit: limit ? parseInt(limit as string, 10) : undefined
+    }, user);
+
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceTransactionByIdHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const tx = FinanceService.getTransactionById(req.params.id, user);
+    return res.json({ success: true, transaction: tx });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : err.message?.includes('not found') ? 404 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const createFinanceTransactionHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to record financial transactions.' });
+    }
+
+    const tx = FinanceService.createTransaction(req.body, user);
+    return res.status(201).json({ success: true, transaction: tx });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 400;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const updateFinanceTransactionHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to edit financial transactions.' });
+    }
+
+    const tx = FinanceService.updateTransaction(req.params.id, req.body, user);
+    return res.json({ success: true, transaction: tx });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : err.message?.includes('not found') ? 404 : 400;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const voidFinanceTransactionHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to void financial transactions.' });
+    }
+
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, error: 'Void reason is required.' });
+    }
+
+    const tx = FinanceService.voidTransaction(req.params.id, reason, user);
+    return res.json({ success: true, transaction: tx });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : err.message?.includes('not found') ? 404 : 400;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceOpeningBalanceHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const now = new Date();
+    const year = parseInt(req.query.year as string, 10) || now.getFullYear();
+    const month = parseInt(req.query.month as string, 10) || (now.getMonth() + 1);
+    const branchId = req.query.branchId as string;
+
+    const data = FinanceService.getOpeningBalanceRecord(branchId, year, month, user);
+    return res.json({ success: true, ...data });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const setFinanceOpeningBalanceHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const { branchId, year, month, amount, notes } = req.body;
+    if (!branchId || !year || !month || amount === undefined) {
+      return res.status(400).json({ success: false, error: 'branchId, year, month, and amount are required.' });
+    }
+
+    const record = FinanceService.setInitialOpeningBalance(
+      branchId,
+      parseInt(year, 10),
+      parseInt(month, 10),
+      parseFloat(amount),
+      notes,
+      user
+    );
+
+    return res.json({ success: true, openingBalance: record });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 400;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceMonthlyStatementHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const now = new Date();
+    const year = parseInt(req.query.year as string, 10) || now.getFullYear();
+    const month = parseInt(req.query.month as string, 10) || (now.getMonth() + 1);
+    const branchId = req.query.branchId as string;
+
+    const statement = FinanceService.getMonthlyStatement(branchId, year, month, user);
+    return res.json({ success: true, ...statement });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceAnnualStatementHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const now = new Date();
+    const year = parseInt(req.query.year as string, 10) || now.getFullYear();
+    const branchId = req.query.branchId as string;
+
+    const statement = FinanceService.getAnnualStatement(branchId, year, user);
+    return res.json({ success: true, ...statement });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const getFinanceCategoryAnalysisHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const type = (req.query.type as 'income' | 'expense') || 'income';
+    const now = new Date();
+    const year = parseInt(req.query.year as string, 10) || now.getFullYear();
+    const month = req.query.month ? parseInt(req.query.month as string, 10) : undefined;
+    const branchId = req.query.branchId as string;
+
+    const analysis = FinanceService.getCategoryAnalysis(type, branchId, year, month, user);
+    return res.json({ success: true, ...analysis });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
+export const exportFinanceReportHandler = (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    if (!FinanceService.isAuthorized(user)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges.' });
+    }
+
+    const reportType = (req.query.reportType as any) || 'monthly_statement';
+    const now = new Date();
+    const year = parseInt(req.query.year as string, 10) || now.getFullYear();
+    const month = parseInt(req.query.month as string, 10) || (now.getMonth() + 1);
+    const branchId = req.query.branchId as string;
+    const format = req.query.format as string;
+
+    const report = FinanceService.exportReportCsv(reportType, branchId, year, month, user);
+
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+      return res.send(report.content);
+    }
+
+    return res.json({ success: true, ...report });
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
 

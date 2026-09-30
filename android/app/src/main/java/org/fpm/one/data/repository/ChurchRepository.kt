@@ -154,4 +154,41 @@ class ChurchRepository {
       Result.failure(e)
     }
   }
+
+  suspend fun getSundayMoments(branchId: String? = null, sundayDate: String? = null): Result<List<SundayMomentItem>> = withContext(Dispatchers.IO) {
+    try {
+      val params = mutableListOf<String>()
+      if (!branchId.isNullOrBlank()) params.add("branchId=$branchId")
+      if (!sundayDate.isNullOrBlank()) params.add("sundayDate=$sundayDate")
+      val query = if (params.isNotEmpty()) "?${params.joinToString("&")}" else ""
+      val responseText = ApiClient.get("/sunday-moments$query")
+      val list = ApiClient.json.decodeFromString<List<SundayMomentItem>>(responseText)
+      Result.success(list)
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
+
+  suspend fun createSundayMoment(branchId: String, mediaUrl: String, caption: String? = null, sundayDate: String? = null): Result<SundayMomentItem> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(
+        CreateSundayMomentRequest.serializer(),
+        CreateSundayMomentRequest(branchId, mediaUrl, caption, sundayDate)
+      )
+      val responseText = ApiClient.post("/sunday-moments", payload)
+      val item = ApiClient.json.decodeFromString<SundayMomentItem>(responseText)
+      Result.success(item)
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
+
+  suspend fun deleteSundayMoment(momentId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    try {
+      ApiClient.delete("/sunday-moments/$momentId")
+      Result.success(true)
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
 }

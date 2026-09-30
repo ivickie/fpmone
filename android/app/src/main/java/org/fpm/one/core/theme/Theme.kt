@@ -13,33 +13,33 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
-    primary = FpmRoyalBlue,
+    primary = FpmNavyDark,
     onPrimary = FpmSurfaceWhite,
-    primaryContainer = FpmNavyDark,
+    primaryContainer = FpmNavy,
     onPrimaryContainer = FpmSurfaceWhite,
     secondary = FpmGold,
-    onSecondary = FpmSurfaceWhite,
-    secondaryContainer = FpmAmberLight,
-    onSecondaryContainer = FpmGold,
-    background = FpmSlateBg,
+    onSecondary = FpmNavyDark,
+    secondaryContainer = FpmGoldSubtle,
+    onSecondaryContainer = FpmGoldDark,
+    background = FpmIvoryBg,
     onBackground = FpmTextPrimary,
     surface = FpmSurfaceWhite,
     onSurface = FpmTextPrimary,
-    surfaceVariant = FpmSlateBg,
+    surfaceVariant = FpmSurfaceTonal,
     onSurfaceVariant = FpmTextSecondary,
     outline = FpmCardBorder
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = FpmBlueAccent,
-    onPrimary = FpmSurfaceWhite,
-    secondary = FpmAmber,
+    primary = FpmGold,
+    onPrimary = FpmNavyDeep,
+    secondary = FpmGoldLight,
     onSecondary = FpmNavyDark,
-    background = FpmNavyDark,
+    background = FpmNavyDeep,
     onBackground = FpmSurfaceWhite,
-    surface = Color(0xFF112240),
+    surface = FpmNavyDark,
     onSurface = FpmSurfaceWhite,
-    outline = Color(0xFF233554)
+    outline = FpmNavySurface
 )
 
 @Composable

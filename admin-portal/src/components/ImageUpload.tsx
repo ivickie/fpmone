@@ -6,11 +6,14 @@ interface ImageUploadProps {
   label?: string;
   value?: string;
   onChange: (url: string) => void;
-  entityType: 'event' | 'feed' | 'highlight' | 'testimony' | 'profile' | 'church-asset';
+  entityType: 'event' | 'feed' | 'highlight' | 'testimony' | 'profile' | 'church-asset' | 'branch' | 'sunday-moment';
   entityId?: string;
   branchId?: string;
   helperText?: string;
   placeholder?: string;
+  accept?: string;
+  multiple?: boolean;
+  onMultipleUpload?: (urls: string[]) => void;
 }
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -21,10 +24,16 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   entityId,
   branchId,
   helperText,
-  placeholder
+  placeholder,
+  accept = 'image/jpeg,image/png,image/webp',
+  multiple = false,
+  onMultipleUpload
 }) => {
-  const displayHelper = placeholder || helperText || 'Supported formats: JPEG, PNG, WEBP (Max 10MB)';
+  const displayHelper = placeholder || helperText || (accept.includes('video') 
+    ? 'Supported formats: JPEG, PNG, WEBP, MP4, WebM (Max 10MB)' 
+    : 'Supported formats: JPEG, PNG, WEBP (Max 10MB)');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('Uploading media...');
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -47,11 +56,15 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
   const resolveUrl = (url?: string): string => {
     if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
       return url;
     }
+    const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+    if (url.includes('/uploads/')) {
+      const idx = url.indexOf('/uploads/');
+      return `http://${host}:5000${url.substring(idx)}`;
+    }
     if (url.startsWith('/')) {
-      const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
       return `http://${host}:5000${url}`;
     }
     return url;
@@ -62,9 +75,15 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     setImageError(false);
 
     // Client-side validations
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    const isVideoAllowed = accept && accept.includes('video');
+    const allowedTypes = isVideoAllowed ? [...allowedImageTypes, ...allowedVideoTypes] : allowedImageTypes;
+
     if (!allowedTypes.includes(file.type)) {
-      setError('Invalid file format. Please upload JPEG, PNG, or WEBP.');
+      setError(isVideoAllowed
+        ? 'Invalid file format. Please upload JPEG, PNG, WEBP, MP4, WebM, or QuickTime.'
+        : 'Invalid file format. Please upload JPEG, PNG, or WEBP.');
       return;
     }
 
@@ -79,6 +98,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
     try {
       setIsUploading(true);
+      setUploadStatus('Uploading media...');
       const res = await api.uploadMedia(file, entityType, entityId, branchId);
       if (res.media?.publicUrl) {
         onChange(res.media.publicUrl);
@@ -91,6 +111,53 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       setLocalPreview(null);
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleMultipleFiles = async (fileList: FileList | File[]) => {
+    setError(null);
+    setImageError(false);
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    const isVideoAllowed = accept && accept.includes('video');
+    const allowedTypes = isVideoAllowed ? [...allowedImageTypes, ...allowedVideoTypes] : allowedImageTypes;
+
+    const validFiles = files.filter(f => allowedTypes.includes(f.type) && f.size <= 10 * 1024 * 1024);
+    if (validFiles.length === 0) {
+      setError(isVideoAllowed
+        ? 'No valid media files. Please select JPEG, PNG, WEBP, or MP4 (< 10MB).'
+        : 'No valid image files. Please select JPEG, PNG, or WEBP (< 10MB).');
+      setIsUploading(false);
+      return;
+    }
+
+    const uploadedUrls: string[] = [];
+    try {
+      for (let i = 0; i < validFiles.length; i++) {
+        setUploadStatus(`Uploading ${i + 1} of ${validFiles.length}...`);
+        const res = await api.uploadMedia(validFiles[i], entityType, entityId, branchId);
+        if (res.media?.publicUrl) {
+          uploadedUrls.push(res.media.publicUrl);
+        }
+      }
+      if (uploadedUrls.length > 0) {
+        if (onMultipleUpload) {
+          onMultipleUpload(uploadedUrls);
+        } else {
+          uploadedUrls.forEach(onChange);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'One or more uploads failed.');
+    } finally {
+      setIsUploading(false);
+      setUploadStatus('Uploading media...');
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -108,7 +175,11 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileSelect(e.dataTransfer.files[0]);
+      if (multiple && e.dataTransfer.files.length > 1) {
+        handleMultipleFiles(e.dataTransfer.files);
+      } else {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
     }
   };
 
@@ -120,15 +191,23 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
       {displaySrc && !imageError ? (
         <div className="relative rounded-lg border border-slate-200 overflow-hidden group bg-slate-50 flex items-center justify-center h-48">
-          <img
-            src={displaySrc}
-            alt="Preview"
-            className="w-full h-full object-cover"
-            onError={() => {
-              console.warn('Image failed to load:', displaySrc);
-              setImageError(true);
-            }}
-          />
+          {displaySrc.match(/\.(mp4|webm|mov|quicktime)(\?.*)?$/i) ? (
+            <video
+              src={displaySrc}
+              controls
+              className="w-full h-full object-contain bg-black"
+            />
+          ) : (
+            <img
+              src={displaySrc}
+              alt="Preview"
+              className="w-full h-full object-cover"
+              onError={() => {
+                console.warn('Image failed to load:', displaySrc);
+                setImageError(true);
+              }}
+            />
+          )}
           {isUploading && (
             <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex flex-col items-center justify-center text-white">
               <Loader2 className="w-7 h-7 animate-spin mb-2 text-indigo-400" />
@@ -204,8 +283,8 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
           {isUploading ? (
             <div className="flex flex-col items-center py-2">
               <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-2" />
-              <p className="text-sm font-medium text-slate-700">Uploading media...</p>
-              <p className="text-xs text-slate-400 mt-1">Processing and optimizing image</p>
+              <p className="text-sm font-medium text-slate-700">{uploadStatus}</p>
+              <p className="text-xs text-slate-400 mt-1">Processing and optimizing media</p>
             </div>
           ) : (
             <>
@@ -224,11 +303,16 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={accept}
+        multiple={multiple}
         className="hidden"
         onChange={(e) => {
-          if (e.target.files && e.target.files[0]) {
-            handleFileSelect(e.target.files[0]);
+          if (e.target.files && e.target.files.length > 0) {
+            if (multiple && e.target.files.length > 1) {
+              handleMultipleFiles(e.target.files);
+            } else {
+              handleFileSelect(e.target.files[0]);
+            }
           }
         }}
       />

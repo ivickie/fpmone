@@ -1,6 +1,6 @@
 # FPM ONE — Architecture & Security Hardening Audit Report
 
-**Platform:** Faith Preachers Ministry (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
 **Date:** September 2026  
 **Auditor:** Principal Software Architect & Application Security Engineer  
 **Status:** ALL FINDINGS REMEDIATED & VERIFIED (0 Remaining Critical / High)  
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-A comprehensive architectural and security hardening audit was conducted on the **Faith Preachers Ministry (FPM ONE)** enterprise digital church platform. The system encompasses:
+A comprehensive architectural and security hardening audit was conducted on the **Faith Preachers Ministries Int'l (FPM ONE)** enterprise digital church platform. The system encompasses:
 - An **Android Mobile Application** (Kotlin, Jetpack Compose, Coroutines, OkHttp, BiometricPrompt, EncryptedSharedPreferences).
 - A **Web Admin Portal** (React 18, TypeScript, Tailwind CSS, Vite, Lucide Icons).
 - A **Central Backend API** (Node.js, Express, TypeScript, JWT, BCrypt, PostgreSQL/Supabase Architecture with RLS and Stored Procedures).

@@ -1,5 +1,5 @@
 -- =============================================================================
--- FAITH PREACHERS MINISTRY (FPM) - FPM ONE
+-- FAITH PREACHERS MINISTRIES INT'L (FPM) - FPM ONE
 -- PRODUCTION POSTGRESQL & SUPABASE DATABASE SCHEMA
 -- =============================================================================
 
@@ -42,7 +42,7 @@ DROP SEQUENCE IF EXISTS worker_id_seq;
 -- -----------------------------------------------------------------------------
 CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL DEFAULT 'Faith Preachers Ministry',
+    name VARCHAR(255) NOT NULL DEFAULT 'Faith Preachers Ministries Int''l',
     short_name VARCHAR(50) NOT NULL DEFAULT 'FPM',
     slug VARCHAR(100) NOT NULL UNIQUE DEFAULT 'fpm-global',
     logo_url TEXT,
@@ -660,5 +660,62 @@ ALTER TABLE department_reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow read department_reports" ON department_reports FOR SELECT USING (true);
 CREATE POLICY "Allow authenticated manage department_reports" ON department_reports FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- -----------------------------------------------------------------------------
+-- 21. FINANCE TRANSACTIONS (Income & Expenses Ledger)
+-- -----------------------------------------------------------------------------
+CREATE TABLE finance_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('income', 'expense')),
+    category VARCHAR(100) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+    transaction_date DATE NOT NULL,
+    description TEXT NOT NULL,
+    reference_number VARCHAR(100),
+    payment_method VARCHAR(50) NOT NULL DEFAULT 'Bank Transfer',
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'voided')),
+    void_reason TEXT,
+    created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_by_name VARCHAR(255) NOT NULL,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by_name VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_finance_tx_branch ON finance_transactions(branch_id);
+CREATE INDEX idx_finance_tx_date ON finance_transactions(transaction_date DESC);
+CREATE INDEX idx_finance_tx_type ON finance_transactions(transaction_type);
+CREATE INDEX idx_finance_tx_status ON finance_transactions(status);
+
+ALTER TABLE finance_transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated manage finance_transactions" ON finance_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- -----------------------------------------------------------------------------
+-- 22. FINANCE OPENING BALANCES (Ledger Baselines & Continuity)
+-- -----------------------------------------------------------------------------
+CREATE TABLE finance_opening_balances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    year INT NOT NULL,
+    month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
+    amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    is_initial BOOLEAN NOT NULL DEFAULT FALSE,
+    notes TEXT,
+    established_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    established_by_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_branch_year_month UNIQUE(branch_id, year, month)
+);
+
+CREATE INDEX idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
+
+ALTER TABLE finance_opening_balances ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated manage finance_opening_balances" ON finance_opening_balances FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 
 

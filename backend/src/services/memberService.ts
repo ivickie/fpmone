@@ -168,7 +168,7 @@ export class MemberService {
     db.notifications.unshift({
       id: uuidv4(),
       title: 'Registration Approved!',
-      body: `Welcome to Faith Preachers Ministry! Your account is now active.${workerRecord ? ` Your Worker ID is ${workerRecord.workerIdCode}.` : ''}`,
+      body: `Welcome to Faith Preachers Ministries Int'l! Your account is now active.${workerRecord ? ` Your Worker ID is ${workerRecord.workerIdCode}.` : ''}`,
       notificationType: 'registration_approved',
       targetScope: 'specific_member',
       targetId: member.id,

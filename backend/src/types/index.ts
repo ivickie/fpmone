@@ -73,6 +73,8 @@ export interface Branch {
   branchPastorName?: string;
   branchPastorId?: string;
   logoUrl?: string;
+  coverImageUrl?: string;
+  imageUrl?: string;
   status: 'active' | 'inactive' | 'archived';
   isHeadquarters: boolean;
   createdAt: string;
@@ -126,6 +128,7 @@ export interface ServiceSchedule {
   applicableDepartmentIds?: string[];
   qrCodeToken?: string;
   liveStreamUrl?: string; // e.g. YouTube Live or Facebook Live stream URL
+  imageUrl?: string; // Promotional service flyer or artwork banner URL
   status: 'active' | 'inactive' | 'archived';
   createdAt: string;
   updatedAt: string;
@@ -275,7 +278,22 @@ export interface NotificationItem {
   isRead?: boolean;
 }
 
-export type MediaType = 'event' | 'feed' | 'highlight' | 'testimony' | 'profile' | 'church-asset';
+export type MediaType = 'event' | 'feed' | 'highlight' | 'testimony' | 'profile' | 'church-asset' | 'branch' | 'sunday-moment';
+
+export interface SundayMoment {
+  id: string;
+  branchId: string;
+  uploadedBy: string;
+  uploadedByName?: string;
+  uploadedByRole?: string;
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  caption?: string;
+  sundayDate: string; // YYYY-MM-DD
+  status: 'approved' | 'pending' | 'rejected';
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface MediaItem {
   id: string;
@@ -332,6 +350,7 @@ export interface AuthUserSession {
     positionName: string;
     qrCodeToken: string;
   };
+  profilePictureUrl?: string;
 }
 
 export interface RegistrationRequestDto {
@@ -386,4 +405,142 @@ export interface DepartmentReport {
   createdAt: string;
   updatedAt: string;
 }
+
+// =============================================================================
+// FINANCE MODULE TYPES
+// =============================================================================
+
+export type FinanceTransactionType = 'income' | 'expense';
+export type FinanceTransactionStatus = 'active' | 'archived' | 'voided';
+
+export interface FinanceTransaction {
+  id: string;
+  branchId: string;
+  branchName?: string;
+  transactionType: FinanceTransactionType;
+  category: string;
+  amount: number;
+  transactionDate: string; // YYYY-MM-DD
+  description: string;
+  referenceNumber?: string;
+  paymentMethod: string;
+  status: FinanceTransactionStatus;
+  voidReason?: string;
+  createdBy: string;
+  createdByName: string;
+  updatedBy?: string;
+  updatedByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinanceOpeningBalance {
+  id: string;
+  branchId: string;
+  branchName?: string;
+  year: number;
+  month: number; // 1-12
+  amount: number;
+  isInitial: boolean;
+  notes?: string;
+  establishedBy: string;
+  establishedByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFinanceTransactionDto {
+  branchId?: string;
+  transactionType: FinanceTransactionType;
+  category: string;
+  amount: number;
+  transactionDate: string;
+  description: string;
+  referenceNumber?: string;
+  paymentMethod?: string;
+}
+
+export interface UpdateFinanceTransactionDto {
+  category?: string;
+  amount?: number;
+  transactionDate?: string;
+  description?: string;
+  referenceNumber?: string;
+  paymentMethod?: string;
+  editReason: string;
+}
+
+export interface MonthlyFinancialStatement {
+  branchId?: string;
+  branchName: string;
+  year: number;
+  month: number;
+  monthName: string;
+  openingBalance: number;
+  incomeCategories: Array<{ category: string; amount: number; count: number; percentage: number }>;
+  totalIncome: number;
+  expenseCategories: Array<{ category: string; amount: number; count: number; percentage: number }>;
+  totalExpenses: number;
+  closingBalance: number;
+  netChange: number;
+}
+
+export interface AnnualFinancialStatement {
+  branchId?: string;
+  branchName: string;
+  year: number;
+  annualOpeningBalance: number;
+  months: Array<{
+    month: number;
+    monthName: string;
+    openingBalance: number;
+    totalIncome: number;
+    totalExpenses: number;
+    closingBalance: number;
+    netChange: number;
+  }>;
+  totalAnnualIncome: number;
+  totalAnnualExpenses: number;
+  annualClosingBalance: number;
+}
+
+export interface CategoryAnalysisItem {
+  category: string;
+  amount: number;
+  count: number;
+  percentage: number;
+}
+
+export interface FinanceDashboardSummary {
+  branchId?: string;
+  branchName: string;
+  period: { year: number; month: number; monthName: string };
+  openingBalance: number;
+  totalIncome: number;
+  totalExpenses: number;
+  closingBalance: number;
+  mtdIncome: number;
+  mtdExpenses: number;
+  ytdIncome: number;
+  ytdExpenses: number;
+  ytdClosingBalance: number;
+  recentTransactions: FinanceTransaction[];
+  monthlyTrend: Array<{
+    month: number;
+    monthName: string;
+    income: number;
+    expenses: number;
+    net: number;
+  }>;
+  branchComparison?: Array<{
+    branchId: string;
+    branchName: string;
+    branchCode: string;
+    openingBalance: number;
+    totalIncome: number;
+    totalExpenses: number;
+    closingBalance: number;
+  }>;
+}
+
 

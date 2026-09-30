@@ -1,8 +1,11 @@
 package org.fpm.one.presentation.testimonies
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -20,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -35,10 +39,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.fpm.one.core.network.ApiClient
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.TestimonyItem
-import org.fpm.one.presentation.components.EmptyStateView
-import org.fpm.one.presentation.components.FpmButton
-import org.fpm.one.presentation.components.FpmCard
-import org.fpm.one.presentation.components.FpmCardSkeleton
+import org.fpm.one.presentation.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +47,8 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
   val state by viewModel.state.collectAsState()
   var showSubmitDialog by remember { mutableStateOf(false) }
   var selectedCategory by remember { mutableStateOf("All") }
+  var activeLightboxImageUrl by remember { mutableStateOf<String?>(null) }
+  var activeTestimonyDetail by remember { mutableStateOf<TestimonyItem?>(null) }
 
   val categories = listOf("All", "Healing", "Financial Breakthrough", "Deliverance", "Career & Academic", "Family & Marriage", "Salvation")
 
@@ -58,12 +61,12 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
     floatingActionButton = {
       ExtendedFloatingActionButton(
         onClick = { showSubmitDialog = true },
-        containerColor = FpmCrimson,
-        contentColor = FpmSurfaceWhite,
+        containerColor = FpmNavyDark,
+        contentColor = FpmGoldLight,
         shape = RoundedCornerShape(16.dp),
         elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp),
-        icon = { Icon(Icons.Default.Add, contentDescription = "Share") },
-        text = { Text("Share Testimony", fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp) }
+        icon = { Icon(Icons.Default.Add, contentDescription = "Share", tint = FpmGoldLight) },
+        text = { Text("Share Testimony", fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = FpmSurfaceWhite) }
       )
     }
   ) { paddingValues ->
@@ -71,7 +74,7 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmSlateBg)
+        .background(FpmIvoryBg)
     ) {
       // 1. Top Header & Scripture Tagline
       Surface(
@@ -106,8 +109,9 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
 
           // Inspiration Quote
           Surface(
-            color = FpmAmberLight.copy(alpha = 0.5f),
+            color = FpmGoldSubtle,
             shape = RoundedCornerShape(8.dp),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmGoldMuted.copy(alpha = 0.3f)),
             modifier = Modifier.fillMaxWidth()
           ) {
             Row(
@@ -136,25 +140,11 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
           ) {
             categories.forEach { cat ->
-              val isSelected = selectedCategory == cat
-              Surface(
-                modifier = Modifier
-                  .clip(RoundedCornerShape(20.dp))
-                  .clickable { selectedCategory = cat },
-                color = if (isSelected) FpmNavyDark else FpmSlateBg,
-                border = androidx.compose.foundation.BorderStroke(
-                  1.dp,
-                  if (isSelected) FpmNavyDark else FpmBorderLight
-                )
-              ) {
-                Text(
-                  text = cat,
-                  fontSize = 12.sp,
-                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                  color = if (isSelected) FpmSurfaceWhite else FpmTextSecondary,
-                  modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                )
-              }
+              org.fpm.one.presentation.components.FpmPillChip(
+                text = cat,
+                isSelected = selectedCategory == cat,
+                onClick = { selectedCategory = cat }
+              )
             }
           }
         }
@@ -222,7 +212,11 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
           ) {
             items(filteredTestimonies) { testimony ->
-              TestimonyCard(testimony = testimony)
+              TestimonyCard(
+                testimony = testimony,
+                onCardClick = { activeTestimonyDetail = testimony },
+                onImageClick = { activeLightboxImageUrl = it }
+              )
             }
             item {
               Spacer(modifier = Modifier.height(72.dp)) // FAB clearance
@@ -246,106 +240,65 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
       }
     )
   }
+
+  // Full-Screen Image Lightbox
+  if (activeLightboxImageUrl != null) {
+    FpmFullscreenLightbox(
+      imageUrl = activeLightboxImageUrl!!,
+      title = "Faith Preachers Ministries Int'l Testimony",
+      onDismiss = { activeLightboxImageUrl = null }
+    )
+  }
+
+  // Full Testimony Detail Dialog
+  if (activeTestimonyDetail != null) {
+    TestimonyDetailDialog(
+      testimony = activeTestimonyDetail!!,
+      onDismiss = { activeTestimonyDetail = null },
+      onPhotoClick = { activeLightboxImageUrl = it }
+    )
+  }
 }
 
 @Composable
-fun TestimonyCard(testimony: TestimonyItem) {
-  FpmCard(modifier = Modifier.fillMaxWidth()) {
+fun TestimonyCard(
+  testimony: TestimonyItem,
+  onCardClick: (() -> Unit)? = null,
+  onImageClick: ((String) -> Unit)? = null
+) {
+  val hasPhoto = !testimony.photoUrl.isNullOrBlank()
+
+  FpmCard(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clickable { onCardClick?.invoke() },
+    backgroundColor = FpmSurfaceWhite,
+    borderColor = FpmCardBorder
+  ) {
     Column {
+      // 1. Post Header: Author Avatar, Name, Branch, Date, and Category Pill
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Surface(
-          color = FpmNavy.copy(alpha = 0.08f),
-          shape = RoundedCornerShape(6.dp)
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          Text(
-            text = testimony.category.uppercase(),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = FpmNavy,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+          FpmAvatar(
+            name = testimony.authorName,
+            size = 36.dp
           )
-        }
-        Text(
-          text = testimony.createdAt.take(10),
-          fontSize = 11.sp,
-          color = FpmTextMuted
-        )
-      }
-
-      Spacer(modifier = Modifier.height(10.dp))
-
-      Text(
-        text = testimony.title,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Black,
-        color = FpmTextPrimary
-      )
-
-      Spacer(modifier = Modifier.height(6.dp))
-
-      Text(
-        text = testimony.content,
-        fontSize = 13.sp,
-        color = FpmTextSecondary,
-        lineHeight = 20.sp
-      )
-
-      if (!testimony.photoUrl.isNullOrBlank()) {
-        Spacer(modifier = Modifier.height(12.dp))
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(190.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(FpmSlateBg)
-        ) {
-          AsyncImage(
-            model = testimony.photoUrl,
-            contentDescription = "Testimony Photo Proof",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(14.dp))
-      Divider(color = FpmBorderLight)
-      Spacer(modifier = Modifier.height(10.dp))
-
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Box(
-            modifier = Modifier
-              .size(32.dp)
-              .clip(CircleShape)
-              .background(FpmNavy),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = testimony.authorName.firstOrNull()?.toString() ?: "M",
-              color = FpmSurfaceWhite,
-              fontWeight = FontWeight.Bold,
-              fontSize = 13.sp
-            )
-          }
-          Spacer(modifier = Modifier.width(10.dp))
           Column {
             Text(
               text = testimony.authorName,
-              fontSize = 12.sp,
+              fontSize = 13.sp,
               fontWeight = FontWeight.Bold,
               color = FpmTextPrimary
             )
             Text(
-              text = testimony.branchName ?: "Faith Preachers Ministry",
+              text = "${testimony.branchName.ifBlank { "Faith Preachers Ministries Int'l" }} • ${testimony.createdAt.take(10)}",
               fontSize = 11.sp,
               color = FpmTextSecondary
             )
@@ -353,15 +306,130 @@ fun TestimonyCard(testimony: TestimonyItem) {
         }
 
         Surface(
-          color = FpmSuccess.copy(alpha = 0.12f),
-          shape = RoundedCornerShape(12.dp)
+          color = FpmGold.copy(alpha = 0.15f),
+          shape = RoundedCornerShape(6.dp),
+          border = BorderStroke(0.5.dp, FpmGold.copy(alpha = 0.4f))
+        ) {
+          Text(
+            text = testimony.category.uppercase(),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = FpmGoldDark,
+            letterSpacing = 0.6.sp,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(10.dp))
+
+      // 2. Post Title (Text comes before image)
+      Text(
+        text = testimony.title,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Black,
+        color = FpmTextPrimary
+      )
+
+      Spacer(modifier = Modifier.height(4.dp))
+
+      // 3. Post Content (Text comes before image, truncated with See more)
+      ExpandableFacebookText(
+        text = testimony.content,
+        maxChars = 180,
+        onSeeMoreClick = onCardClick
+      )
+
+      // 4. Photo Evidence (Comes AFTER the text)
+      if (hasPhoto) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable {
+              if (onImageClick != null) onImageClick(testimony.photoUrl!!)
+              else onCardClick?.invoke()
+            }
+        ) {
+          FpmAsyncImage(
+            model = testimony.photoUrl,
+            contentDescription = testimony.title,
+            fallbackCategory = "testimony",
+            fallbackTitle = testimony.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+          )
+          Surface(
+            modifier = Modifier
+              .align(Alignment.BottomEnd)
+              .padding(8.dp),
+            color = FpmNavyDeep.copy(alpha = 0.75f),
+            shape = RoundedCornerShape(6.dp)
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+              Icon(Icons.Default.Fullscreen, contentDescription = null, tint = FpmGoldLight, modifier = Modifier.size(13.dp))
+              Text("View Photo", color = FpmGoldLight, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+
+      // Video Evidence (if present)
+      if (!testimony.videoUrl.isNullOrBlank()) {
+        val context = LocalContext.current
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable {
+              try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(testimony.videoUrl))
+                context.startActivity(intent)
+              } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Could not open video", android.widget.Toast.LENGTH_SHORT).show()
+              }
+            },
+          color = FpmNavyDark
         ) {
           Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Icon(Icons.Default.PlayCircle, contentDescription = null, tint = FpmGoldLight, modifier = Modifier.size(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Watch Testimony Video", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmGoldLight)
+              Text("Tap to play recorded evidence video", fontSize = 10.sp, color = FpmTextOnDark.copy(alpha = 0.7f))
+            }
+            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = FpmGold.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+          }
+        }
+      }
+
+      // 5. Post Bottom Bar: Pastoral Verified badge & Read Full Story
+      Spacer(modifier = Modifier.height(10.dp))
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Surface(
+          color = FpmSuccess.copy(alpha = 0.12f),
+          shape = RoundedCornerShape(10.dp)
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
           ) {
-            Icon(Icons.Default.Verified, contentDescription = null, tint = FpmSuccess, modifier = Modifier.size(13.dp))
+            Icon(Icons.Default.Verified, contentDescription = null, tint = FpmSuccess, modifier = Modifier.size(12.dp))
             Text(
               text = "Pastoral Verified",
               fontSize = 10.sp,
@@ -370,6 +438,14 @@ fun TestimonyCard(testimony: TestimonyItem) {
             )
           }
         }
+
+        Text(
+          text = "Read Full Story →",
+          fontSize = 11.sp,
+          fontWeight = FontWeight.Bold,
+          color = FpmRoyalBlue,
+          modifier = Modifier.clickable { onCardClick?.invoke() }
+        )
       }
     }
   }
@@ -412,11 +488,11 @@ fun SubmitTestimonyDialog(
           val bytes = inputStream?.readBytes() ?: throw Exception("Unable to read image data.")
           inputStream.close()
 
-          // Strict 1MB ceiling enforcement (1,048,576 bytes)
-          val maxBytes = 1024 * 1024
+          // Strict 10MB ceiling enforcement (10,485,760 bytes)
+          val maxBytes = 10 * 1024 * 1024
           if (bytes.size > maxBytes) {
-            val sizeKb = bytes.size / 1024
-            error = "Selected photo exceeds 1MB limit (${sizeKb} KB). Please select an image under 1MB."
+            val sizeMb = bytes.size / (1024 * 1024)
+            error = "Selected photo exceeds 10MB limit (${sizeMb} MB). Please select an image under 10MB."
             isUploading = false
             return@launch
           }
@@ -427,6 +503,7 @@ fun SubmitTestimonyDialog(
               val extractedUrl = try {
                 val parsed = ApiClient.json.parseToJsonElement(responseJson)
                 parsed.jsonObject["publicUrl"]?.jsonPrimitive?.contentOrNull
+                  ?: parsed.jsonObject["media"]?.jsonObject?.get("publicUrl")?.jsonPrimitive?.contentOrNull
                   ?: parsed.jsonObject["file"]?.jsonObject?.get("publicUrl")?.jsonPrimitive?.contentOrNull
                   ?: ""
               } catch (e: Exception) {
@@ -485,7 +562,7 @@ fun SubmitTestimonyDialog(
           ) {
             Text(
               text = it,
-              color = FpmCrimson,
+              color = FpmError,
               fontSize = 12.sp,
               fontWeight = FontWeight.Medium,
               modifier = Modifier.padding(10.dp)
@@ -514,10 +591,10 @@ fun SubmitTestimonyDialog(
               modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
                 .clickable { category = cat },
-              color = if (isSelected) FpmNavy else FpmSlateBg,
+              color = if (isSelected) FpmNavyDark else FpmSlateBg,
               border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (isSelected) FpmNavy else FpmBorderLight
+                if (isSelected) FpmNavyDark else FpmBorderLight
               )
             ) {
               Text(
@@ -562,7 +639,7 @@ fun SubmitTestimonyDialog(
             ) {
               if (uploadedPhotoUrl != null) {
                 AsyncImage(
-                  model = uploadedPhotoUrl,
+                  model = ApiClient.resolveMediaUrl(uploadedPhotoUrl),
                   contentDescription = "Uploaded photo preview",
                   modifier = Modifier
                     .size(42.dp)
@@ -587,13 +664,13 @@ fun SubmitTestimonyDialog(
               }
             }
             if (isUploading) {
-              CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = FpmNavy)
+              CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = FpmNavyDark)
             } else if (uploadedPhotoUrl != null) {
               IconButton(onClick = {
                 uploadedPhotoUrl = null
                 photoFileName = null
               }) {
-                Icon(Icons.Default.Close, contentDescription = "Remove photo", tint = FpmCrimson, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Close, contentDescription = "Remove photo", tint = FpmError, modifier = Modifier.size(18.dp))
               }
             } else {
               OutlinedButton(
@@ -641,7 +718,7 @@ fun SubmitTestimonyDialog(
               onCheckedChange = { allowPublish = it },
               colors = SwitchDefaults.colors(
                 checkedThumbColor = FpmSurfaceWhite,
-                checkedTrackColor = FpmCrimson
+                checkedTrackColor = FpmNavyDark
               )
             )
           }

@@ -32,6 +32,7 @@ export const BranchesPage: React.FC = () => {
     email: '',
     branchPastorName: '',
     logoUrl: '',
+    coverImageUrl: '',
     status: 'active'
   });
 
@@ -63,6 +64,7 @@ export const BranchesPage: React.FC = () => {
       email: '',
       branchPastorName: '',
       logoUrl: '',
+      coverImageUrl: '',
       status: 'active'
     });
     setCreateModalOpen(true);
@@ -81,6 +83,7 @@ export const BranchesPage: React.FC = () => {
       email: b.email || '',
       branchPastorName: b.branchPastorName || '',
       logoUrl: b.logoUrl || '',
+      coverImageUrl: b.coverImageUrl || b.imageUrl || '',
       status: b.status || 'active'
     });
     setEditModalOpen(true);
@@ -259,10 +262,11 @@ export const BranchesPage: React.FC = () => {
             <h3 className="text-base font-bold text-slate-900">Add New Church Branch / Chapter</h3>
             <form onSubmit={handleCreateBranch} className="space-y-4 text-xs">
               <ImageUpload
-                label="Branch Logo / Banner"
-                value={formData.logoUrl}
-                onChange={url => setFormData({ ...formData, logoUrl: url })}
+                label="Branch Cover Image (Home Screen Hero & Moments Cards)"
+                value={formData.coverImageUrl}
+                onChange={url => setFormData({ ...formData, coverImageUrl: url })}
                 entityType="church-asset"
+                helperText="Landscape photograph of church sanctuary/auditorium for mobile app hero (JPEG, PNG, WEBP, max 10MB)"
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -405,11 +409,12 @@ export const BranchesPage: React.FC = () => {
             <h3 className="text-base font-bold text-slate-900">Edit Branch: {selectedBranch.name}</h3>
             <form onSubmit={handleUpdateBranch} className="space-y-4 text-xs">
               <ImageUpload
-                label="Branch Logo / Banner"
-                value={formData.logoUrl}
-                onChange={url => setFormData({ ...formData, logoUrl: url })}
+                label="Branch Cover Image (Home Screen Hero & Moments Cards)"
+                value={formData.coverImageUrl}
+                onChange={url => setFormData({ ...formData, coverImageUrl: url })}
                 entityType="church-asset"
                 branchId={selectedBranch.id}
+                helperText="Landscape photograph of church sanctuary/auditorium for mobile app hero (JPEG, PNG, WEBP, max 10MB)"
               />
 
               <div className="grid grid-cols-2 gap-3">

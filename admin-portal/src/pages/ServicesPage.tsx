@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ImageUpload } from '../components/ImageUpload';
 
 export const ServicesPage: React.FC = () => {
   const { selectedBranchId, user } = useAuth();
@@ -54,6 +55,7 @@ export const ServicesPage: React.FC = () => {
     gracePeriodMinutes: 15,
     attendanceDurationHours: 4.0,
     liveStreamUrl: '',
+    imageUrl: '',
     status: 'active'
   });
 
@@ -90,6 +92,7 @@ export const ServicesPage: React.FC = () => {
       gracePeriodMinutes: 15,
       attendanceDurationHours: 4.0,
       liveStreamUrl: '',
+      imageUrl: '',
       status: 'active'
     });
     setCreateModalOpen(true);
@@ -106,6 +109,7 @@ export const ServicesPage: React.FC = () => {
       gracePeriodMinutes: s.gracePeriodMinutes || 15,
       attendanceDurationHours: s.attendanceDurationHours || 4.0,
       liveStreamUrl: s.liveStreamUrl || '',
+      imageUrl: s.imageUrl || '',
       status: s.status || 'active'
     });
     setEditModalOpen(true);
@@ -126,7 +130,8 @@ export const ServicesPage: React.FC = () => {
         expectedEndTime: `${formData.expectedEndTime}:00`,
         gracePeriodMinutes: Number(formData.gracePeriodMinutes),
         attendanceDurationHours: Number(formData.attendanceDurationHours),
-        liveStreamUrl: formData.liveStreamUrl.trim() || undefined
+        liveStreamUrl: formData.liveStreamUrl.trim() || undefined,
+        imageUrl: formData.imageUrl?.trim() || undefined
       });
       setCreateModalOpen(false);
       toast.success('Service schedule created successfully');
@@ -152,7 +157,8 @@ export const ServicesPage: React.FC = () => {
         expectedEndTime: `${formData.expectedEndTime}:00`,
         gracePeriodMinutes: Number(formData.gracePeriodMinutes),
         attendanceDurationHours: Number(formData.attendanceDurationHours),
-        liveStreamUrl: formData.liveStreamUrl.trim() || undefined
+        liveStreamUrl: formData.liveStreamUrl.trim() || undefined,
+        imageUrl: formData.imageUrl?.trim() || undefined
       });
       setEditModalOpen(false);
       toast.success('Service schedule updated successfully');
@@ -303,9 +309,18 @@ export const ServicesPage: React.FC = () => {
       {/* Create Service Modal */}
       {createModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Add Service Schedule</h3>
             <form onSubmit={handleCreate} className="space-y-4 text-xs">
+              <ImageUpload
+                label="Service Flyer / Promotional Artwork"
+                value={formData.imageUrl}
+                onChange={url => setFormData({ ...formData, imageUrl: url })}
+                entityType="church-asset"
+                branchId={formData.branchId || selectedBranchId}
+                helperText="Upload official service artwork or announcement flyer (JPEG, PNG, WEBP)"
+              />
+
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Church Branch</label>
                 <select
@@ -440,9 +455,18 @@ export const ServicesPage: React.FC = () => {
       {/* Edit Service Modal */}
       {editModalOpen && selectedService && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Edit Service Schedule</h3>
             <form onSubmit={handleUpdate} className="space-y-4 text-xs">
+              <ImageUpload
+                label="Service Flyer / Promotional Artwork"
+                value={formData.imageUrl}
+                onChange={url => setFormData({ ...formData, imageUrl: url })}
+                entityType="church-asset"
+                branchId={formData.branchId || selectedBranchId}
+                helperText="Upload official service artwork or announcement flyer (JPEG, PNG, WEBP)"
+              />
+
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Service Name</label>
                 <input

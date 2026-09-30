@@ -15,6 +15,8 @@ import org.fpm.one.R
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,9 +39,9 @@ import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.AttendanceRecordItem
 import org.fpm.one.data.model.ServiceScheduleItem
 import org.fpm.one.data.model.UserSession
-import org.fpm.one.presentation.components.FpmButton
-import org.fpm.one.presentation.components.FpmCard
-import org.fpm.one.presentation.components.LoadingSpinner
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.SubcomposeAsyncImage
+import org.fpm.one.presentation.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +87,7 @@ fun WorkerHubScreen(
                 color = FpmSurfaceWhite
               )
               Text(
-                text = "Faith Preachers Ministry • Authorized Workers",
+                text = "Faith Preachers Ministries Int'l • Authorized Workers",
                 fontSize = 11.sp,
                 color = FpmGoldLight
               )
@@ -95,7 +97,7 @@ fun WorkerHubScreen(
         navigationIcon = {
           if (onNavigateBack != null) {
             IconButton(onClick = onNavigateBack) {
-              Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = FpmSurfaceWhite)
+              Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmSurfaceWhite)
             }
           }
         },
@@ -105,7 +107,7 @@ fun WorkerHubScreen(
           }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = FpmNavy
+          containerColor = FpmNavyDark
         )
       )
     }
@@ -114,7 +116,7 @@ fun WorkerHubScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmSlateBg),
+        .background(FpmIvoryBg),
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -158,17 +160,17 @@ fun WorkerHubScreen(
               modifier = Modifier.padding(14.dp),
               verticalAlignment = Alignment.CenterVertically
             ) {
-              Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = FpmCrimson)
+              Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = FpmError)
               Spacer(modifier = Modifier.width(10.dp))
               Text(
                 text = err,
-                color = FpmCrimson,
+                color = FpmError,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
               )
               IconButton(onClick = { viewModel.clearMessages() }, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = FpmCrimson)
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = FpmError)
               }
             }
           }
@@ -335,7 +337,7 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
   val workerCode = user?.workerDetails?.workerCode ?: "FPM-0001"
   val deptName = user?.workerDetails?.departmentName ?: "Ministry Worker"
   val position = user?.workerDetails?.positionName ?: "Member"
-  val branchName = user?.branchName ?: "Faith Preachers Ministry"
+  val branchName = user?.branchName ?: "Faith Preachers Ministries Int'l"
   val role = user?.roleName ?: "Worker"
 
   Surface(
@@ -392,7 +394,7 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
             Spacer(modifier = Modifier.width(10.dp))
             Column {
               Text(
-                text = "FAITH PREACHERS MINISTRY",
+                text = "FAITH PREACHERS MINISTRIES INT'L",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Black,
                 color = FpmSurfaceWhite,
@@ -439,12 +441,36 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
               .border(1.5.dp, FpmGold, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
           ) {
-            Text(
-              text = (user?.firstName?.take(1) ?: "W") + (user?.lastName?.take(1) ?: "K"),
-              fontSize = 22.sp,
-              fontWeight = FontWeight.Black,
-              color = FpmGoldLight
-            )
+            if (!user?.profilePictureUrl.isNullOrBlank()) {
+              SubcomposeAsyncImage(
+                model = org.fpm.one.core.network.ApiClient.resolveMediaUrl(user?.profilePictureUrl),
+                contentDescription = user?.fullName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {
+                  Box(
+                    modifier = Modifier
+                      .fillMaxSize()
+                      .shimmerEffect()
+                  )
+                },
+                error = {
+                  Text(
+                    text = (user?.firstName?.take(1) ?: "W") + (user?.lastName?.take(1) ?: "K"),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = FpmGoldLight
+                  )
+                }
+              )
+            } else {
+              Text(
+                text = (user?.firstName?.take(1) ?: "W") + (user?.lastName?.take(1) ?: "K"),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                color = FpmGoldLight
+              )
+            }
           }
 
           Spacer(modifier = Modifier.width(14.dp))
@@ -483,7 +509,7 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
         }
 
         Spacer(modifier = Modifier.height(14.dp))
-        Divider(color = FpmSurfaceWhite.copy(alpha = 0.15f))
+        HorizontalDivider(color = FpmSurfaceWhite.copy(alpha = 0.15f))
         Spacer(modifier = Modifier.height(10.dp))
 
         // Card Footer
@@ -624,8 +650,8 @@ fun AttendanceStatusCard(
           text = if (state.isLoading) "Processing Clock-Out..." else "Clock Out Now",
           onClick = onClockOutClick,
           enabled = !state.isLoading,
-          containerColor = FpmCrimson,
-          icon = Icons.Default.Logout,
+          containerColor = FpmError,
+          icon = Icons.AutoMirrored.Filled.Logout,
           modifier = Modifier.fillMaxWidth()
         )
       } else {
@@ -779,7 +805,7 @@ fun AttendanceRecordRow(record: AttendanceRecordItem) {
         "present" -> Triple(FpmSuccessBg, FpmSuccess, "✓ Present")
         "late" -> Triple(FpmLateBg, FpmLate, "L Late")
         "excused" -> Triple(FpmGoldLight.copy(alpha = 0.3f), FpmGoldDark, "E Excused")
-        else -> Triple(FpmErrorBg, FpmCrimson, "A Absent")
+        else -> Triple(FpmErrorBg, FpmError, "A Absent")
       }
 
       Surface(
@@ -833,10 +859,10 @@ fun ClockInModalDialog(
     },
     text = {
       Column(modifier = Modifier.fillMaxWidth()) {
-        TabRow(
+        PrimaryTabRow(
           selectedTabIndex = selectedTab,
           containerColor = FpmSlateBg,
-          contentColor = FpmNavy
+          contentColor = FpmNavyDark
         ) {
           tabs.forEachIndexed { index, title ->
             Tab(

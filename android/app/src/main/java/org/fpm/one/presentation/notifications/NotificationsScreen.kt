@@ -54,7 +54,7 @@ fun NotificationsScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmSlateBg)
+        .background(FpmIvoryBg)
     ) {
       if (state.isLoading && state.notifications.isEmpty()) {
         Column(
@@ -99,8 +99,8 @@ fun NotificationItemCard(
 ) {
   FpmCard(
     modifier = Modifier.fillMaxWidth(),
-    backgroundColor = if (item.isRead) FpmSurfaceWhite else Color(0xFFF1F5F9),
-    borderColor = if (item.isRead) FpmCardBorder else FpmRoyalBlue.copy(alpha = 0.3f),
+    backgroundColor = if (item.isRead) FpmSurfaceWhite else FpmGoldSubtle,
+    borderColor = if (item.isRead) FpmCardBorder else FpmGoldMuted.copy(alpha = 0.5f),
     elevation = if (item.isRead) 0.5.dp else 1.5.dp,
     onClick = onClick
   ) {
@@ -112,7 +112,7 @@ fun NotificationItemCard(
       val (icon, tint, bg) = when (item.notificationType.lowercase()) {
         "attendance" -> Triple(Icons.Default.CheckCircle, FpmSuccess, FpmSuccessBg)
         "reminder" -> Triple(Icons.Default.Alarm, FpmGoldDark, FpmAmberLight)
-        "urgent" -> Triple(Icons.Default.Warning, FpmCrimson, FpmErrorBg)
+        "urgent" -> Triple(Icons.Default.Warning, FpmError, FpmErrorBg)
         else -> Triple(Icons.Default.Campaign, FpmRoyalBlue, Color(0xFFE0E7FF))
       }
 
@@ -147,7 +147,7 @@ fun NotificationItemCard(
                 .padding(start = 6.dp)
                 .size(8.dp)
                 .clip(CircleShape)
-                .background(FpmCrimson)
+                .background(FpmLiveRed)
             )
           }
         }

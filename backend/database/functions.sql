@@ -1,5 +1,5 @@
 -- =============================================================================
--- FAITH PREACHERS MINISTRY (FPM) - FPM ONE
+-- FAITH PREACHERS MINISTRIES INT'L (FPM) - FPM ONE
 -- STORED PROCEDURES & ATTENDANCE / APPROVAL FUNCTIONS
 -- =============================================================================
 

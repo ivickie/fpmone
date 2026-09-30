@@ -22,7 +22,13 @@ import {
   uploadMediaHandler, uploadAvatarHandler, deleteMediaHandler, listMediaHandler,
   getDbStatusHandler,
   getDepartmentReportsHandler, getDepartmentReportByIdHandler,
-  createDepartmentReportHandler, reviewDepartmentReportHandler, deleteDepartmentReportHandler
+  createDepartmentReportHandler, reviewDepartmentReportHandler, deleteDepartmentReportHandler,
+  getSundayMomentsHandler, createSundayMomentHandler, deleteSundayMomentHandler,
+  getFinanceCategoriesHandler, getFinanceDashboardHandler, getFinanceTransactionsHandler,
+  getFinanceTransactionByIdHandler, createFinanceTransactionHandler, updateFinanceTransactionHandler,
+  voidFinanceTransactionHandler, getFinanceOpeningBalanceHandler, setFinanceOpeningBalanceHandler,
+  getFinanceMonthlyStatementHandler, getFinanceAnnualStatementHandler, getFinanceCategoryAnalysisHandler,
+  exportFinanceReportHandler
 } from '../controllers/apiControllers';
 import { requireAuth, requireAdmin, requireCronAuth } from '../middleware/authMiddleware';
 
@@ -154,5 +160,25 @@ router.post('/department-reports', requireAuth, createDepartmentReportHandler);
 router.get('/department-reports/:id', requireAuth, getDepartmentReportByIdHandler);
 router.put('/department-reports/:id/review', requireAuth, reviewDepartmentReportHandler);
 router.delete('/department-reports/:id', requireAuth, deleteDepartmentReportHandler);
+
+// --- SUNDAY MOMENTS ---
+router.get('/sunday-moments', getSundayMomentsHandler);
+router.post('/sunday-moments', requireAuth, createSundayMomentHandler);
+router.delete('/sunday-moments/:id', requireAuth, deleteSundayMomentHandler);
+
+// --- FINANCE MODULE ---
+router.get('/finance/categories', requireAuth, getFinanceCategoriesHandler);
+router.get('/finance/dashboard', requireAuth, getFinanceDashboardHandler);
+router.get('/finance/transactions', requireAuth, getFinanceTransactionsHandler);
+router.post('/finance/transactions', requireAuth, createFinanceTransactionHandler);
+router.get('/finance/transactions/:id', requireAuth, getFinanceTransactionByIdHandler);
+router.put('/finance/transactions/:id', requireAuth, updateFinanceTransactionHandler);
+router.post('/finance/transactions/:id/void', requireAuth, voidFinanceTransactionHandler);
+router.get('/finance/opening-balance', requireAuth, getFinanceOpeningBalanceHandler);
+router.post('/finance/opening-balance', requireAuth, setFinanceOpeningBalanceHandler);
+router.get('/finance/statements/monthly', requireAuth, getFinanceMonthlyStatementHandler);
+router.get('/finance/statements/annual', requireAuth, getFinanceAnnualStatementHandler);
+router.get('/finance/analysis', requireAuth, getFinanceCategoryAnalysisHandler);
+router.get('/finance/export', requireAuth, exportFinanceReportHandler);
 
 export default router;

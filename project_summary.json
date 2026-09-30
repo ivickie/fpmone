@@ -1,12 +1,12 @@
 {
-  "projectName": "Faith Preachers Ministry - FPM ONE",
+  "projectName": "Faith Preachers Ministries Int'l - FPM ONE",
   "version": "1.0.0",
   "status": "COMPLETED_AND_VERIFIED",
   "generatedAt": "2026-09-09T15:05:09+01:00",
   "architectureSummary": {
-    "overview": "FPM ONE is an enterprise digital church management and mobile engagement ecosystem built for Faith Preachers Ministry across multiple global branches. It consists of an Android native application, a responsive web Admin Portal, a secure REST API backend, and a PostgreSQL database with Row Level Security (RLS) and authoritative business logic functions.",
+    "overview": "FPM ONE is an enterprise digital church management and mobile engagement ecosystem built for Faith Preachers Ministries Int'l across multiple global branches. It consists of an Android native application, a responsive web Admin Portal, a secure REST API backend, and a PostgreSQL database with Row Level Security (RLS) and authoritative business logic functions.",
     "hierarchy": {
-      "ministry": "Faith Preachers Ministry",
+      "ministry": "Faith Preachers Ministries Int'l",
       "branches": [
         "Cathedral of Grace (Headquarters - Lagos, Nigeria)",
         "Abuja Central Chapter (Abuja, Nigeria)",

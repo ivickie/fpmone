@@ -219,7 +219,7 @@ fun AnimatedSplashScreen(onFinished: () -> Unit) {
       ) {
         Image(
           painter = painterResource(id = R.drawable.church_logo),
-          contentDescription = "Faith Preachers Ministry Emblem",
+          contentDescription = "Faith Preachers Ministries Int'l Emblem",
           modifier = Modifier
             .size(92.dp)
             .clip(CircleShape)
@@ -239,7 +239,7 @@ fun AnimatedSplashScreen(onFinished: () -> Unit) {
       Spacer(modifier = Modifier.height(6.dp))
 
       Text(
-        text = "FAITH PREACHERS MINISTRY",
+        text = "FAITH PREACHERS MINISTRIES INT'L",
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
         color = FpmGoldLight,

@@ -18,7 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import org.fpm.one.R
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -74,7 +74,7 @@ fun RegistrationWizardScreen(
           IconButton(onClick = {
             if (state.currentStep > 1) viewModel.prevStep() else onNavigateBack()
           }) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = FpmTextPrimary)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTextPrimary)
           }
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmSurfaceWhite)
@@ -150,7 +150,7 @@ fun RegistrationWizardScreen(
 
       // Steps Content
       when (state.currentStep) {
-        1 -> Step1Account(state, viewModel)
+        1 -> Step1Account(state, viewModel, onNavigateBack)
         2 -> Step2ChurchInfo(state, viewModel)
         3 -> Step3PersonalInfo(state, viewModel)
         4 -> Step4Review(state, viewModel, onRegistrationComplete)
@@ -160,7 +160,11 @@ fun RegistrationWizardScreen(
 }
 
 @Composable
-private fun Step1Account(state: RegistrationFormState, viewModel: RegistrationViewModel) {
+private fun Step1Account(
+  state: RegistrationFormState,
+  viewModel: RegistrationViewModel,
+  onNavigateBack: () -> Unit
+) {
   var firstName by remember { mutableStateOf(state.firstName) }
   var middleName by remember { mutableStateOf(state.middleName) }
   var lastName by remember { mutableStateOf(state.lastName) }
@@ -299,6 +303,24 @@ private fun Step1Account(state: RegistrationFormState, viewModel: RegistrationVi
       },
       modifier = Modifier.fillMaxWidth()
     )
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.Center,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Text(text = "Already have an account? ", fontSize = 12.sp, color = FpmTextSecondary)
+      TextButton(onClick = onNavigateBack) {
+        Text(
+          text = "Sign In",
+          fontSize = 12.sp,
+          fontWeight = FontWeight.Bold,
+          color = FpmRoyalBlue
+        )
+      }
+    }
   }
 }
 

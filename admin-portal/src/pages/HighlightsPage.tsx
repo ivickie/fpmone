@@ -17,6 +17,7 @@ export const HighlightsPage: React.FC = () => {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [selectedHighlight, setSelectedHighlight] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -25,7 +26,21 @@ export const HighlightsPage: React.FC = () => {
   const [scripture, setScripture] = useState('');
   const [quote, setQuote] = useState('');
   const [keyPointsText, setKeyPointsText] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  const resolveMediaUrl = (url?: string): string => {
+    if (!url) return '';
+    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+    const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+    if (url.includes('/uploads/')) {
+      const idx = url.indexOf('/uploads/');
+      return `http://${host}:5000${url.substring(idx)}`;
+    }
+    if (url.startsWith('/')) {
+      return `http://${host}:5000${url}`;
+    }
+    return url;
+  };
 
   const fetchHighlights = async () => {
     setLoading(true);
@@ -50,7 +65,7 @@ export const HighlightsPage: React.FC = () => {
     setScripture('');
     setQuote('');
     setKeyPointsText('');
-    setPhotoUrl('');
+    setMediaUrls([]);
     setModalOpen(true);
   };
 
@@ -62,8 +77,51 @@ export const HighlightsPage: React.FC = () => {
     setScripture(h.scripture || '');
     setQuote(h.quote || '');
     setKeyPointsText((h.keyPoints || []).join('\n'));
-    setPhotoUrl((h.photos && h.photos.length > 0) ? h.photos[0] : '');
+    const initialMedia = (h.photos && Array.isArray(h.photos) && h.photos.length > 0)
+      ? [...h.photos]
+      : [h.photoUrl, h.videoUrl].filter(Boolean);
+    if (h.videoUrl && !initialMedia.includes(h.videoUrl)) {
+      initialMedia.push(h.videoUrl);
+    }
+    setMediaUrls(initialMedia);
     setEditModalOpen(true);
+  };
+
+  const isVideoMedia = (url: string) => /\.(mp4|webm|mov|quicktime)(\?.*)?$/i.test(url);
+  const isImageMedia = (url: string) => !isVideoMedia(url);
+  const photoCount = mediaUrls.filter(isImageMedia).length;
+  const videoCount = mediaUrls.filter(isVideoMedia).length;
+  const canAddMoreMedia = photoCount < 5 || videoCount < 1;
+
+  const handleAddMedia = (newUrls: string[]) => {
+    let currentPhotos = mediaUrls.filter(isImageMedia);
+    let currentVideos = mediaUrls.filter(isVideoMedia);
+    let rejectedVideo = false;
+    let rejectedPhotos = false;
+
+    newUrls.forEach(url => {
+      if (isVideoMedia(url)) {
+        if (currentVideos.length < 1) {
+          currentVideos.push(url);
+        } else {
+          rejectedVideo = true;
+        }
+      } else {
+        if (currentPhotos.length < 5) {
+          currentPhotos.push(url);
+        } else {
+          rejectedPhotos = true;
+        }
+      }
+    });
+
+    if (rejectedVideo) {
+      toast.error('Maximum 1 video allowed per sermon recap.');
+    }
+    if (rejectedPhotos) {
+      toast.error('Maximum 5 pictures allowed per sermon recap.');
+    }
+    setMediaUrls([...currentPhotos, ...currentVideos]);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -71,6 +129,8 @@ export const HighlightsPage: React.FC = () => {
     setActionLoading(true);
     try {
       const keyPoints = keyPointsText.split('\n').map(s => s.trim()).filter(Boolean);
+      const photos = mediaUrls.filter(isImageMedia).slice(0, 5);
+      const videoItem = mediaUrls.find(isVideoMedia);
       await api.createHighlight({
         title,
         speaker,
@@ -78,7 +138,8 @@ export const HighlightsPage: React.FC = () => {
         scripture,
         quote,
         keyPoints,
-        photos: photoUrl ? [photoUrl] : [],
+        photos,
+        videoUrl: videoItem || undefined,
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
@@ -97,6 +158,8 @@ export const HighlightsPage: React.FC = () => {
     setActionLoading(true);
     try {
       const keyPoints = keyPointsText.split('\n').map(s => s.trim()).filter(Boolean);
+      const photos = mediaUrls.filter(isImageMedia).slice(0, 5);
+      const videoItem = mediaUrls.find(isVideoMedia);
       await api.updateHighlight(selectedHighlight.id, {
         title,
         speaker,
@@ -104,7 +167,8 @@ export const HighlightsPage: React.FC = () => {
         scripture,
         quote,
         keyPoints,
-        photos: photoUrl ? [photoUrl] : []
+        photos,
+        videoUrl: videoItem || undefined
       });
       setEditModalOpen(false);
       setSelectedHighlight(null);
@@ -207,16 +271,108 @@ export const HighlightsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {hasPhoto && (
-                  <div className="rounded-xl overflow-hidden max-h-72 border border-slate-100 shadow-inner">
-                    <img
-                      src={h.photos[0]}
-                      alt={h.title}
-                      className="w-full h-full object-cover"
-                      onError={(e: any) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                  </div>
-                )}
+                {/* Multi-Media Gallery for Highlight */}
+                {(() => {
+                  const media: string[] = (h.photos && Array.isArray(h.photos) && h.photos.length > 0)
+                    ? [...h.photos]
+                    : [h.photoUrl, h.videoUrl].filter(Boolean);
+                  if (h.videoUrl && !media.includes(h.videoUrl)) {
+                    media.push(h.videoUrl);
+                  }
+                  if (media.length === 0) return null;
+
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Service Media ({media.length} item{media.length > 1 ? 's' : ''})</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400">Click to expand preview</span>
+                      </div>
+
+                      {media.length === 1 ? (
+                        <div
+                          onClick={() => setLightboxMedia(media[0])}
+                          className="rounded-xl overflow-hidden max-h-80 border border-slate-200/80 shadow-inner cursor-pointer group relative bg-slate-900 flex items-center justify-center"
+                        >
+                          {media[0].match(/\.(mp4|webm|mov|quicktime)(\?.*)?$/i) ? (
+                            <div className="w-full h-64 flex flex-col items-center justify-center bg-slate-950 text-white relative">
+                              <video
+                                src={resolveMediaUrl(media[0])}
+                                className="w-full h-full object-contain"
+                                preload="metadata"
+                              />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition">
+                                <div className="w-12 h-12 rounded-full bg-amber-500/90 text-slate-950 flex items-center justify-center font-bold shadow-lg">
+                                  ▶
+                                </div>
+                              </div>
+                              <span className="absolute bottom-2 left-3 px-2 py-0.5 bg-black/70 text-amber-300 text-[10px] font-bold rounded">
+                                Sermon Video Recap
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="w-full h-full relative">
+                              <img
+                                src={resolveMediaUrl(media[0])}
+                                alt={h.title}
+                                className="w-full max-h-80 object-cover group-hover:scale-101 transition duration-300"
+                                onError={(e: any) => { e.currentTarget.style.display = 'none'; }}
+                              />
+                              <div className="absolute inset-0 bg-slate-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                <span className="px-3 py-1.5 bg-slate-900/80 text-white text-xs font-semibold rounded-lg shadow-sm">
+                                  View Full Size
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className={`grid gap-2 rounded-xl overflow-hidden ${
+                          media.length === 2 ? 'grid-cols-2' : media.length === 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+                        }`}>
+                          {media.map((url, idx) => {
+                            const isVideo = url.match(/\.(mp4|webm|mov|quicktime)(\?.*)?$/i);
+                            return (
+                              <div
+                                key={idx}
+                                onClick={() => setLightboxMedia(url)}
+                                className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-video sm:aspect-square cursor-pointer group shadow-xs hover:shadow-md transition"
+                              >
+                                {isVideo ? (
+                                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white relative">
+                                    <video src={resolveMediaUrl(url)} className="w-full h-full object-cover opacity-70" preload="metadata" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-xs shadow">
+                                        ▶
+                                      </div>
+                                    </div>
+                                    <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-black/80 text-amber-400 text-[9px] font-bold rounded">
+                                      VIDEO #{idx + 1}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-full relative">
+                                    <img
+                                      src={resolveMediaUrl(url)}
+                                      alt={`Highlight media ${idx + 1}`}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                    />
+                                    <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-mono rounded">
+                                      #{idx + 1}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-blue-900/20 opacity-0 group-hover:opacity-100 transition" />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {h.scripture && (
                   <div className="p-3 bg-amber-50/70 border-l-3 border-amber-500 rounded-r-xl text-xs text-amber-950 font-serif">
@@ -293,13 +449,83 @@ export const HighlightsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Sermon Photo / Media</label>
-                <ImageUpload
-                  value={photoUrl}
-                  onChange={setPhotoUrl}
-                  entityType="highlight"
-                  placeholder="Upload sermon flyer or pulpit photo"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                    Service Media ({photoCount}/5 photos, {videoCount}/1 video)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">Max 5 pictures & 1 video</span>
+                </div>
+
+                {mediaUrls.length > 0 && (
+                  <div className="grid grid-cols-6 gap-2 mb-2.5">
+                    {mediaUrls.map((url, idx) => {
+                      const isVid = isVideoMedia(url);
+                      return (
+                        <div
+                          key={idx}
+                          className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-square flex items-center justify-center cursor-pointer"
+                          onClick={() => setLightboxMedia(url)}
+                          title="Click to view full preview"
+                        >
+                          {isVid ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-1">
+                              <span className="text-[10px] font-bold text-amber-400">VIDEO</span>
+                              <span className="text-[9px] text-slate-300 truncate max-w-full">Preview</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={resolveMediaUrl(url)}
+                              alt={`Media ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaUrls(mediaUrls.filter((_, i) => i !== idx));
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+                            title="Remove media"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <span className="absolute bottom-1 left-1 px-1 py-0.2 bg-black/60 text-white text-[9px] rounded font-mono">
+                            {isVid ? 'VIDEO' : `IMG ${idx + 1}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {canAddMoreMedia ? (
+                  <ImageUpload
+                    label=""
+                    value=""
+                    onChange={url => {
+                      if (url) handleAddMedia([url]);
+                    }}
+                    multiple={true}
+                    onMultipleUpload={urls => {
+                      handleAddMedia(urls);
+                    }}
+                    entityType="highlight"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                    helperText={
+                      photoCount < 5 && videoCount < 1
+                        ? `Add up to ${5 - photoCount} photo${5 - photoCount > 1 ? 's' : ''} or 1 video (multi-select supported)`
+                        : photoCount < 5
+                        ? `Add up to ${5 - photoCount} photo${5 - photoCount > 1 ? 's' : ''}`
+                        : `Add 1 highlight video`
+                    }
+                    placeholder="Click to attach photos or video"
+                  />
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg text-center font-medium border border-amber-200">
+                    Maximum 5 pictures and 1 video limit reached. Remove an item to replace.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -411,13 +637,83 @@ export const HighlightsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Sermon Photo / Media</label>
-                <ImageUpload
-                  value={photoUrl}
-                  onChange={setPhotoUrl}
-                  entityType="highlight"
-                  placeholder="Upload sermon flyer or pulpit photo"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                    Service Media ({photoCount}/5 photos, {videoCount}/1 video)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">Max 5 pictures & 1 video</span>
+                </div>
+
+                {mediaUrls.length > 0 && (
+                  <div className="grid grid-cols-6 gap-2 mb-2.5">
+                    {mediaUrls.map((url, idx) => {
+                      const isVid = isVideoMedia(url);
+                      return (
+                        <div
+                          key={idx}
+                          className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-square flex items-center justify-center cursor-pointer"
+                          onClick={() => setLightboxMedia(url)}
+                          title="Click to view full preview"
+                        >
+                          {isVid ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-1">
+                              <span className="text-[10px] font-bold text-amber-400">VIDEO</span>
+                              <span className="text-[9px] text-slate-300 truncate max-w-full">Preview</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={resolveMediaUrl(url)}
+                              alt={`Media ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaUrls(mediaUrls.filter((_, i) => i !== idx));
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+                            title="Remove media"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <span className="absolute bottom-1 left-1 px-1 py-0.2 bg-black/60 text-white text-[9px] rounded font-mono">
+                            {isVid ? 'VIDEO' : `IMG ${idx + 1}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {canAddMoreMedia ? (
+                  <ImageUpload
+                    label=""
+                    value=""
+                    onChange={url => {
+                      if (url) handleAddMedia([url]);
+                    }}
+                    multiple={true}
+                    onMultipleUpload={urls => {
+                      handleAddMedia(urls);
+                    }}
+                    entityType="highlight"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                    helperText={
+                      photoCount < 5 && videoCount < 1
+                        ? `Add up to ${5 - photoCount} photo${5 - photoCount > 1 ? 's' : ''} or 1 video (multi-select supported)`
+                        : photoCount < 5
+                        ? `Add up to ${5 - photoCount} photo${5 - photoCount > 1 ? 's' : ''}`
+                        : `Add 1 highlight video`
+                    }
+                    placeholder="Click to attach photos or video"
+                  />
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg text-center font-medium border border-amber-200">
+                    Maximum 5 pictures and 1 video limit reached. Remove an item to replace.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -480,6 +776,48 @@ export const HighlightsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox / Media Viewer Modal */}
+      {lightboxMedia && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLightboxMedia(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setLightboxMedia(null)}
+              className="absolute -top-10 right-0 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition cursor-pointer"
+              title="Close Preview"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            {lightboxMedia.match(/\.(mp4|webm|mov|quicktime)(\?.*)?$/i) ? (
+              <video
+                src={resolveMediaUrl(lightboxMedia)}
+                controls
+                autoPlay
+                className="max-h-[80vh] w-auto max-w-full rounded-xl shadow-2xl bg-black"
+              />
+            ) : (
+              <img
+                src={resolveMediaUrl(lightboxMedia)}
+                alt="Enlarged media"
+                className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl shadow-2xl"
+              />
+            )}
+            <div className="mt-3 text-center">
+              <a
+                href={resolveMediaUrl(lightboxMedia)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 underline"
+              >
+                Open Original in New Tab
+              </a>
+            </div>
           </div>
         </div>
       )}

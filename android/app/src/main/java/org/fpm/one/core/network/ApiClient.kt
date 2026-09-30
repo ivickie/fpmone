@@ -3,6 +3,10 @@ package org.fpm.one.core.network
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -11,8 +15,18 @@ import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-  // Host PC LAN IPv4 for physical device and emulator network access
-  var baseUrl: String = "http://192.168.1.234:5000/api"
+  // Automatically route to 10.0.2.2 when running on Android emulator, or LAN IP on physical device
+  var baseUrl: String = if (android.os.Build.FINGERPRINT.startsWith("generic")
+      || android.os.Build.FINGERPRINT.startsWith("unknown")
+      || android.os.Build.MODEL.contains("google_sdk")
+      || android.os.Build.MODEL.contains("Emulator")
+      || android.os.Build.MODEL.contains("Android SDK built for x86")
+      || android.os.Build.HARDWARE.contains("goldfish")
+      || android.os.Build.HARDWARE.contains("ranchu")) {
+    "http://10.0.2.2:5000/api"
+  } else {
+    "http://192.168.1.159:5000/api"
+  }
   var authToken: String? = null
 
   val json = Json {
@@ -92,6 +106,21 @@ object ApiClient {
     }
   }
 
+  suspend fun delete(endpoint: String): String = withContext(Dispatchers.IO) {
+    val request = Request.Builder()
+      .url("$baseUrl$endpoint")
+      .delete()
+      .build()
+
+    client.newCall(request).execute().use { response ->
+      if (!response.isSuccessful) {
+        val errorBody = response.body?.string() ?: "Network request failed"
+        throw Exception(errorBody)
+      }
+      response.body?.string() ?: ""
+    }
+  }
+
   suspend fun uploadMedia(
     bytes: ByteArray,
     filename: String,
@@ -152,5 +181,34 @@ object ApiClient {
       }
       body
     }
+  }
+
+  fun resolveMediaUrl(url: String?): String? {
+    if (url.isNullOrBlank()) return null
+    val serverBase = baseUrl.removeSuffix("/api")
+    if (url.contains("/uploads/")) {
+      val uploadsIndex = url.indexOf("/uploads/")
+      return "$serverBase${url.substring(uploadsIndex)}"
+    }
+    if (url.startsWith("http://localhost:5000") || url.startsWith("http://127.0.0.1:5000")) {
+      return url.replace("http://localhost:5000", serverBase).replace("http://127.0.0.1:5000", serverBase)
+    }
+    return url
+  }
+
+  suspend fun updateProfilePicture(
+    bytes: ByteArray,
+    filename: String,
+    mimeType: String
+  ): Result<String> = runCatching {
+    val uploadResponseStr = uploadAvatar(bytes, filename, mimeType)
+    val parsed = json.parseToJsonElement(uploadResponseStr)
+    val publicUrl = parsed.jsonObject["publicUrl"]?.jsonPrimitive?.contentOrNull
+      ?: parsed.jsonObject["media"]?.jsonObject?.get("publicUrl")?.jsonPrimitive?.contentOrNull
+      ?: throw Exception("No publicUrl returned in avatar upload response")
+
+    val updateBody = """{"profilePictureUrl":${json.encodeToString(publicUrl)}}"""
+    put("/auth/profile", updateBody)
+    publicUrl
   }
 }

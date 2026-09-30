@@ -2,35 +2,63 @@ package org.fpm.one.core.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Faith Preachers Ministry (FPM ONE) Design Palette
-val FpmNavyDark = Color(0xFF0A192F)
-val FpmNavyDeep = Color(0xFF060D18)
-val FpmNavy = Color(0xFF0D1B2A)
-val FpmNavySurface = Color(0xFF112240)
-val FpmRoyalBlue = Color(0xFF1E3A8A)
-val FpmBlueAccent = Color(0xFF2563EB)
-val FpmGold = Color(0xFFD97706)
-val FpmGoldDark = Color(0xFFB45309)
-val FpmGoldLight = Color(0xFFFDE68A)
-val FpmAmber = Color(0xFFF59E0B)
-val FpmAmberLight = Color(0xFFFEF3C7)
-val FpmCrimson = Color(0xFFDC2626)
-val FpmCrimsonLight = Color(0xFFFEE2E2)
+// =============================================================================
+// FAITH PREACHERS MINISTRIES INT'L — FPM GLOBAL PREMIUM DESIGN SYSTEM PALETTE
+// Editorial · Spiritual · Modern · Warm Ivory & Deep Midnight Navy
+// =============================================================================
 
-val FpmSlateBg = Color(0xFFF8FAFC)
-val FpmSurfaceWhite = Color(0xFFFFFFFF)
-val FpmCardBorder = Color(0xFFE2E8F0)
-val FpmBorderLight = Color(0xFFEEF2F6)
-val FpmTextPrimary = Color(0xFF0F172A)
-val FpmTextSecondary = Color(0xFF64748B)
-val FpmTextMuted = Color(0xFF94A3B8)
+// 1. Primary Authority & Brand Identity (Deep Midnight / Royal Navy)
+val FpmNavyDeep = Color(0xFF070E1B)      // Deepest midnight scrim/status bar
+val FpmNavyDark = Color(0xFF0B1528)      // Primary header background & authority surfaces
+val FpmNavy = Color(0xFF101F38)          // Top bars & prominent solid buttons
+val FpmNavySurface = Color(0xFF162A4C)   // Elevated dark surfaces & badge containers
+val FpmRoyalBlue = Color(0xFF1D3E74)     // Focused interactive elements & section accents
+val FpmBlueAccent = Color(0xFF28549C)    // Tonal pill selections & link texts
 
-val FpmSuccess = Color(0xFF10B981)
-val FpmSuccessBg = Color(0xFFECFDF5)
-val FpmLate = Color(0xFFF59E0B)
-val FpmLateBg = Color(0xFFFFFBEB)
-val FpmError = Color(0xFFEF4444)
-val FpmErrorBg = Color(0xFFFEF2F2)
+// 2. Warm Brand Accent & Spiritual Glory (FPM Warm Gold)
+val FpmGold = Color(0xFFC59B27)          // Warm refined gold for emblems & badges
+val FpmGoldDark = Color(0xFFA17C18)      // Deep antique gold for kickers & text labels
+val FpmGoldLight = Color(0xFFF6E7B9)     // Soft champagne highlight & icon tint on dark
+val FpmGoldMuted = Color(0xFFDFCA8C)     // Delicate gold line borders
+val FpmGoldSubtle = Color(0xFFFBF6E9)    // Delicate devotional surface wash
+val FpmAmber = Color(0xFFD97706)         // Warm amber secondary badge
+val FpmAmberLight = Color(0xFFFEF3C7)    // Soft amber pill background
 
-val FpmShimmerBase = Color(0xFFE2E8F0)
-val FpmShimmerHighlight = Color(0xFFF8FAFC)
+// 3. Canvas & Surface Tones (Warm Ivory & Soft Off-White)
+val FpmIvoryBg = Color(0xFFFAF8F5)       // Canonical warm ivory app canvas background
+val FpmSlateBg = Color(0xFFFAF8F5)       // Backward-compatible alias to warm ivory
+val FpmSurfaceWhite = Color(0xFFFFFFFF)  // Pure crisp card & modal surface
+val FpmSurfaceTonal = Color(0xFFF5F2EB)  // Soft warm secondary surface
+val FpmSurfaceMuted = Color(0xFFEFECE5)  // Tertiary muted container surface
+
+// 4. Subtle Borders & Structural Lines
+val FpmCardBorder = Color(0xFFE5E0D5)    // Gentle warm card border
+val FpmBorderLight = Color(0xFFEDE9E0)   // Very soft inner dividers
+val FpmBorderSubtle = Color(0xFFF2EFE8)  // Minimal hairline separator
+
+// 5. Typography & Contrast (Deep Charcoal / Neutral Slate)
+val FpmTextPrimary = Color(0xFF0F172A)   // Deep charcoal primary reading text
+val FpmTextSecondary = Color(0xFF5B697D) // Balanced secondary metadata & subtitles
+val FpmTextMuted = Color(0xFF8E9BAE)     // Subtle captions & disabled states
+val FpmTextOnDark = Color(0xFFF8FAFC)    // Crisp white text on midnight navy surfaces
+
+// 6. Semantic & Status Accents (Restrained & Intentional)
+val FpmSuccess = Color(0xFF0D9488)       // Refined teal/emerald for present & confirmed
+val FpmSuccessBg = Color(0xFFF0FDF4)     // Subtle green container wash
+val FpmLate = Color(0xFFD97706)          // Warm ochre amber for late & grace warnings
+val FpmLateBg = Color(0xFFFFFBEB)        // Delicate warm warning container
+val FpmError = Color(0xFFDC2626)         // Crimson for errors & destructive confirmations
+val FpmErrorBg = Color(0xFFFEF2F2)       // Soft error wash
+val FpmLiveRed = Color(0xFFE11D48)       // Vibrant broadcast pulse for live-streaming
+
+// 7. Shimmer & Loading Skeletons
+val FpmShimmerBase = Color(0xFFEAE6DD)
+val FpmShimmerHighlight = Color(0xFFFAF8F5)
+
+// 8. Backward-Compatible Color Aliases (harmonized with FPM Gold & Navy)
+val FpmCrimson = FpmGold
+val FpmCrimsonDark = FpmGoldDark
+val FpmCrimsonLight = FpmGoldLight
+val FpmCrimsonSubtle = FpmGoldSubtle
+val FpmRed = FpmError
+val FpmRedLight = FpmErrorBg

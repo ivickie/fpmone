@@ -3,8 +3,39 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ReactionItem, CommentItem, ServiceHighlightItem, TestimonyItem, NotificationItem,
-  AuditLogItem, MediaItem, DepartmentReport
+  AuditLogItem, MediaItem, DepartmentReport, SundayMoment,
+  FinanceTransaction, FinanceOpeningBalance
 } from '../types';
+
+// Finance Constants & Seed Categories
+export const FINANCE_INCOME_CATEGORIES = [
+  'Tithe',
+  'Offering',
+  'POS Payments',
+  'Support',
+  'Other Income'
+];
+
+export const FINANCE_EXPENSE_CATEGORIES = [
+  'Transport',
+  'Tithe',
+  'Welfare Support',
+  'Salaries',
+  'Keyboard/Instrument Rental',
+  'Data/Internet',
+  'Rent',
+  'Church Materials',
+  'Utilities',
+  'Other Expenses'
+];
+
+export const FINANCE_PAYMENT_METHODS = [
+  'Bank Transfer',
+  'Cash',
+  'POS',
+  'Cheque',
+  'Other'
+];
 
 // Pre-compute bcrypt hashes for seed data
 const DEFAULT_PASSWORD_HASH = bcrypt.hashSync('Password123!', 10);
@@ -214,7 +245,7 @@ export class DatabaseStore {
       id: IDS.ROLE_MEMBER,
       name: 'Member',
       code: 'MEMBER',
-      description: 'Valued member of Faith Preachers Ministry church family',
+      description: "Valued member of Faith Preachers Ministries Int'l church family",
       hierarchyLevel: 7,
       permissions: ['feed:read', 'events:read', 'testimonies:submit'],
       isSystemRole: false,
@@ -826,7 +857,7 @@ export class DatabaseStore {
       branchId: IDS.BRANCH_HQ,
       visibility: 'all',
       title: 'Welcome to the New Month of Supernatural Acceleration!',
-      content: 'Beloved family of Faith Preachers Ministry, the Lord has declared this season as our appointed time for supernatural momentum and divine favor. Whatever seemed delayed is now entering divine acceleration. Be steadfast, serve with joy, and expect uncommon open doors!',
+      content: "Beloved family of Faith Preachers Ministries Int'l, the Lord has declared this season as our appointed time for supernatural momentum and divine favor. Whatever seemed delayed is now entering divine acceleration. Be steadfast, serve with joy, and expect uncommon open doors!",
       scriptureReference: 'Amos 9:13',
       postType: 'announcement',
       isPinned: true,
@@ -919,6 +950,7 @@ export class DatabaseStore {
       title: 'Miraculous International Employment & Relocation Sponsorship',
       content: 'After 2 years of constant job search post-graduation, I committed to serving in the choir faithfully every service. Two weeks ago, I received an unapplied job offer with a multinational firm in London with full visa sponsorship! God honors dedicated kingdom service!',
       category: 'Promotion',
+      photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400',
       allowPublish: true,
       status: 'approved',
       reviewedBy: IDS.USER_ADMIN,
@@ -934,7 +966,7 @@ export class DatabaseStore {
       branchId: IDS.BRANCH_HQ,
       branchName: 'Cathedral of Grace (HQ)',
       title: 'Safe Delivery of Twins Against Medical Odds',
-      content: 'Specialists had warned of extreme complications during labor, but through the continuous prayer intercession of Faith Preachers Ministry, my wife delivered both twins safely with zero surgery!',
+      content: "Specialists had warned of extreme complications during labor, but through the continuous prayer intercession of Faith Preachers Ministries Int'l, my wife delivered both twins safely with zero surgery!",
       category: 'Childbirth',
       allowPublish: true,
       status: 'pending_review',
@@ -948,7 +980,7 @@ export class DatabaseStore {
     {
       id: 'n-1',
       title: 'Welcome to FPM Global',
-      body: 'Faith Preachers Ministry mobile portal is officially live. Connect, serve, and grow with us!',
+      body: "Faith Preachers Ministries Int'l mobile portal is officially live. Connect, serve, and grow with us!",
       notificationType: 'announcement',
       targetScope: 'entire_church',
       createdAt: '2026-09-01T00:00:00Z'
@@ -1049,6 +1081,10 @@ export class DatabaseStore {
       updatedAt: '2026-09-21T09:00:00Z'
     }
   ];
+
+  public sundayMoments: SundayMoment[] = [];
+  public financeTransactions: FinanceTransaction[] = [];
+  public financeOpeningBalances: FinanceOpeningBalance[] = [];
 
   private workerCounter = 4;
 

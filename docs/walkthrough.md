@@ -1,6 +1,6 @@
-# Faith Preachers Ministry (FPM ONE) — Product Workflow Audit & System Walkthrough
+# Faith Preachers Ministries Int'l (FPM ONE) — Product Workflow Audit & System Walkthrough
 
-**Platform:** Faith Preachers Ministry (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
 **Version:** 1.1.0 (Production Hardened & Real-World Operations Audited)  
 **Auditor & Architect:** Principal Software Architect, Application Security Engineer & Church QA Lead  
 **Audit Scope:** Real-World Church Operations, All 28 Workflow Sections, Edge Cases A–G, Sunday Service E2E Simulation  
@@ -11,7 +11,7 @@
 ## 1. System Architecture & Role Topology
 
 ```
-Faith Preachers Ministry (Global Headquarters)
+Faith Preachers Ministries Int'l (Global Headquarters)
 │
 ├── Multi-Branch Hierarchy (Cathedral of Grace HQ, Lekki City of Praise, London Glory Center, Houston Faith Tabernacle)
 │    ├── Services & Schedules (Server grace period, duration, earliest clock-in, auto clock-out)

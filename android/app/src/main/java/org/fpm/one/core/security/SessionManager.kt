@@ -114,6 +114,10 @@ class SessionManager(context: Context) {
       return instance?._currentUser?.value
     }
 
+    fun updateCachedUser(user: UserSession) {
+      instance?.updateCachedUser(user)
+    }
+
     fun clearSession() {
       instance?.clearSession()
     }

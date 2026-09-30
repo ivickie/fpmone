@@ -1,5 +1,5 @@
 -- =============================================================================
--- FAITH PREACHERS MINISTRY (FPM ONE)
+-- FAITH PREACHERS MINISTRIES INT'L (FPM ONE)
 -- SUPABASE LINTER REMEDIATIONS (RLS, SEARCH PATH, STORAGE OBJECTS)
 -- =============================================================================
 

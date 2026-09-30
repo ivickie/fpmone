@@ -142,7 +142,7 @@ export const RolesPage: React.FC = () => {
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Ministry Roles & RBAC</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Role-based access control and hierarchical ministry positions across Faith Preachers Ministry.
+            Role-based access control and hierarchical ministry positions across Faith Preachers Ministries Int'l.
           </p>
         </div>
         {isSuperAdmin && (

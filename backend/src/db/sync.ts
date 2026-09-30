@@ -3,7 +3,7 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem,
-  DepartmentReport
+  DepartmentReport, FinanceTransaction, FinanceOpeningBalance
 } from '../types';
 
 /**
@@ -14,7 +14,48 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
     // Non-destructive schema migrations for newly introduced fields
     await query(`
       ALTER TABLE services ADD COLUMN IF NOT EXISTS live_stream_url TEXT;
+      ALTER TABLE services ADD COLUMN IF NOT EXISTS image_url TEXT;
       ALTER TABLE posts ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN DEFAULT TRUE;
+
+      CREATE TABLE IF NOT EXISTS finance_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+        transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('income', 'expense')),
+        category VARCHAR(100) NOT NULL,
+        amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+        transaction_date DATE NOT NULL,
+        description TEXT NOT NULL,
+        reference_number VARCHAR(100),
+        payment_method VARCHAR(50) NOT NULL DEFAULT 'Bank Transfer',
+        status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'voided')),
+        void_reason TEXT,
+        created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_by_name VARCHAR(255) NOT NULL,
+        updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        updated_by_name VARCHAR(255),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_finance_tx_branch ON finance_transactions(branch_id);
+      CREATE INDEX IF NOT EXISTS idx_finance_tx_date ON finance_transactions(transaction_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_finance_tx_type ON finance_transactions(transaction_type);
+      CREATE INDEX IF NOT EXISTS idx_finance_tx_status ON finance_transactions(status);
+
+      CREATE TABLE IF NOT EXISTS finance_opening_balances (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+        year INT NOT NULL,
+        month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
+        amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
+        is_initial BOOLEAN NOT NULL DEFAULT FALSE,
+        notes TEXT,
+        established_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        established_by_name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_branch_year_month UNIQUE(branch_id, year, month)
+      );
+      CREATE INDEX IF NOT EXISTS idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
     `).catch((err: any) => console.warn('[DB SCHEMA MIGRATION]', err.message));
 
     const [
@@ -35,7 +76,9 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       notifsRes,
       auditRes,
       mediaRes,
-      deptReportsRes
+      deptReportsRes,
+      financeTxRes,
+      financeBalancesRes
     ] = await Promise.all([
       query('SELECT * FROM branches ORDER BY name ASC'),
       query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC'),
@@ -54,7 +97,9 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       query('SELECT * FROM notifications ORDER BY created_at DESC'),
       query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500'),
       query('SELECT * FROM media_items ORDER BY created_at DESC'),
-      query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] }))
+      query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] })),
+      query('SELECT * FROM finance_transactions ORDER BY transaction_date DESC, created_at DESC').catch(() => ({ rows: [] })),
+      query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] }))
     ]);
 
     if (branchesRes.rows.length > 0) {
@@ -189,6 +234,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         earliestClockInMinutes: r.earliest_clock_in_minutes,
         attendanceDurationHours: Number(r.attendance_duration_hours) || 4.0,
         liveStreamUrl: r.live_stream_url || undefined,
+        imageUrl: r.image_url || undefined,
         status: r.status,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
@@ -349,6 +395,15 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
       }));
+
+      for (const m of store.mediaFiles) {
+        if (!m.isArchived && m.entityType === 'testimony' && m.entityId) {
+          const t = store.testimonies.find((test: TestimonyItem) => test.id === m.entityId);
+          if (t && !t.photoUrl) {
+            t.photoUrl = m.publicUrl;
+          }
+        }
+      }
     }
 
     if (auditRes.rows.length > 0) {
@@ -395,7 +450,47 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.departmentReports?.length || 0} reports.`);
+    if (financeTxRes && financeTxRes.rows && financeTxRes.rows.length > 0) {
+      store.financeTransactions = financeTxRes.rows.map((r: any): FinanceTransaction => ({
+        id: r.id,
+        branchId: r.branch_id,
+        branchName: store.branches?.find((b: any) => b.id === r.branch_id)?.name,
+        transactionType: r.transaction_type,
+        category: r.category,
+        amount: Number(r.amount),
+        transactionDate: r.transaction_date ? new Date(r.transaction_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        description: r.description,
+        referenceNumber: r.reference_number || undefined,
+        paymentMethod: r.payment_method || 'Bank Transfer',
+        status: r.status,
+        voidReason: r.void_reason || undefined,
+        createdBy: r.created_by,
+        createdByName: r.created_by_name || 'Admin',
+        updatedBy: r.updated_by || undefined,
+        updatedByName: r.updated_by_name || undefined,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    }
+
+    if (financeBalancesRes && financeBalancesRes.rows && financeBalancesRes.rows.length > 0) {
+      store.financeOpeningBalances = financeBalancesRes.rows.map((r: any): FinanceOpeningBalance => ({
+        id: r.id,
+        branchId: r.branch_id,
+        branchName: store.branches?.find((b: any) => b.id === r.branch_id)?.name,
+        year: Number(r.year),
+        month: Number(r.month),
+        amount: Number(r.amount),
+        isInitial: !!r.is_initial,
+        notes: r.notes || undefined,
+        establishedBy: r.established_by,
+        establishedByName: r.established_by_name || 'Admin',
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    }
+
+    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs.`);
     return true;
   } catch (err: any) {
     console.error('[DATABASE] Hydration from Supabase encountered an issue, falling back to local seed state:', err.message);
@@ -610,8 +705,8 @@ export async function persistService(service: ServiceSchedule): Promise<void> {
   if (!isUuid(service.id) || !isUuid(service.branchId)) return;
   try {
     await query(`
-      INSERT INTO services (id, branch_id, name, day_of_week, start_time, expected_end_time, grace_period_minutes, earliest_clock_in_minutes, attendance_duration_hours, live_stream_url, status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      INSERT INTO services (id, branch_id, name, day_of_week, start_time, expected_end_time, grace_period_minutes, earliest_clock_in_minutes, attendance_duration_hours, live_stream_url, image_url, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         day_of_week = EXCLUDED.day_of_week,
@@ -621,13 +716,14 @@ export async function persistService(service: ServiceSchedule): Promise<void> {
         earliest_clock_in_minutes = EXCLUDED.earliest_clock_in_minutes,
         attendance_duration_hours = EXCLUDED.attendance_duration_hours,
         live_stream_url = EXCLUDED.live_stream_url,
+        image_url = EXCLUDED.image_url,
         status = EXCLUDED.status,
         updated_at = EXCLUDED.updated_at
     `, [
       service.id, service.branchId, service.name, service.dayOfWeek,
       service.startTime, service.expectedEndTime, service.gracePeriodMinutes,
       service.earliestClockInMinutes, service.attendanceDurationHours,
-      service.liveStreamUrl || null, service.status, service.createdAt, service.updatedAt
+      service.liveStreamUrl || null, service.imageUrl || null, service.status, service.createdAt, service.updatedAt
     ]);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: services] ${err.message}`);
@@ -913,6 +1009,62 @@ export async function persistDepartmentReport(report: DepartmentReport): Promise
   }
 }
 
+export async function persistFinanceTransaction(tx: FinanceTransaction): Promise<void> {
+  if (!isUuid(tx.id) || !isUuid(tx.branchId) || !isUuid(tx.createdBy)) return;
+  const updatedBy = isUuid(tx.updatedBy) ? tx.updatedBy : null;
+  try {
+    await query(`
+      INSERT INTO finance_transactions (
+        id, branch_id, transaction_type, category, amount, transaction_date,
+        description, reference_number, payment_method, status, void_reason,
+        created_by, created_by_name, updated_by, updated_by_name, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ON CONFLICT (id) DO UPDATE SET
+        category = EXCLUDED.category,
+        amount = EXCLUDED.amount,
+        transaction_date = EXCLUDED.transaction_date,
+        description = EXCLUDED.description,
+        reference_number = EXCLUDED.reference_number,
+        payment_method = EXCLUDED.payment_method,
+        status = EXCLUDED.status,
+        void_reason = EXCLUDED.void_reason,
+        updated_by = EXCLUDED.updated_by,
+        updated_by_name = EXCLUDED.updated_by_name,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      tx.id, tx.branchId, tx.transactionType, tx.category, tx.amount, tx.transactionDate,
+      tx.description, tx.referenceNumber || null, tx.paymentMethod, tx.status, tx.voidReason || null,
+      tx.createdBy, tx.createdByName, updatedBy, tx.updatedByName || null, tx.createdAt, tx.updatedAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: finance_transactions] ${err.message}`);
+  }
+}
+
+export async function persistFinanceOpeningBalance(ob: FinanceOpeningBalance): Promise<void> {
+  if (!isUuid(ob.id) || !isUuid(ob.branchId) || !isUuid(ob.establishedBy)) return;
+  try {
+    await query(`
+      INSERT INTO finance_opening_balances (
+        id, branch_id, year, month, amount, is_initial, notes,
+        established_by, established_by_name, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (branch_id, year, month) DO UPDATE SET
+        amount = EXCLUDED.amount,
+        is_initial = EXCLUDED.is_initial,
+        notes = EXCLUDED.notes,
+        established_by = EXCLUDED.established_by,
+        established_by_name = EXCLUDED.established_by_name,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      ob.id, ob.branchId, ob.year, ob.month, ob.amount, ob.isInitial, ob.notes || null,
+      ob.establishedBy, ob.establishedByName, ob.createdAt, ob.updatedAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: finance_opening_balances] ${err.message}`);
+  }
+}
+
 export async function persistDelete(table: string, id: string): Promise<void> {
   if (!isUuid(id)) return;
   try {
@@ -921,7 +1073,8 @@ export async function persistDelete(table: string, id: string): Promise<void> {
       'branches', 'departments', 'department_positions', 'ministry_roles',
       'users', 'members', 'workers', 'services', 'attendance_records',
       'events', 'posts', 'comments', 'reactions', 'service_highlights',
-      'testimonies', 'notifications', 'media_items', 'department_reports'
+      'testimonies', 'notifications', 'media_items', 'department_reports',
+      'finance_transactions', 'finance_opening_balances'
     ];
     if (!safeTables.includes(table)) {
       throw new Error(`Invalid table name for persistDelete: ${table}`);

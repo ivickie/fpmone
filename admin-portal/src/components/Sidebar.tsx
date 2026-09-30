@@ -2,14 +2,14 @@ import React from 'react';
 import {
   LayoutDashboard, UserCheck, Users, Building2, Layers, Shield,
   Calendar, Clock, Newspaper, Sparkles, HeartHandshake, UserCog,
-  FileSpreadsheet, Bell, History, Settings, LogOut
+  FileSpreadsheet, Bell, History, Settings, LogOut, Wallet
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export type NavTab = 
   | 'dashboard' | 'approvals' | 'members' | 'branches' | 'departments' | 'roles'
   | 'services' | 'events' | 'feed' | 'highlights' | 'testimonies' | 'attendance'
-  | 'reports' | 'notifications' | 'audit' | 'settings';
+  | 'reports' | 'finance' | 'notifications' | 'audit' | 'settings';
 
 interface SidebarProps {
   currentTab: NavTab;
@@ -25,6 +25,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingTestimoniesCount = 0
 }) => {
   const { user, logout } = useAuth();
+
+  const isSuperAdmin = user?.adminLevel === 'super_admin' || user?.roleCode === 'SUPER_ADMIN';
+  const isBranchPastor = user?.roleCode === 'BRANCH_PASTOR';
+  const isChurchAdmin = user?.adminLevel === 'branch_admin' || user?.adminLevel === 'church_admin' || user?.roleCode === 'BRANCH_ADMIN';
+  const canAccessFinance = isSuperAdmin || isBranchPastor || isChurchAdmin;
 
   const navGroups = [
     {
@@ -60,6 +65,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'reports' as NavTab, label: 'Reports & Matrix', icon: FileSpreadsheet }
       ]
     },
+    ...(canAccessFinance ? [{
+      title: 'FINANCE & TREASURY',
+      items: [
+        { id: 'finance' as NavTab, label: 'Finance & Treasury', icon: Wallet }
+      ]
+    }] : []),
     {
       title: 'ADMINISTRATION',
       items: [
@@ -76,12 +87,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-5 border-b border-slate-800 flex items-center space-x-3">
         <img
           src="/church-logo.png"
-          alt="Faith Preachers Ministry"
+          alt="Faith Preachers Ministries Int'l"
           className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10 shrink-0 bg-white"
         />
         <div>
           <h1 className="font-extrabold text-white tracking-wide text-base leading-tight">FPM Global</h1>
-          <p className="text-[11px] font-medium text-amber-400 uppercase tracking-wider">Faith Preachers Ministry</p>
+          <p className="text-[11px] font-medium text-amber-400 uppercase tracking-wider">Faith Preachers Ministries Int'l</p>
         </div>
       </div>
 

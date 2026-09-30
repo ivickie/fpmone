@@ -83,7 +83,8 @@ export class AuthService {
         departmentName: department.name,
         positionName: worker.positionName,
         qrCodeToken: worker.qrCodeToken
-      } : undefined
+      } : undefined,
+      profilePictureUrl: member.profilePictureUrl
     };
 
     const token = jwt.sign(sessionUser, JWT_SECRET, { expiresIn: '7d' });

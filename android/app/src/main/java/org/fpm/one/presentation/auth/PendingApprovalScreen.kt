@@ -69,7 +69,7 @@ fun PendingApprovalScreen(
         )
 
         Text(
-          text = "Faith Preachers Ministry branch administrators and pastors review each member and worker enlistment to preserve ministry integrity. You will receive full access immediately once approved.",
+          text = "Faith Preachers Ministries Int'l branch administrators and pastors review each member and worker enlistment to preserve ministry integrity. You will receive full access immediately once approved.",
           fontSize = 12.sp,
           color = FpmTextSecondary,
           textAlign = TextAlign.Center,

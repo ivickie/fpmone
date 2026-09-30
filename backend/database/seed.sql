@@ -1,5 +1,5 @@
 -- =============================================================================
--- FAITH PREACHERS MINISTRY (FPM) - FPM ONE
+-- FAITH PREACHERS MINISTRIES INT'L (FPM) - FPM ONE
 -- COMPREHENSIVE PRODUCTION SEED DATA
 -- =============================================================================
 
@@ -88,7 +88,7 @@ BEGIN
 
     -- 1. Insert Organization
     INSERT INTO organizations (id, name, short_name, slug, logo_url, primary_email, headquarters_address)
-    VALUES (v_org_id, 'Faith Preachers Ministry', 'FPM', 'fpm-global', 'https://images.unsplash.com/photo-1544427920-c49ccfb85579?w=300', 'info@faithpreachers.org', 'Faith Cathedral, 10 Victory Way, Lagos, Nigeria');
+    VALUES (v_org_id, 'Faith Preachers Ministries Int''l', 'FPM', 'fpm-global', 'https://images.unsplash.com/photo-1544427920-c49ccfb85579?w=300', 'info@faithpreachers.org', 'Faith Cathedral, 10 Victory Way, Lagos, Nigeria');
 
     -- 2. Insert Branches
     INSERT INTO branches (id, organization_id, name, branch_code, address, city, state, country, phone, email, branch_pastor_name, status, is_headquarters)
@@ -107,7 +107,7 @@ BEGIN
     (v_role_pastor, 'Pastor', 'PASTOR', 'Ordained minister of the gospel', 4, FALSE),
     (v_role_hod, 'HOD', 'HOD', 'Head of Department supervising departmental operations', 5, FALSE),
     (v_role_worker, 'Worker', 'WORKER', 'Dedicated ministry worker serving in departments and services', 6, FALSE),
-    (v_role_member, 'Member', 'MEMBER', 'Valued member of Faith Preachers Ministry church family', 7, FALSE);
+    (v_role_member, 'Member', 'MEMBER', 'Valued member of Faith Preachers Ministries Int''l church family', 7, FALSE);
 
     -- 4. Insert Departments
     INSERT INTO departments (id, branch_id, name, code, description, hod_name, status)
@@ -194,7 +194,7 @@ BEGIN
     -- 13. Insert Feed Posts
     INSERT INTO posts (id, author_id, author_name, branch_id, visibility, title, content, scripture_reference, post_type, is_pinned, likes_count, comments_count)
     VALUES
-    (v_post_welcome, v_user_pastor, 'Pastor David Adeleke', v_branch_hq, 'all', 'Welcome to the New Month of Supernatural Acceleration!', 'Beloved family of Faith Preachers Ministry, the Lord has declared this season as our appointed time for supernatural momentum and favor. Whatever seemed delayed is now entering divine acceleration. Be steadfast, serve with joy, and expect uncommon open doors!', 'Amos 9:13', 'announcement', TRUE, 48, 12),
+    (v_post_welcome, v_user_pastor, 'Pastor David Adeleke', v_branch_hq, 'all', 'Welcome to the New Month of Supernatural Acceleration!', 'Beloved family of Faith Preachers Ministries Int''l, the Lord has declared this season as our appointed time for supernatural momentum and favor. Whatever seemed delayed is now entering divine acceleration. Be steadfast, serve with joy, and expect uncommon open doors!', 'Amos 9:13', 'announcement', TRUE, 48, 12),
     (v_post_sermon, v_user_pastor, 'Pastor David Adeleke', v_branch_hq, 'all', 'Keys to Supernatural Breakthrough in Challenging Times', 'Faith is not the absence of trials; faith is the unwavering anchor that speaks God''s victory in the presence of challenges. Keep your confession strong and your dedication unshakeable.', 'Hebrews 11:1', 'post', FALSE, 34, 7);
 
     -- 14. Insert Service Highlights
@@ -212,7 +212,7 @@ BEGIN
     -- 16. Insert Initial Notifications
     INSERT INTO notifications (title, body, notification_type, target_scope, target_id)
     VALUES
-    ('Welcome to FPM ONE', 'Faith Preachers Ministry mobile portal is officially live. Connect, serve, and grow!', 'announcement', 'entire_church', NULL),
+    ('Welcome to FPM ONE', 'Faith Preachers Ministries Int''l mobile portal is officially live. Connect, serve, and grow!', 'announcement', 'entire_church', NULL),
     ('Upcoming Service: Sunday Celebration of Grace', 'Join us this Sunday at 8:00 AM for an encounter of grace and victory.', 'upcoming_service', 'branch', v_branch_hq),
     ('Workers Punctuality Reminder', 'All department workers are expected to clock in at least 15 minutes before service commences.', 'admin_alert', 'ministry_role', v_role_worker);
 

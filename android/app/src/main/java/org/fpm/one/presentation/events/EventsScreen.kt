@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -30,10 +31,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import org.fpm.one.core.theme.*
-import org.fpm.one.presentation.components.EmptyStateView
-import org.fpm.one.presentation.components.FpmButton
-import org.fpm.one.presentation.components.FpmCard
-import org.fpm.one.presentation.components.FpmCardSkeleton
+import org.fpm.one.presentation.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +46,7 @@ fun EventsScreen(viewModel: EventsViewModel) {
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .background(FpmSlateBg)
+      .background(FpmIvoryBg)
   ) {
     // 1. Top Bar
     Surface(
@@ -90,25 +88,11 @@ fun EventsScreen(viewModel: EventsViewModel) {
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
           categories.forEach { cat ->
-            val isSelected = state.selectedCategory == cat
-            Surface(
-              modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .clickable { viewModel.loadEvents(cat) },
-              color = if (isSelected) FpmNavyDark else FpmSlateBg,
-              border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                if (isSelected) FpmNavyDark else FpmBorderLight
-              )
-            ) {
-              Text(
-                text = cat,
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) FpmSurfaceWhite else FpmTextSecondary,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-              )
-            }
+            FpmPillChip(
+              text = cat,
+              isSelected = state.selectedCategory == cat,
+              onClick = { viewModel.loadEvents(cat) }
+            )
           }
         }
       }
@@ -163,7 +147,7 @@ fun EventsScreen(viewModel: EventsViewModel) {
         EmptyStateView(
           title = "No Events Found",
           subtitle = "There are currently no scheduled events under '${state.selectedCategory}'. Check back soon!",
-          icon = Icons.Default.EventNote,
+          icon = Icons.AutoMirrored.Filled.EventNote,
           modifier = Modifier.fillMaxSize()
         )
       } else {
@@ -174,39 +158,68 @@ fun EventsScreen(viewModel: EventsViewModel) {
         ) {
           items(state.events) { ev ->
             FpmCard(modifier = Modifier.fillMaxWidth()) {
-              // 1. Event Image Thumbnail
-              if (!ev.bannerUrl.isNullOrBlank()) {
+              // 1. Dominant 16:9 Event Photography Banner (with intentional fallback)
+              Box(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .height(180.dp)
+                  .clip(RoundedCornerShape(12.dp))
+                  .then(
+                    if (!ev.bannerUrl.isNullOrBlank()) {
+                      Modifier.clickable { fullScreenImageUrl = Pair(ev.bannerUrl, ev.title) }
+                    } else Modifier
+                  )
+              ) {
+                FpmAsyncImage(
+                  model = ev.bannerUrl,
+                  contentDescription = ev.title,
+                  fallbackCategory = "event",
+                  fallbackTitle = ev.title,
+                  modifier = Modifier.fillMaxSize(),
+                  contentScale = ContentScale.Crop
+                )
+
+                // Atmospheric Scrim
                 Box(
                   modifier = Modifier
-                    .fillMaxWidth()
-                    .height(170.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FpmNavy)
-                    .clickable { fullScreenImageUrl = Pair(ev.bannerUrl, ev.title) }
-                ) {
-                  AsyncImage(
-                    model = ev.bannerUrl,
-                    contentDescription = ev.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                  )
-                  // Dark gradient bottom overlay
-                  Box(
-                    modifier = Modifier
-                      .fillMaxSize()
-                      .background(
-                        Brush.verticalGradient(
-                          colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                          startY = 180f
+                    .fillMaxSize()
+                    .background(
+                      Brush.verticalGradient(
+                        colors = listOf(
+                          FpmNavyDeep.copy(alpha = 0.3f),
+                          Color.Transparent,
+                          FpmNavyDeep.copy(alpha = 0.8f)
                         )
                       )
+                    )
+                )
+
+                // Category overlay pill
+                Surface(
+                  modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(10.dp),
+                  color = FpmNavyDeep.copy(alpha = 0.85f),
+                  shape = RoundedCornerShape(6.dp),
+                  border = androidx.compose.foundation.BorderStroke(1.dp, FpmGold.copy(alpha = 0.45f))
+                ) {
+                  Text(
+                    text = ev.category.uppercase(),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FpmGoldLight,
+                    letterSpacing = 0.8.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                   )
-                  // Tap to View Overlay Badge
+                }
+
+                // If real photo present, tap to view badge
+                if (!ev.bannerUrl.isNullOrBlank()) {
                   Surface(
                     modifier = Modifier
                       .align(Alignment.BottomEnd)
                       .padding(10.dp),
-                    color = Color.Black.copy(alpha = 0.7f),
+                    color = FpmNavyDeep.copy(alpha = 0.8f),
                     shape = RoundedCornerShape(6.dp)
                   ) {
                     Row(
@@ -214,13 +227,13 @@ fun EventsScreen(viewModel: EventsViewModel) {
                       verticalAlignment = Alignment.CenterVertically,
                       horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                      Icon(Icons.Default.Fullscreen, contentDescription = null, tint = FpmSurfaceWhite, modifier = Modifier.size(14.dp))
-                      Text("View Full", color = FpmSurfaceWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                      Icon(Icons.Default.Fullscreen, contentDescription = null, tint = FpmGoldLight, modifier = Modifier.size(13.dp))
+                      Text("View Full", color = FpmGoldLight, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                   }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
               }
+              Spacer(modifier = Modifier.height(12.dp))
 
               Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -233,7 +246,7 @@ fun EventsScreen(viewModel: EventsViewModel) {
                   border = androidx.compose.foundation.BorderStroke(1.dp, FpmGold.copy(alpha = 0.35f))
                 ) {
                   Text(
-                    text = ev.category.uppercase(),
+                    text = "FAITH PREACHERS EVENT",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = FpmGoldDark,
@@ -362,53 +375,13 @@ fun EventsScreen(viewModel: EventsViewModel) {
       }
     }
 
-    // Full-Screen Image Viewer Dialog
+    // Full-Screen Image Lightbox
     if (fullScreenImageUrl != null) {
-      Dialog(
-        onDismissRequest = { fullScreenImageUrl = null },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-      ) {
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.95f))
-        ) {
-          IconButton(
-            onClick = { fullScreenImageUrl = null },
-            modifier = Modifier
-              .align(Alignment.TopEnd)
-              .padding(16.dp)
-              .background(Color.White.copy(alpha = 0.25f), CircleShape)
-          ) {
-            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-          }
-
-          Column(
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(horizontal = 16.dp, vertical = 64.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-          ) {
-            AsyncImage(
-              model = fullScreenImageUrl!!.first,
-              contentDescription = fullScreenImageUrl!!.second,
-              modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .clip(RoundedCornerShape(12.dp)),
-              contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-              text = fullScreenImageUrl!!.second,
-              color = Color.White,
-              fontSize = 16.sp,
-              fontWeight = FontWeight.Bold
-            )
-          }
-        }
-      }
+      FpmFullscreenLightbox(
+        imageUrl = fullScreenImageUrl!!.first,
+        title = fullScreenImageUrl!!.second,
+        onDismiss = { fullScreenImageUrl = null }
+      )
     }
   }
 }

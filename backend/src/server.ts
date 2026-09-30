@@ -107,7 +107,7 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     app: 'FPM Global Backend API',
-    ministry: 'Faith Preachers Ministry',
+    ministry: "Faith Preachers Ministries Int'l",
     status: 'online',
     version: '1.0.0',
     timestamp: new Date().toISOString()
@@ -163,7 +163,7 @@ setInterval(() => {
 
 export const server = app.listen(Number(PORT), '0.0.0.0', async () => {
   console.log(`=======================================================`);
-  console.log(`  FAITH PREACHERS MINISTRY - FPM GLOBAL API SERVER`);
+  console.log(`  FAITH PREACHERS MINISTRIES INT'L - FPM GLOBAL API SERVER`);
   console.log(`  Running on: http://0.0.0.0:${PORT}`);
   console.log(`  LAN URL:    http://10.164.108.241:${PORT}`);
   console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
