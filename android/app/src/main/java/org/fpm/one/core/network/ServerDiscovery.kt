@@ -1,4 +1,4 @@
-﻿package org.fpm.one.core.network
+package org.fpm.one.core.network
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +13,7 @@ object ServerDiscovery {
   private const val DISCOVERY_QUERY = "FPM_DISCOVER_SERVER"
 
   /**
-   * Broadcasts UDP packet to local network to locate FPM ONE backend server.
+   * Broadcasts UDP packet to local network to locate FPM Global backend server.
    * Returns discovered Base URL (e.g. "http://10.164.108.241:5000/api") or null if not found.
    */
   suspend fun discoverServer(timeoutMs: Int = 2500): String? = withContext(Dispatchers.IO) {

@@ -1,5 +1,5 @@
 -- =============================================================================
--- FAITH PREACHERS MINISTRIES INT'L (FPM) - FPM ONE
+-- FAITH PREACHERS MINISTRIES INT'L - FPM GLOBAL
 -- COMPREHENSIVE PRODUCTION SEED DATA
 -- =============================================================================
 
@@ -101,7 +101,7 @@ BEGIN
     -- 3. Insert Ministry Roles
     INSERT INTO ministry_roles (id, name, code, description, hierarchy_level, is_system_role)
     VALUES
-    (v_role_super_admin, 'Administrator', 'SUPER_ADMIN', 'Overall global administrative control of FPM ONE', 1, TRUE),
+    (v_role_super_admin, 'Administrator', 'SUPER_ADMIN', 'Overall global administrative control of FPM Global', 1, TRUE),
     (v_role_branch_pastor, 'Branch Pastor', 'BRANCH_PASTOR', 'Spiritual and administrative head of a branch/chapter', 2, TRUE),
     (v_role_assoc_pastor, 'Associate Pastor', 'ASSOCIATE_PASTOR', 'Assistant pastoral minister in a branch', 3, FALSE),
     (v_role_pastor, 'Pastor', 'PASTOR', 'Ordained minister of the gospel', 4, FALSE),
@@ -212,7 +212,7 @@ BEGIN
     -- 16. Insert Initial Notifications
     INSERT INTO notifications (title, body, notification_type, target_scope, target_id)
     VALUES
-    ('Welcome to FPM ONE', 'Faith Preachers Ministries Int''l mobile portal is officially live. Connect, serve, and grow!', 'announcement', 'entire_church', NULL),
+    ('Welcome to FPM Global', 'Faith Preachers Ministries Int''l mobile portal is officially live. Connect, serve, and grow!', 'announcement', 'entire_church', NULL),
     ('Upcoming Service: Sunday Celebration of Grace', 'Join us this Sunday at 8:00 AM for an encounter of grace and victory.', 'upcoming_service', 'branch', v_branch_hq),
     ('Workers Punctuality Reminder', 'All department workers are expected to clock in at least 15 minutes before service commences.', 'admin_alert', 'ministry_role', v_role_worker);
 

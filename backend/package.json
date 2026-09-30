@@ -1,5 +1,5 @@
 {
-  "name": "fpm-one-backend",
+  "name": "fpm-global-backend",
   "version": "1.0.0",
   "description": "FPM Global Backend API & Edge Functions for Faith Preachers Ministries Int'l",
   "main": "dist/server.js",

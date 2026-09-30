@@ -1,6 +1,6 @@
-# FPM ONE — Production Readiness & Deployment Checklist
+# FPM Global — Production Readiness & Deployment Checklist
 
-**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM Global)  
 **Version:** 1.0.0 (Production Hardened)  
 **Lead:** Principal Software Architect & QA Lead  
 **Target Environments:** Cloud API (Docker / ECS / Kubernetes / Supabase) & Google Play Store  

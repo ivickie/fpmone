@@ -1,6 +1,6 @@
-# FPM ONE — Enterprise System Architecture Documentation
+# FPM Global — Enterprise System Architecture Documentation
 
-**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM Global)  
 **Version:** 1.0.0 (Production Hardened)  
 **Author:** Principal Software Architect  
 **Audience:** Engineering Team, Cloud Operations, Security Auditors  
@@ -9,7 +9,7 @@
 
 ## 1. System Overview
 
-**FPM ONE** is an enterprise-grade digital church management platform engineered to support Faith Preachers Ministries Int'l's global operations across multiple branches, departments, workers, and thousands of congregants.
+**FPM Global** is an enterprise-grade digital church management platform engineered to support Faith Preachers Ministries Int'l's global operations across multiple branches, departments, workers, and thousands of congregants.
 
 ### Key Architectural Tenets
 1. **Server-Authoritative Business Logic:** Attendance punctuality, clock-in/out calculations, worker code generation, and approval workflows are computed exclusively on the server. No client timestamps or client-supplied privileges are trusted.

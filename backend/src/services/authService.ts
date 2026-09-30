@@ -6,7 +6,7 @@ import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem
 import { AuditService } from './auditService';
 import { persistUser, persistMember, persistNotification } from '../db/sync';
 
-const DEFAULT_DEV_JWT = 'fpm_one_super_secret_jwt_key_faith_preachers_ministry_2026';
+const DEFAULT_DEV_JWT = 'fpm_global_super_secret_jwt_key_faith_preachers_ministry_2026';
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_DEV_JWT)) {
   console.error('[CRITICAL SECURITY WARNING] JWT_SECRET must be explicitly set to a cryptographically secure key in production!');
 }

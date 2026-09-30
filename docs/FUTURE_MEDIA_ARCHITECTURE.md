@@ -1,6 +1,6 @@
-# FPM ONE — Future Media Architecture: Cloudinary Evaluation & Roadmap
+# FPM Global — Future Media Architecture: Cloudinary Evaluation & Roadmap
 
-**Ministry:** Faith Preachers Ministries Int'l (FPM ONE)  
+**Ministry:** Faith Preachers Ministries Int'l (FPM Global)  
 **Document Class:** Technical Architecture & Decision Record (ADR)  
 **Current Media Tier:** Supabase Storage (S3-Compatible Object Store)  
 **Evaluation Target:** Cloudinary Media Experience Platform  
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-Faith Preachers Ministries Int'l currently employs **Supabase Storage** for FPM ONE's media ingestion, storage, and retrieval pipeline. Supabase Storage natively integrates with PostgreSQL Row-Level Security (RLS), uses S3-compatible infrastructure, and delivers low latency across church assets, member profiles, event banners, and testimony media at zero marginal operational complexity.
+Faith Preachers Ministries Int'l currently employs **Supabase Storage** for FPM Global's media ingestion, storage, and retrieval pipeline. Supabase Storage natively integrates with PostgreSQL Row-Level Security (RLS), uses S3-compatible infrastructure, and delivers low latency across church assets, member profiles, event banners, and testimony media at zero marginal operational complexity.
 
 This document outlines the architectural roadmap for introducing **Cloudinary** as an advanced Media Experience Layer when church media requirements evolve to include **automatic on-the-fly transformations, adaptive bitrate video streaming (HLS/DASH), dynamic sermon transcription/subtitles, and AI-driven content moderation**.
 
@@ -32,7 +32,7 @@ This document outlines the architectural roadmap for introducing **Cloudinary** 
 
 ## 3. The Hybrid Dual-Tier Architecture
 
-To achieve enterprise performance without excessive SaaS billing overhead, FPM ONE will adopt a **Hybrid Media Tier**:
+To achieve enterprise performance without excessive SaaS billing overhead, FPM Global will adopt a **Hybrid Media Tier**:
 
 ```
 +---------------------------------------------------------------------------------+
@@ -42,7 +42,7 @@ To achieve enterprise performance without excessive SaaS billing overhead, FPM O
                                        |
                                        v
 +---------------------------------------------------------------------------------+
-|                       FPM ONE BACKEND API GATEWAY (Node.js)                     |
+|                      FPM GLOBAL BACKEND API GATEWAY (Node.js)                   |
 |                                                                                 |
 |   +---------------------------+             +-------------------------------+   |
 |   |   Static & Sensitive Tier |             |    High-Volume Public Media   |   |

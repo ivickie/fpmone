@@ -63,7 +63,7 @@ export const LoginPage: React.FC = () => {
               className="w-7 h-7 rounded-full object-cover ring-1 ring-[#C59B27]/50"
             />
             <div className="flex items-center space-x-2">
-              <span className="text-white text-xs font-bold tracking-wider uppercase">FPM ONE</span>
+              <span className="text-white text-xs font-bold tracking-wider uppercase">FPM GLOBAL</span>
               <span className="text-[#C59B27] text-xs font-bold">•</span>
               <span className="text-slate-300 text-[11px] font-medium hidden sm:inline">Admin Portal</span>
             </div>

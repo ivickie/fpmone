@@ -1,6 +1,6 @@
-# Faith Preachers Ministries Int'l (FPM ONE) — Product Workflow Audit & System Walkthrough
+# Faith Preachers Ministries Int'l (FPM Global) — Product Workflow Audit & System Walkthrough
 
-**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM Global)  
 **Version:** 1.1.0 (Production Hardened & Real-World Operations Audited)  
 **Auditor & Architect:** Principal Software Architect, Application Security Engineer & Church QA Lead  
 **Audit Scope:** Real-World Church Operations, All 28 Workflow Sections, Edge Cases A–G, Sunday Service E2E Simulation  
@@ -18,7 +18,7 @@ Faith Preachers Ministries Int'l (Global Headquarters)
 │    ├── Departments (Choir, Media & Tech, Ushers, Security, Prayer, Welfare & Hospitality, Children & Teens)
 │    └── Ministry Roles (Super Admin, Branch Pastor, Associate Pastor, Pastor, HOD, Worker, Member)
 │
-├── Android Mobile Application (FPM ONE)
+├── Android Mobile Application (FPM Global)
 │    ├── Kotlin 2.2.0, Jetpack Compose, Material 3, Coroutines, MVVM
 │    ├── Hardware-Backed EncryptedSharedPreferences (MasterKey AES256-GCM / SIV)
 │    ├── Biometric Prompt & Hardware Passkey Challenge (Zero raw biometric transmission)
@@ -92,7 +92,7 @@ Worker ID,Worker Name,Department,Position,2026-03-22,Present,Late,Absent,Excused
 
 ```
 ====================================================
-  RUNNING FPM ONE CORE BACKEND TEST SUITE
+  RUNNING FPM GLOBAL CORE BACKEND TEST SUITE
 ====================================================
 
 --- 1. Authentication Tests ---

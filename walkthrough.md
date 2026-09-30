@@ -1,6 +1,6 @@
-# Faith Preachers Ministries Int'l (FPM ONE) — Media Management & Administrative CRUD Implementation Walkthrough
+# Faith Preachers Ministries Int'l (FPM Global) — Media Management & Administrative CRUD Implementation Walkthrough
 
-**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM Global)  
 **Version:** 1.2.0 (Media Pipeline & Administrative CRUD Architecture)  
 **Lead Architect & Security Engineer:** Principal Software Architect & QA Lead  
 **Test Suite Status:** **134 / 134 Tests Passing (100% Pass Rate)**  
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-In this milestone, **Faith Preachers Ministries Int'l (FPM ONE)** resolved two major architectural and product capabilities:
+In this milestone, **Faith Preachers Ministries Int'l (FPM Global)** resolved two major architectural and product capabilities:
 1. **Full Media Management & Supabase Storage Pipeline:** A production-hardened binary ingestion, validation, and storage system partitioned by canonical folder paths with metadata tracking, RLS policies, audit trails, and client integration across both Web Admin Portal and Android Mobile.
 2. **Comprehensive Administrative CRUD Operations:** Complete administrative lifecycle management (create, read, update, archive, and delete) across Branches, Departments, Positions, Ministry Roles, Members, Workers, Services, Events, Posts, Highlights, and Testimonies — guarded by strict relational integrity protections, system role immutability, and branch isolation.
 
@@ -113,7 +113,7 @@ The automated backend test suite was expanded with **30 new test cases**, bringi
 ### Test Execution Summary (`node dist/test.js`)
 ```
 ====================================================
-  RUNNING FPM ONE CORE BACKEND TEST SUITE
+  RUNNING FPM GLOBAL CORE BACKEND TEST SUITE
 ====================================================
 
 --- 1. Authentication Tests ---
@@ -294,11 +294,11 @@ The automated backend test suite was expanded with **30 new test cases**, bringi
 
 ## 8. Official Church Branding & Emblem Deployment
 
-The official church seal (**Faith Preachers Ministries Int'l • Jer. 1:8**) has been integrated across all critical touchpoints of the FPM ONE ecosystem:
+The official church seal (**Faith Preachers Ministries Int'l • Jer. 1:8**) has been integrated across all critical touchpoints of the FPM Global ecosystem:
 
 ### 1. Web Admin Portal
 - **Browser Favicon & Identity:** Configured in [index.html](file:///c:/Users/vics4/FPM/admin-portal/index.html) with `/church-logo.png` and ministry title metadata.
-- **Navigation Sidebar:** Replaced placeholder initial with high-resolution circular emblem in [Sidebar.tsx](file:///c:/Users/vics4/FPM/admin-portal/src/components/Sidebar.tsx) alongside `FPM ONE — Faith Preachers Ministries Int'l`.
+- **Navigation Sidebar:** Replaced placeholder initial with high-resolution circular emblem in [Sidebar.tsx](file:///c:/Users/vics4/FPM/admin-portal/src/components/Sidebar.tsx) alongside `FPM Global — Faith Preachers Ministries Int'l`.
 - **Login Portal:** Replaced placeholder initial with prominent ring-bordered church emblem in [LoginPage.tsx](file:///c:/Users/vics4/FPM/admin-portal/src/pages/LoginPage.tsx).
 - **Branch Management:** Integrated official church emblem as default visual fallback for branches without custom logos in [BranchesPage.tsx](file:///c:/Users/vics4/FPM/admin-portal/src/pages/BranchesPage.tsx).
 

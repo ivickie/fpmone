@@ -1,6 +1,6 @@
-# FPM ONE — Role-Based Access Control (RBAC) Matrix
+# FPM Global — Role-Based Access Control (RBAC) Matrix
 
-**Platform:** Faith Preachers Ministries Int'l (FPM ONE)  
+**Platform:** Faith Preachers Ministries Int'l (FPM Global)  
 **Security Level:** Production Hardened  
 **Author:** Principal Application Security Engineer  
 

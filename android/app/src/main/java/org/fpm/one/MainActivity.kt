@@ -61,7 +61,7 @@ class MainActivity : FragmentActivity() {
     val notificationRepository = NotificationRepository()
 
     setContent {
-      FpmOneTheme {
+      FpmGlobalTheme {
         Surface(
           modifier = Modifier.fillMaxSize(),
           color = MaterialTheme.colorScheme.background

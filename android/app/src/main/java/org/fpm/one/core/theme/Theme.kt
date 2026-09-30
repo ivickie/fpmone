@@ -43,7 +43,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun FpmOneTheme(
+fun FpmGlobalTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
@@ -63,3 +63,9 @@ fun FpmOneTheme(
         content = content
     )
 }
+
+@Composable
+fun FpmOneTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) = FpmGlobalTheme(darkTheme, content)
