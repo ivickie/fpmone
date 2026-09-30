@@ -3,14 +3,14 @@
   "services": {
     "admin-portal": {
       "root": "admin-portal",
-      "framework": "vite"
+      "framework": "vite",
+      "installCommand": "npm install --include=dev"
     },
     "backend": {
       "root": "backend",
       "framework": "express",
       "entrypoint": "src/server.ts",
-      "installCommand": "npm install",
-      "buildCommand": "npm run build"
+      "installCommand": "npm install --include=dev"
     }
   },
   "rewrites": [
