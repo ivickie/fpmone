@@ -547,15 +547,15 @@ CREATE POLICY "Public events read access" ON events FOR SELECT USING (status = '
 CREATE POLICY "Public service highlights read" ON service_highlights FOR SELECT USING (is_published = TRUE);
 CREATE POLICY "Public approved testimonies read" ON testimonies FOR SELECT USING (status = 'approved' AND allow_publish = TRUE);
 CREATE POLICY "Allow read user_ministry_roles" ON user_ministry_roles FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated manage user_ministry_roles" ON user_ministry_roles FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow read attendance_settings" ON attendance_settings FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated manage attendance_settings" ON attendance_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow read post_media" ON post_media FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated manage post_media" ON post_media FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow read saved_posts" ON saved_posts FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated manage saved_posts" ON saved_posts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated insert saved_posts" ON saved_posts FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Allow authenticated delete saved_posts" ON saved_posts FOR DELETE TO authenticated USING (user_id = auth.uid());
 CREATE POLICY "Allow read notification_reads" ON notification_reads FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated manage notification_reads" ON notification_reads FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated insert notification_reads" ON notification_reads FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Allow authenticated update notification_reads" ON notification_reads FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Allow authenticated delete notification_reads" ON notification_reads FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 -- -----------------------------------------------------------------------------
 -- 19. MEDIA ITEMS (Supabase Storage Metadata)
@@ -602,14 +602,11 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = 10485760,
     allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
 
--- Authenticated read / listing access to church media bucket objects
--- (Direct public download URLs continue to work globally via public = true bucket setting)
+-- Storage Bucket Listing Security (public_bucket_allows_listing)
+-- Broad SELECT policy on storage.objects dropped to prevent unauthorized directory scraping.
+-- Direct public download URLs continue to work globally via public = true bucket setting.
 DROP POLICY IF EXISTS "Public Read Access fpm-media" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Read Access fpm-media" ON storage.objects;
-CREATE POLICY "Authenticated Read Access fpm-media"
-ON storage.objects FOR SELECT
-TO authenticated
-USING (bucket_id = 'fpm-media');
 
 -- Authenticated member and worker upload access
 DROP POLICY IF EXISTS "Authenticated Users Upload fpm-media" ON storage.objects;
@@ -659,7 +656,6 @@ CREATE INDEX idx_dept_reports_status ON department_reports(status);
 ALTER TABLE department_reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow read department_reports" ON department_reports FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated manage department_reports" ON department_reports FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- -----------------------------------------------------------------------------
 -- 21. FINANCE TRANSACTIONS (Income & Expenses Ledger)
@@ -691,8 +687,6 @@ CREATE INDEX idx_finance_tx_status ON finance_transactions(status);
 
 ALTER TABLE finance_transactions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated manage finance_transactions" ON finance_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
 -- -----------------------------------------------------------------------------
 -- 22. FINANCE OPENING BALANCES (Ledger Baselines & Continuity)
 -- -----------------------------------------------------------------------------
@@ -714,8 +708,6 @@ CREATE TABLE finance_opening_balances (
 CREATE INDEX idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
 
 ALTER TABLE finance_opening_balances ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow authenticated manage finance_opening_balances" ON finance_opening_balances FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 
 
