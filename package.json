@@ -22,5 +22,10 @@
     "pg": "^8.23.0",
     "typescript": "^5.7.3",
     "uuid": "^11.0.5"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-arm64-gnu": "^4.63.1",
+    "@rollup/rollup-linux-x64-gnu": "^4.63.1",
+    "@rollup/rollup-linux-x64-musl": "^4.63.1"
   }
 }
