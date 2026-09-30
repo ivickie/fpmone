@@ -1,0 +1,26 @@
+{
+  "name": "fpm-global",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "admin-portal"
+  ],
+  "scripts": {
+    "build:backend": "npm --workspace=backend run build",
+    "build:admin": "npm --workspace=admin-portal run build",
+    "test:backend": "npm --workspace=backend run test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.3.0",
+    "pg": "^8.23.0",
+    "typescript": "^5.7.3",
+    "uuid": "^11.0.5"
+  }
+}
