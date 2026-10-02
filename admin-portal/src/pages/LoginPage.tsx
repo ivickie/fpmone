@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@fpmchurch.org');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showResetHelp, setShowResetHelp] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,12 +22,6 @@ export const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const setDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('Password123!');
-    setError(null);
   };
 
   return (
@@ -254,39 +248,6 @@ export const LoginPage: React.FC = () => {
                 )}
               </button>
             </form>
-
-            {/* Quick Demo Switcher */}
-            <div className="mt-7 pt-5 border-t border-slate-100">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-2.5">
-                Quick Switch Demo Roles
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount('admin@fpmchurch.org')}
-                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                    email === 'admin@fpmchurch.org'
-                      ? 'bg-amber-50/70 border-[#C59B27]/50 ring-1 ring-[#C59B27]/40'
-                      : 'bg-[#F8FAFC] hover:bg-slate-100/90 border-slate-200'
-                  }`}
-                >
-                  <div className="text-[#070E1B] font-bold">Super Admin</div>
-                  <div className="text-[10px] text-slate-500">Global Oversight</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount('pastor.david@fpmchurch.org')}
-                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                    email === 'pastor.david@fpmchurch.org'
-                      ? 'bg-amber-50/70 border-[#C59B27]/50 ring-1 ring-[#C59B27]/40'
-                      : 'bg-[#F8FAFC] hover:bg-slate-100/90 border-slate-200'
-                  }`}
-                >
-                  <div className="text-[#070E1B] font-bold">Branch Pastor</div>
-                  <div className="text-[10px] text-slate-500">HQ Chapter</div>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
