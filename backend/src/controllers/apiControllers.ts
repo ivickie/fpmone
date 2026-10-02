@@ -1111,7 +1111,7 @@ export const listMembersHandler = (req: Request, res: Response) => {
   return res.json(members);
 };
 
-export const createMemberHandler = (req: Request, res: Response) => {
+export const createMemberHandler = async (req: Request, res: Response) => {
   try {
     const adminId = req.user?.userId || IDS.USER_ADMIN;
     const adminName = req.user?.fullName || 'Administrator';
@@ -1121,7 +1121,7 @@ export const createMemberHandler = (req: Request, res: Response) => {
       primaryBranchId: req.body.primaryBranchId || req.body.branchId,
       primaryRoleId: req.body.primaryRoleId || req.body.roleId
     };
-    const newMember = MemberService.createMember(payload, adminId, adminName, adminScope);
+    const newMember = await MemberService.createMember(payload, adminId, adminName, adminScope);
     return res.status(201).json({ success: true, member: newMember });
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });

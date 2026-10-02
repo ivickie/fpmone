@@ -155,7 +155,6 @@ export class AuthService {
       updatedAt: now
     };
     db.users.push(newUser);
-    persistUser(newUser).catch(() => {});
 
     // 4. Create member profile
     const branchExists = data.branchId && db.branches.some(b => b.id === data.branchId);
@@ -180,7 +179,14 @@ export class AuthService {
       updatedAt: now
     };
     db.members.push(newMember);
-    persistMember(newMember).catch(() => {});
+
+    // Sequentially persist user and member to avoid foreign key violations
+    try {
+      await persistUser(newUser);
+      await persistMember(newMember);
+    } catch (e: any) {
+      console.warn('[AUTH REGISTER DB PERSISTENCE ERROR]', e.message);
+    }
 
     // Log audit
     AuditService.log(

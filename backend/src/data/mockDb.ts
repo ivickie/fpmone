@@ -79,6 +79,8 @@ export const IDS = {
   USER_JOHN: 'c5555555-5555-5555-5555-555555555555',
   USER_GRACE: 'c6666666-6666-6666-6666-666666666666',
   USER_PENDING: 'c7777777-7777-7777-7777-777777777777',
+  USER_FELA: 'b84e4e3a-0d26-4b54-a411-9965c296f993',
+  USER_VICTOR: '478194d5-07cf-4d38-a084-0b753cc6ca2e',
 
   MEMBER_ADMIN: 'e1111111-1111-1111-1111-111111111111',
   MEMBER_PASTOR: 'e2222222-2222-2222-2222-222222222222',
@@ -87,10 +89,14 @@ export const IDS = {
   MEMBER_JOHN: 'e5555555-5555-5555-5555-555555555555',
   MEMBER_GRACE: 'e6666666-6666-6666-6666-666666666666',
   MEMBER_PENDING: 'e7777777-7777-7777-7777-777777777777',
+  MEMBER_FELA: '18fcadda-fd29-44e8-9d7e-744ab019cabe',
+  MEMBER_VICTOR: '0dbc4f20-00b0-41b3-876b-d80f60d1bf06',
 
   WORKER_SARAH: 'f1111111-1111-1111-1111-111111111111',
   WORKER_JOHN: 'f2222222-2222-2222-2222-222222222222',
   WORKER_HOD: 'f3333333-3333-3333-3333-333333333333',
+  WORKER_FELA: '4636f4d6-e6e9-4adf-aba5-35fba3e986e6',
+  WORKER_VICTOR: 'cf0e009e-9d5a-4322-9535-900ae09674bc',
 
   SERVICE_SUN_1: '11111111-1111-1111-1111-111111111111',
   SERVICE_SUN_2: '22222222-2222-2222-2222-222222222222',
@@ -484,9 +490,11 @@ export class DatabaseStore {
       name: 'Choir (Voices of Faith)',
       code: 'CHOIR',
       description: 'Leading praise, worship and sacred choral orchestration',
+      hodId: IDS.USER_FELA,
+      hodName: 'Fela Durotoye',
       status: 'active',
       createdAt: '2024-03-01T00:00:00Z',
-      updatedAt: '2024-03-01T00:00:00Z'
+      updatedAt: '2026-10-02T16:00:00Z'
     },
     {
       id: 'd2222222-4444-4444-4444-000000000002',
@@ -949,6 +957,28 @@ export class DatabaseStore {
       adminLevel: 'none',
       createdAt: '2026-03-01T09:30:00Z',
       updatedAt: '2026-03-01T09:30:00Z'
+    },
+    {
+      id: IDS.USER_FELA,
+      email: 'fela@fpmchurch.org',
+      phone: '+2348136004047',
+      passwordHash: DEFAULT_PASSWORD_HASH,
+      accountStatus: 'active',
+      isAdmin: false,
+      adminLevel: 'none',
+      createdAt: '2026-10-02T16:00:00Z',
+      updatedAt: '2026-10-02T16:00:00Z'
+    },
+    {
+      id: IDS.USER_VICTOR,
+      email: 'victor@fpmchurch.org',
+      phone: '+2347037288929',
+      passwordHash: DEFAULT_PASSWORD_HASH,
+      accountStatus: 'active',
+      isAdmin: false,
+      adminLevel: 'none',
+      createdAt: '2026-10-02T16:00:00Z',
+      updatedAt: '2026-10-02T16:00:00Z'
     }
   ];
 
@@ -1312,6 +1342,44 @@ export class DatabaseStore {
       emergencyContactPhone: '+2348077778888',
       createdAt: '2026-03-01T09:30:00Z',
       updatedAt: '2026-03-01T09:30:00Z'
+    },
+    {
+      id: IDS.MEMBER_FELA,
+      userId: IDS.USER_FELA,
+      primaryBranchId: IDS.BRANCH_ABUJA,
+      firstName: 'Fela',
+      middleName: '',
+      lastName: 'Durotoye',
+      primaryRoleId: IDS.ROLE_HOD,
+      isWorker: true,
+      gender: 'Male',
+      dateOfBirth: '1985-05-12',
+      residentialAddress: 'Mpape, Abuja',
+      profilePictureUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
+      emergencyContactName: 'FPM Church Office',
+      emergencyContactPhone: '+2348000000003',
+      approvedAt: '2026-10-02T16:00:00Z',
+      createdAt: '2026-10-02T16:00:00Z',
+      updatedAt: '2026-10-02T16:00:00Z'
+    },
+    {
+      id: IDS.MEMBER_VICTOR,
+      userId: IDS.USER_VICTOR,
+      primaryBranchId: IDS.BRANCH_ABUJA,
+      firstName: 'Victor',
+      middleName: '',
+      lastName: 'Adeosun',
+      primaryRoleId: IDS.ROLE_WORKER,
+      isWorker: true,
+      gender: 'Male',
+      dateOfBirth: '1993-08-20',
+      residentialAddress: 'Jikwoyi, Abuja',
+      profilePictureUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
+      emergencyContactName: 'FPM Church Office',
+      emergencyContactPhone: '+2348000000003',
+      approvedAt: '2026-10-02T16:00:00Z',
+      createdAt: '2026-10-02T16:00:00Z',
+      updatedAt: '2026-10-02T16:00:00Z'
     }
   ];
 
@@ -1357,6 +1425,34 @@ export class DatabaseStore {
       biometricEnabled: true,
       createdAt: '2019-03-01T00:00:00Z',
       updatedAt: '2019-03-01T00:00:00Z'
+    },
+    {
+      id: IDS.WORKER_FELA,
+      memberId: IDS.MEMBER_FELA,
+      workerIdCode: 'FPM-0005',
+      pinHash: DEFAULT_PIN_HASH,
+      departmentId: 'd1111111-4444-4444-4444-000000000001',
+      positionName: 'Head of Department',
+      dateStartedServing: '2026-10-02',
+      workerStatus: 'active',
+      qrCodeToken: 'FPM-QR-FPM-0005-bfd37cc8',
+      biometricEnabled: true,
+      createdAt: '2026-10-02T16:00:00Z',
+      updatedAt: '2026-10-02T16:00:00Z'
+    },
+    {
+      id: IDS.WORKER_VICTOR,
+      memberId: IDS.MEMBER_VICTOR,
+      workerIdCode: 'FPM-0006',
+      pinHash: DEFAULT_PIN_HASH,
+      departmentId: 'd1111111-4444-4444-4444-000000000001',
+      positionName: 'Bassist',
+      dateStartedServing: '2026-10-02',
+      workerStatus: 'active',
+      qrCodeToken: 'FPM-QR-FPM-0006-ad7d67a0',
+      biometricEnabled: true,
+      createdAt: '2026-10-02T16:00:00Z',
+      updatedAt: '2026-10-02T16:00:00Z'
     }
   ];
 
@@ -1826,7 +1922,7 @@ export class DatabaseStore {
   public financeTransactions: FinanceTransaction[] = [];
   public financeOpeningBalances: FinanceOpeningBalance[] = [];
 
-  private workerCounter = 4;
+  private workerCounter = 7;
 
   public getNextWorkerCode(): string {
     let maxFound = this.workerCounter;

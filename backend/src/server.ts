@@ -176,6 +176,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', async (req, res) => {
+  await ensureDbHydrated().catch(() => {});
   const dbStatus = await checkConnection();
   const isProduction = process.env.NODE_ENV === 'production';
 
@@ -219,6 +220,16 @@ if (!process.env.VERCEL) {
   });
 }
 
+// Lazy database hydration middleware for all /api requests (cold starts and periodic refresh)
+app.use('/api', async (_req: Request, _res: Response, next: NextFunction) => {
+  try {
+    await ensureDbHydrated();
+  } catch (err: any) {
+    console.warn('[SERVER] DB hydration error in middleware:', err?.message || err);
+  }
+  next();
+});
+
 // Mount modular API router
 app.use('/api', apiRoutes);
 
@@ -253,19 +264,29 @@ if (!process.env.VERCEL && require.main === module) {
   }, 10 * 60 * 1000);
 }
 
-// NOTE: Database hydration from Supabase is strictly disabled by default per user directive.
-// It will only execute if HYDRATE_DB=true is explicitly configured in environment variables.
+// Database hydration from Supabase PostgreSQL
 let dbHydrationPromise: Promise<boolean> | null = null;
-export const ensureDbHydrated = (): Promise<boolean> => {
-  if (process.env.HYDRATE_DB !== 'true') {
+let lastHydratedAt = 0;
+
+export const ensureDbHydrated = (force: boolean = false): Promise<boolean> => {
+  if (process.env.HYDRATE_DB === 'false' || !process.env.DATABASE_URL) {
     return Promise.resolve(false);
   }
-  if (!dbHydrationPromise) {
-    dbHydrationPromise = db.initFromPostgres().catch((err: any) => {
-      console.warn('[SERVER] Supabase PostgreSQL hydration warning:', err.message);
-      return false;
-    });
+
+  const now = Date.now();
+  // If already hydrated within the last 60 seconds, return existing promise
+  if (dbHydrationPromise && !force && (now - lastHydratedAt < 60_000)) {
+    return dbHydrationPromise;
   }
+
+  dbHydrationPromise = db.initFromPostgres().then((res: boolean) => {
+    lastHydratedAt = Date.now();
+    return res;
+  }).catch((err: any) => {
+    console.warn('[SERVER] Supabase PostgreSQL hydration warning:', err.message);
+    return false;
+  });
+
   return dbHydrationPromise;
 };
 
@@ -279,7 +300,7 @@ if (!process.env.VERCEL && require.main === module) {
     console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`=======================================================`);
     DiscoveryService.start(5001, Number(PORT));
-    if (process.env.HYDRATE_DB === 'true') {
+    if (process.env.HYDRATE_DB !== 'false' && process.env.DATABASE_URL) {
       await ensureDbHydrated();
     }
   });

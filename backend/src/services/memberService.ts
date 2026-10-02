@@ -145,13 +145,22 @@ export class MemberService {
           updatedAt: now
         };
         db.workers.push(existingWorker);
-        persistWorker(existingWorker).catch(() => {});
       }
       workerRecord = existingWorker;
     }
 
-    persistUser(user).catch(() => {});
-    persistMember(member).catch(() => {});
+    // Persist sequentially so foreign keys are respected
+    (async () => {
+      try {
+        await persistUser(user);
+        await persistMember(member);
+        if (workerRecord) {
+          await persistWorker(workerRecord);
+        }
+      } catch (dbErr: any) {
+        console.warn('[MEMBER APPROVE DB PERSISTENCE ERROR]', dbErr.message);
+      }
+    })();
 
     // Audit log
     AuditService.log(
@@ -613,7 +622,7 @@ export class MemberService {
   /**
    * Directly Enroll / Create New Member (Admin & Pastoral Dashboard)
    */
-  public static createMember(
+  public static async createMember(
     data: {
       firstName: string;
       middleName?: string;
@@ -703,7 +712,6 @@ export class MemberService {
       updatedAt: now
     };
     db.users.push(newUser);
-    persistUser(newUser).catch(() => {});
 
     // 2. Create Member
     const newMember: Member = {
@@ -727,7 +735,6 @@ export class MemberService {
       updatedAt: now
     };
     db.members.push(newMember);
-    persistMember(newMember).catch(() => {});
 
     // 3. If worker, provision worker profile
     let workerRecord: Worker | undefined;
@@ -750,7 +757,17 @@ export class MemberService {
         updatedAt: now
       };
       db.workers.push(workerRecord);
-      persistWorker(workerRecord).catch(() => {});
+    }
+
+    // Persist sequentially to prevent PostgreSQL foreign key constraint race conditions
+    try {
+      await persistUser(newUser);
+      await persistMember(newMember);
+      if (workerRecord) {
+        await persistWorker(workerRecord);
+      }
+    } catch (dbErr: any) {
+      console.warn('[MEMBER CREATE DB PERSISTENCE ERROR]', dbErr.message);
     }
 
     // 4. Audit Log

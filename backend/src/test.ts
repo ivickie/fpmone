@@ -2844,8 +2844,8 @@ async function runTests() {
         body: JSON.stringify({
           firstName: 'Second',
           lastName: 'Administrator',
-          email: 'second.admin@faithpreachers.org',
-          phone: '+234 811 000 9992',
+          email: `second.admin.${Date.now()}@faithpreachers.org`,
+          phone: `+234811${Date.now().toString().slice(-7)}`,
           primaryBranchId: IDS.BRANCH_HQ,
           primaryRoleId: IDS.ROLE_SUPER_ADMIN
         })
