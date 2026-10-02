@@ -855,7 +855,7 @@ private fun Step4Review(
   viewModel: RegistrationViewModel,
   onRegistrationComplete: () -> Unit
 ) {
-  val branchName = state.branches.find { it.id == state.branchId }?.name ?: "Cathedral of Grace"
+  val branchName = state.branches.find { it.id == state.branchId }?.name ?: "Ilorin Branch (Headquarters)"
   val roleName = state.roles.find { it.id == state.ministryRoleId }?.name ?: "Member"
   val deptName = state.departments.find { it.id == state.departmentId }?.name ?: "Unassigned"
 

@@ -884,7 +884,7 @@ fun HomeScreen(
                             model = userBranchCoverImage,
                             contentDescription = "${userBranch?.name} Sanctuary",
                             fallbackCategory = "event",
-                            fallbackTitle = userBranch?.name ?: "Cathedral of Grace",
+                            fallbackTitle = userBranch?.name ?: "Ilorin Branch (Headquarters)",
                             modifier = Modifier.fillMaxSize()
                         )
 
@@ -1087,7 +1087,7 @@ fun HomeScreen(
                                     letterSpacing = 0.8.sp
                                 )
                                 Text(
-                                    text = currentUser?.branchName ?: userBranch?.name ?: "Cathedral of Grace",
+                                    text = currentUser?.branchName ?: userBranch?.name ?: "Ilorin Branch (Headquarters)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = FpmSurfaceWhite,
