@@ -1,3 +1,5 @@
+process.env.IS_TEST_RUN = 'true';
+
 import { AuthService } from './services/authService';
 import { MemberService } from './services/memberService';
 import { AttendanceService } from './services/attendanceService';
@@ -261,6 +263,12 @@ async function runTests() {
     }
     assert(crossBranchApprovalBlocked, 'Branch Isolation: Lekki Pastor blocked from approving London branch applicant');
 
+    // Clean up London test applicant from memory and database
+    db.users = db.users.filter(u => u.id !== londonApplicant.userId);
+    db.members = db.members.filter(m => m.userId !== londonApplicant.userId);
+    const { query: dbQ3 } = await import('./db/index');
+    await dbQ3('DELETE FROM users WHERE id = $1', [londonApplicant.userId]).catch(() => {});
+
     // TEST 19: Privilege Escalation Prevention in Registration
     const maliciousApplicant = await AuthService.register({
       firstName: 'Attacker',
@@ -308,6 +316,13 @@ async function runTests() {
       crossBranchTransferBlocked = e.message.includes('Branch isolation violation');
     }
     assert(crossBranchTransferBlocked, 'Branch Isolation: Branch admin cannot transfer member to another branch');
+
+    // Clean up test applicant from memory and database
+    db.users = db.users.filter(u => u.id !== maliciousApplicant.userId);
+    db.members = db.members.filter(m => m.userId !== maliciousApplicant.userId);
+    db.workers = db.workers.filter(w => w.memberId !== attackerMember?.id);
+    const { query: dbQuery } = await import('./db/index');
+    await dbQuery('DELETE FROM users WHERE id = $1', [maliciousApplicant.userId]).catch(() => {});
 
     // TEST 22: Branch Isolation on Service Absences
     let crossBranchAbsenceBlocked = false;

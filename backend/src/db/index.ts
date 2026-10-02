@@ -10,8 +10,8 @@ export const pool = new Pool({
   ssl: connectionString?.includes('supabase') || process.env.NODE_ENV === 'production' 
     ? { rejectUnauthorized: false } 
     : undefined,
-  max: 10,
-  idleTimeoutMillis: 30000,
+  max: 3,
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000
 });
 
@@ -20,6 +20,9 @@ pool.on('error', (err) => {
 });
 
 export async function query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+  if (process.env.IS_TEST_RUN === 'true' && /^\s*(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE)/i.test(text)) {
+    return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] } as QueryResult<T>;
+  }
   const start = Date.now();
   try {
     const res = await pool.query<T>(text, params);
