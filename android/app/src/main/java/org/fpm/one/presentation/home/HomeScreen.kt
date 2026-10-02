@@ -132,7 +132,7 @@ fun HomeScreen(
     // Scroll-driven Collapsing Header Coordinates
     val maxHeaderHeight = 350.dp
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val minHeaderHeight = 72.dp + statusBarTop
+    val minHeaderHeight = 48.dp + statusBarTop
     val scrollRangeDp = maxHeaderHeight - minHeaderHeight
     val scrollRangePx = with(density) { scrollRangeDp.toPx() }
 
@@ -776,22 +776,22 @@ fun HomeScreen(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    val isLiked = post.userReaction == "amen"
+                                    val isLiked = post.userReaction == "amen" || post.userReaction == "like"
                                     TextButton(
                                         onClick = { viewModel.reactToPost(post.id, "amen") },
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (isLiked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
-                                            contentDescription = "Amen",
-                                            tint = if (isLiked) FpmGoldDark else FpmTextSecondary,
+                                            contentDescription = if (isLiked) "Unlike" else "Amen",
+                                            tint = if (isLiked) Color(0xFFE53935) else FpmTextSecondary,
                                             modifier = Modifier.size(17.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "Amen (${post.likesCount})",
                                             fontSize = 12.sp,
-                                            color = if (isLiked) FpmGoldDark else FpmTextSecondary,
+                                            color = if (isLiked) Color(0xFFE53935) else FpmTextSecondary,
                                             fontWeight = if (isLiked) FontWeight.Bold else FontWeight.Medium
                                         )
                                     }
@@ -1032,15 +1032,20 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
-                    .padding(horizontal = 18.dp, vertical = 10.dp)
+                    .height(48.dp)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = (-6).dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Left Brand: Transitions between airy brand and compact branch identity
                     Row(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -1048,9 +1053,9 @@ fun HomeScreen(
                             painter = painterResource(id = R.drawable.church_logo),
                             contentDescription = "FPM Emblem",
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
-                                .border(1.5.dp, FpmGold, CircleShape)
+                                .border(1.2.dp, FpmGold, CircleShape)
                         )
 
                         // When expanded: Shows subtle ministry name
@@ -1094,36 +1099,41 @@ fun HomeScreen(
                     }
 
                     // Right Actions: Clock In (Worker Hub), Notifications
+                    // Sleek 28dp CircleShape containers with guaranteed spacing and zero overlap
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (currentUser?.isWorker == true) {
-                            IconButton(
-                                onClick = onOpenWorkerHub,
+                            Box(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .background(FpmNavyDeep.copy(alpha = 0.65f), CircleShape)
-                                    .border(1.dp, FpmGold.copy(alpha = 0.4f), CircleShape)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(FpmNavyDeep.copy(alpha = 0.65f))
+                                    .border(0.8.dp, FpmGold.copy(alpha = 0.45f), CircleShape)
+                                    .clickable(onClick = onOpenWorkerHub),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    Icons.Default.Badge,
-                                    contentDescription = "Clock In / Worker Hub",
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = "Clock In / Worker Attendance",
                                     tint = FpmGold,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
 
-                        IconButton(
-                            onClick = onNavigateToNotifications,
+                        Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .background(FpmNavyDeep.copy(alpha = 0.65f), CircleShape)
-                                .border(0.5.dp, FpmCardBorder.copy(alpha = 0.3f), CircleShape)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(FpmNavyDeep.copy(alpha = 0.65f))
+                                .border(0.6.dp, FpmCardBorder.copy(alpha = 0.35f), CircleShape)
+                                .clickable(onClick = onNavigateToNotifications),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.Notifications,
+                                imageVector = Icons.Default.Notifications,
                                 contentDescription = "Notifications",
                                 tint = FpmSurfaceWhite,
                                 modifier = Modifier.size(16.dp)

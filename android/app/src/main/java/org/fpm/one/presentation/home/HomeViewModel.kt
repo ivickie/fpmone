@@ -154,9 +154,39 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
   }
 
   fun reactToPost(postId: String, reactionType: String = "amen") {
+    // Instant optimistic update for immediate heart toggling
+    val currentPosts = _state.value.posts
+    val targetPost = currentPosts.find { it.id == postId }
+    if (targetPost != null) {
+      val isLiked = targetPost.userReaction == "amen" || targetPost.userReaction == "like"
+      val updatedPost = if (isLiked) {
+        targetPost.copy(
+          userReaction = null,
+          likesCount = maxOf(0, targetPost.likesCount - 1)
+        )
+      } else {
+        targetPost.copy(
+          userReaction = "amen",
+          likesCount = targetPost.likesCount + 1
+        )
+      }
+      _state.value = _state.value.copy(
+        posts = currentPosts.map { if (it.id == postId) updatedPost else it }
+      )
+    }
+
     viewModelScope.launch {
-      repository.reactToPost(postId, reactionType)
-      loadHomeData()
+      val res = repository.reactToPost(postId, reactionType)
+      if (res.isFailure) {
+        // Rollback on failure
+        _state.value = _state.value.copy(posts = currentPosts)
+      } else {
+        // Silently synchronize canonical feed from repository
+        val feedRes = repository.getFeed()
+        if (feedRes.isSuccess) {
+          _state.value = _state.value.copy(posts = feedRes.getOrDefault(emptyList()))
+        }
+      }
     }
   }
 

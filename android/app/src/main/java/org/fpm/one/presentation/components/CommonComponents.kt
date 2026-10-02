@@ -1749,8 +1749,8 @@ fun FpmAvatar(
 
 /**
  * Standardized FPM Top Bar with church emblem, title, subtitle, back button, and actions.
+ * Sleek 56dp height with vertically centered content.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FpmTopBar(
     title: String,
@@ -1758,53 +1758,78 @@ fun FpmTopBar(
     onNavigateBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    TopAppBar(
-        title = {
+    Surface(
+        color = FpmNavyDark,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(48.dp)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = (-6).dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.church_logo),
-                    contentDescription = "FPM Emblem",
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .border(1.dp, FpmGold, CircleShape)
-                )
-                Column {
-                    Text(
-                        text = title,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = FpmSurfaceWhite,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
+                    if (onNavigateBack != null) {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = FpmSurfaceWhite,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.church_logo),
+                        contentDescription = "FPM Emblem",
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, FpmGold, CircleShape)
                     )
-                    if (subtitle != null) {
+                    Column {
                         Text(
-                            text = subtitle,
-                            fontSize = 11.sp,
-                            color = FpmGoldLight,
+                            text = title,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FpmSurfaceWhite,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (subtitle != null) {
+                            Text(
+                                text = subtitle,
+                                fontSize = 11.sp,
+                                color = FpmGoldLight,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = actions
+                )
             }
-        },
-        navigationIcon = {
-            if (onNavigateBack != null) {
-                IconButton(onClick = onNavigateBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmSurfaceWhite)
-                }
-            }
-        },
-        actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = FpmNavyDark
-        )
-    )
+        }
+    }
 }
 
 /**

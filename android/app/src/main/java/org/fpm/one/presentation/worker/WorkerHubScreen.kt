@@ -709,7 +709,7 @@ fun AttendanceStatusCard(
           text = if (state.isLoading) "Connecting..." else "Clock In to Service",
           onClick = onClockInClick,
           enabled = !state.isLoading,
-          icon = Icons.Default.HowToReg,
+          icon = Icons.Default.AccessTime,
           modifier = Modifier.fillMaxWidth()
         )
       }
