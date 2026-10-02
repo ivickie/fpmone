@@ -80,7 +80,7 @@ async function runTests() {
     const adminLogin = await AuthService.login('admin@fpmchurch.org', 'Password123!');
     assert(!!adminLogin.token, 'SuperAdmin login returns valid JWT token');
     assert(adminLogin.user?.adminLevel === 'super_admin', 'Admin session has super_admin role');
-    assert(adminLogin.user?.branchName === 'Cathedral of Grace (HQ)', 'Admin belongs to Headquarters branch');
+    assert(adminLogin.user?.branchName === 'Ilorin Branch (Headquarters)', 'Admin belongs to Headquarters branch');
 
     // TEST 2: Worker Login
     const workerLogin = await AuthService.login('worker.sarah@fpmchurch.org', 'Password123!');

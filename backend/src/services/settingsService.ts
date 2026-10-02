@@ -105,7 +105,7 @@ export class SettingsService {
       primaryEmail: "info@faithpreachers.org",
       phone: "+234 800 000 0001",
       websiteUrl: "https://faithpreachers.org",
-      headquartersAddress: "Faith Cathedral, 10 Victory Way, Ikeja, Lagos, Nigeria",
+      headquartersAddress: "Behind Dangote Flour Mills, Off Asa Dam Road, Ilorin, Kwara State.",
       motto: "Impacting lives with the word of Faith"
     },
     regional: {

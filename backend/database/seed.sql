@@ -10,9 +10,10 @@ DECLARE
 
     -- Branch IDs
     v_branch_hq UUID := 'b1111111-1111-1111-1111-111111111111';
-    v_branch_lekki UUID := 'b2222222-2222-2222-2222-222222222222';
-    v_branch_london UUID := 'b3333333-3333-3333-3333-333333333333';
-    v_branch_houston UUID := 'b4444444-4444-4444-4444-444444444444';
+    v_branch_lagos UUID := 'b2222222-2222-2222-2222-222222222222';
+    v_branch_abuja UUID := 'b4444444-4444-4444-4444-444444444444';
+    v_branch_uk UUID := 'b3333333-3333-3333-3333-333333333333';
+    v_branch_can UUID := '79e616a5-050c-4adc-a8a2-3102f432b542';
 
     -- Role IDs
     v_role_super_admin UUID := 'a1111111-1111-1111-1111-111111111111';
@@ -88,15 +89,16 @@ BEGIN
 
     -- 1. Insert Organization
     INSERT INTO organizations (id, name, short_name, slug, logo_url, primary_email, headquarters_address)
-    VALUES (v_org_id, 'Faith Preachers Ministries Int''l', 'FPM', 'fpm-global', 'https://images.unsplash.com/photo-1544427920-c49ccfb85579?w=300', 'info@faithpreachers.org', 'Faith Cathedral, 10 Victory Way, Lagos, Nigeria');
+    VALUES (v_org_id, 'Faith Preachers Ministries Int''l', 'FPM', 'fpm-global', 'https://images.unsplash.com/photo-1544427920-c49ccfb85579?w=300', 'info@faithpreachers.org', 'Behind Dangote Flour Mills, Off Asa Dam Road, Ilorin, Kwara State.');
 
     -- 2. Insert Branches
     INSERT INTO branches (id, organization_id, name, branch_code, address, city, state, country, phone, email, branch_pastor_name, status, is_headquarters)
     VALUES 
-    (v_branch_hq, v_org_id, 'Cathedral of Grace (HQ)', 'FPM-HQ', '10 Victory Way, Ikeja', 'Lagos', 'Lagos State', 'Nigeria', '+234 800 000 0001', 'hq@faithpreachers.org', 'Pastor David Adeleke', 'active', TRUE),
-    (v_branch_lekki, v_org_id, 'Lekki City of Praise', 'FPM-LEK', 'Plot 15 Admiralty Way, Lekki Phase 1', 'Lagos', 'Lagos State', 'Nigeria', '+234 800 000 0002', 'lekki@faithpreachers.org', 'Pastor Emmanuel Okafor', 'active', FALSE),
-    (v_branch_london, v_org_id, 'London Glory Center', 'FPM-LON', '44 Gracechurch Street', 'London', 'Greater London', 'United Kingdom', '+44 20 7946 0001', 'london@faithpreachers.org', 'Pastor Michael Davies', 'active', FALSE),
-    (v_branch_houston, v_org_id, 'Houston Faith Tabernacle', 'FPM-HOU', '8820 Westheimer Road', 'Houston', 'Texas', 'United States', '+1 713 555 0199', 'houston@faithpreachers.org', 'Pastor Joshua Vance', 'active', FALSE);
+    (v_branch_hq, v_org_id, 'Ilorin Branch (Headquarters)', 'FPM-HQ', 'Behind Dangote Flour Mills, Off Asa Dam Road, Ilorin, Kwara State.', 'Ilorin', 'Kwara State', 'Nigeria', '+234 800 000 0001', 'hq@faithpreachers.org', 'Pastor Tosin Jaiyeola', 'active', TRUE),
+    (v_branch_lagos, v_org_id, 'Lagos Branch', 'FPM-LAG', '82, New Ipaja Road, Beside Prestige Mall, Alimosho Bus stop, Iyana-Ipaja, Lagos', 'Lagos', 'Lagos State', 'Nigeria', '+234 800 000 0002', 'lagos@faithpreachers.org', 'Pastor Sam Jaiyeola', 'active', FALSE),
+    (v_branch_abuja, v_org_id, 'Abuja Branch', 'FPM-ABJ', 'Edidas Residence Hotel, opposite Start Rite School, Zone E Apo, Abuja.', 'Abuja', 'Federal Capital Territory', 'Nigeria', '+234 800 000 0003', 'abj@faithpreachers.org', 'Pastor Kesh', 'active', FALSE),
+    (v_branch_uk, v_org_id, 'UK Branch', 'FPM-UK', 'Hatfield Swim Centre Studio, Lemsford Road, Hatfield, Hertfordshire, England (AL10 0DH)', 'Hatfield', 'Hertfordshire', 'United Kingdom', '+44 20 7946 0001', 'uk@faithpreachers.org', 'Pastor Seye', 'active', FALSE),
+    (v_branch_can, v_org_id, 'Canada Branch', 'FPM-CAN', 'Program Room 2 Erin Meadows Community Centre, Mississauga, Ontario, Canada (L5M 527)', 'Mississauga', 'Ontario', 'Canada', '+1 905 555 0199', 'canada@faithpreachers.org', 'Pastor Seun Otuyemi', 'active', FALSE);
 
     -- 3. Insert Ministry Roles
     INSERT INTO ministry_roles (id, name, code, description, hierarchy_level, is_system_role)
