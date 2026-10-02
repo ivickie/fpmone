@@ -37,8 +37,11 @@ import {
   exportFinanceReportHandler,
   uploadMediaHandler,
   uploadAvatarHandler,
-  getDbStatusHandler
+  getDbStatusHandler,
+  getSettingsHandler,
+  getSystemHealthHandler
 } from './controllers/apiControllers';
+import { SettingsService } from './services/settingsService';
 import { requireCronAuth } from './middleware/authMiddleware';
 import {
   rateLimitStore,
@@ -49,6 +52,9 @@ import {
 } from './middleware/rateLimitMiddleware';
 import { FinanceService } from './services/financeService';
 import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from './data/mockDb';
+import http from 'http';
+import { AddressInfo } from 'net';
+import app, { isOriginAllowed, isAllowedCustomDomain, isAllowedVercelDomain, isAllowedDevHost, getExplicitAllowedOrigins } from './server';
 
 async function runTests() {
   console.log('====================================================');
@@ -2246,6 +2252,295 @@ async function runTests() {
       assert(dbStatusBody.error === undefined, 'Production db status suppresses raw error strings (SEC-07)');
     } finally {
       process.env.NODE_ENV = prevStatusNodeEnv;
+    }
+
+    // 7. General Settings & System Health Suite
+    console.log('\n--- General Settings & System Health Tests ---');
+
+    // TEST: GET /settings returns all 9 comprehensive settings sections + backwards-compatible attendance
+    let retrievedSettings: any = null;
+    const mockGetSettingsRes: any = {
+      json: (data: any) => { retrievedSettings = data; return mockGetSettingsRes; }
+    };
+    getSettingsHandler({ query: {}, user: { userId: IDS.USER_ADMIN, adminLevel: 'super_admin' } } as any, mockGetSettingsRes);
+    assert(retrievedSettings !== null, 'getSettingsHandler returns valid payload');
+    assert(Boolean(retrievedSettings.organization?.name), 'Settings includes organization section');
+    assert(Boolean(retrievedSettings.regional?.defaultTimezone), 'Settings includes regional section');
+    assert(retrievedSettings.registration?.allowRegistrations === true, 'Settings includes registration section');
+    assert(retrievedSettings.attendance?.defaultGracePeriodMinutes !== undefined, 'Settings includes attendance section');
+    assert(retrievedSettings.finance?.financeEnabled === true, 'Settings includes finance section');
+    assert(retrievedSettings.notifications?.notifyOnNewRegistration === true, 'Settings includes notifications section');
+    assert(retrievedSettings.media?.maxUploadSizeMb === 10, 'Settings includes media section');
+    assert(retrievedSettings.security?.sessionLifetimeHours === 24, 'Settings includes security section');
+    assert(retrievedSettings.defaultGracePeriodMinutes !== undefined, 'Settings preserves root-level attendance properties for backwards compatibility');
+
+    // TEST: Super Admin can update organization and operational rules
+    let updateSettingsResult: any = null;
+    const superAdminUpdateReq: any = {
+      user: { userId: IDS.USER_ADMIN, fullName: 'Super Admin', adminLevel: 'super_admin', roleName: 'Super Administrator' },
+      body: {
+        organization: {
+          name: "Faith Preachers Ministries Global",
+          motto: "Walking in Faith and Power"
+        },
+        regional: {
+          defaultCurrency: "NGN",
+          dateFormat: "DD/MM/YYYY"
+        },
+        attendance: {
+          defaultGracePeriodMinutes: 20
+        }
+      }
+    };
+    const superAdminUpdateRes: any = {
+      json: (data: any) => { updateSettingsResult = data; return superAdminUpdateRes; }
+    };
+    updateSettingsHandler(superAdminUpdateReq, superAdminUpdateRes);
+    assert(updateSettingsResult.organization.name === "Faith Preachers Ministries Global", 'Super Admin can update organization name');
+    assert(updateSettingsResult.organization.motto === "Walking in Faith and Power", 'Super Admin can update church motto');
+    assert(updateSettingsResult.regional.dateFormat === "DD/MM/YYYY", 'Super Admin can update date format');
+    assert(updateSettingsResult.defaultGracePeriodMinutes === 20, 'Super Admin update updates attendance grace period');
+
+    // TEST: Branch Admin is forbidden from modifying global organization or security settings
+    let branchAdminStatus = 200;
+    let branchAdminError: any = null;
+    const branchAdminForbiddenReq: any = {
+      user: { userId: IDS.USER_PASTOR, fullName: 'Branch Pastor', adminLevel: 'branch_admin', roleName: 'Branch Pastor' },
+      body: {
+        organization: {
+          name: "Unauthorized Name Change"
+        }
+      }
+    };
+    const branchAdminForbiddenRes: any = {
+      status: (code: number) => { branchAdminStatus = code; return branchAdminForbiddenRes; },
+      json: (data: any) => { branchAdminError = data; return branchAdminForbiddenRes; }
+    };
+    updateSettingsHandler(branchAdminForbiddenReq, branchAdminForbiddenRes);
+    assert(branchAdminStatus === 403, 'Branch Admin cannot modify global organization settings (returns 403)');
+    assert(branchAdminError?.error?.includes('Only Super Administrators'), 'Rejection explains global settings restriction');
+
+    // TEST: Validation prevents invalid configuration (e.g. invalid grace period or invalid email)
+    let validationStatus = 200;
+    let validationError: any = null;
+    const invalidReq: any = {
+      user: { userId: IDS.USER_ADMIN, fullName: 'Super Admin', adminLevel: 'super_admin' },
+      body: {
+        attendance: { defaultGracePeriodMinutes: 999 } // max is 60
+      }
+    };
+    const invalidRes: any = {
+      status: (code: number) => { validationStatus = code; return invalidRes; },
+      json: (data: any) => { validationError = data; return invalidRes; }
+    };
+    updateSettingsHandler(invalidReq, invalidRes);
+    assert(validationStatus === 400, 'Invalid grace period (999) rejected with HTTP 400');
+
+    // TEST: Pausing member registration blocks new registrations
+    SettingsService.updateSettings({
+      registration: {
+        allowRegistrations: false,
+        registrationPausedMessage: "Registration is temporarily closed for annual retreat."
+      }
+    }, { userId: IDS.USER_ADMIN, adminLevel: 'super_admin', fullName: 'Super Admin', roleName: 'Super Admin' });
+
+    let regBlockedError: any = null;
+    try {
+      await AuthService.register({
+        email: 'blocked_user@test.org',
+        phone: '+2348888888888',
+        password: 'Password123!',
+        firstName: 'Blocked',
+        lastName: 'User',
+        isWorker: false,
+        branchId: IDS.BRANCH_HQ,
+        ministryRoleId: IDS.ROLE_MEMBER,
+        gender: 'Male'
+      });
+    } catch (err: any) {
+      regBlockedError = err.message;
+    }
+    assert(regBlockedError?.includes('Registration is temporarily closed for annual retreat.'), 'Registration is paused when allowRegistrations=false');
+
+    // Reset registration to open
+    SettingsService.updateSettings({
+      registration: { allowRegistrations: true }
+    }, { userId: IDS.USER_ADMIN, adminLevel: 'super_admin', fullName: 'Super Admin', roleName: 'Super Admin' });
+
+    // TEST: System Health check returns safe Operational status
+    let healthResult: any = null;
+    const mockHealthRes: any = {
+      json: (data: any) => { healthResult = data; return mockHealthRes; }
+    };
+    await getSystemHealthHandler({ user: { adminLevel: 'super_admin' } } as any, mockHealthRes);
+    assert(healthResult.success === true, 'System health endpoint returns success: true');
+    assert(healthResult.apiStatus === 'Operational', 'System health reports API operational');
+    assert(healthResult.appVersion === '1.0.0', 'System health reports app version');
+    assert(healthResult.secret === undefined, 'System health does not expose secrets');
+    assert(healthResult.databaseUrl === undefined, 'System health does not expose database connection URLs');
+
+    // ====================================================
+    // CORS DOMAIN VALIDATION & PREFLIGHT / LOGIN TESTS
+    // ====================================================
+    console.log('\n--- CORS & Custom Domain Integration Tests ---');
+
+    // 1. Unit Domain Validators
+    assert(isAllowedCustomDomain('fpmglobal.online') === true, 'isAllowedCustomDomain allows fpmglobal.online');
+    assert(isAllowedCustomDomain('www.fpmglobal.online') === true, 'isAllowedCustomDomain allows www.fpmglobal.online');
+    assert(isAllowedCustomDomain('attacker-fpmglobal.online') === false, 'isAllowedCustomDomain blocks attacker prefix domain');
+    assert(isAllowedCustomDomain('fpmglobal.online.attacker.com') === false, 'isAllowedCustomDomain blocks subdomain hijack domain');
+
+    assert(isAllowedVercelDomain('fpmglobal.vercel.app') === true, 'isAllowedVercelDomain allows fpmglobal.vercel.app');
+    assert(isAllowedVercelDomain('fpmglobal-ivickies-projects.vercel.app') === true, 'isAllowedVercelDomain allows fpmglobal preview deployments');
+    assert(isAllowedVercelDomain('fpmone-admin.vercel.app') === true, 'isAllowedVercelDomain allows fpmone deployments');
+    assert(isAllowedVercelDomain('unrelated-project.vercel.app') === false, 'isAllowedVercelDomain blocks unrelated vercel domains');
+
+    assert(isAllowedDevHost('localhost') === true, 'isAllowedDevHost allows localhost');
+    assert(isAllowedDevHost('127.0.0.1') === true, 'isAllowedDevHost allows 127.0.0.1');
+    assert(isAllowedDevHost('192.168.1.50') === true, 'isAllowedDevHost allows private 192.168.x.x LAN IPs');
+    assert(isAllowedDevHost('10.164.108.241') === true, 'isAllowedDevHost allows private 10.x.x.x LAN IPs');
+    assert(isAllowedDevHost('evil.com') === false, 'isAllowedDevHost blocks external hosts');
+
+    // 2. isOriginAllowed resolution checks
+    assert(isOriginAllowed('https://fpmglobal.online') === true, 'isOriginAllowed allows https://fpmglobal.online');
+    assert(isOriginAllowed('https://www.fpmglobal.online') === true, 'isOriginAllowed allows https://www.fpmglobal.online');
+    assert(isOriginAllowed('https://fpmglobal.online/') === true, 'isOriginAllowed handles trailing slash gracefully');
+    assert(isOriginAllowed('https://fpmglobal.vercel.app') === true, 'isOriginAllowed allows production vercel preview domain');
+    assert(isOriginAllowed('http://localhost:5173') === true, 'isOriginAllowed allows local Vite dev server');
+    assert(isOriginAllowed(undefined) === true, 'isOriginAllowed allows non-browser clients without Origin (mobile app)');
+    assert(isOriginAllowed('https://malicious-attacker.com') === false, 'isOriginAllowed rejects unapproved external domain');
+    assert(isOriginAllowed('https://fpmglobal.online.phishing.io') === false, 'isOriginAllowed rejects phishing domain');
+
+    // 3. Live HTTP Server CORS Tests (Testing actual Express middleware pipeline)
+    const testServer = http.createServer(app);
+    await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', resolve));
+    const testPort = (testServer.address() as AddressInfo).port;
+    const baseTestUrl = `http://127.0.0.1:${testPort}`;
+
+    try {
+      // Test 3a: Preflight OPTIONS request from https://fpmglobal.online
+      const preflightRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'OPTIONS',
+        headers: {
+          'Origin': 'https://fpmglobal.online',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'Content-Type, Authorization'
+        }
+      });
+      assert(preflightRes.status === 204, 'Preflight OPTIONS returns HTTP 204');
+      assert(preflightRes.headers.get('access-control-allow-origin') === 'https://fpmglobal.online', 'Preflight returns exact custom domain in Access-Control-Allow-Origin');
+      assert(preflightRes.headers.get('access-control-allow-credentials') === 'true', 'Preflight returns Access-Control-Allow-Credentials: true');
+      const allowMethods = preflightRes.headers.get('access-control-allow-methods') || '';
+      assert(allowMethods.includes('POST'), 'Preflight permits POST method');
+
+      // Test 3b: Login POST request from https://fpmglobal.online (Valid credentials)
+      const loginCustomRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Origin': 'https://fpmglobal.online',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailOrPhone: 'admin@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(loginCustomRes.status === 200, 'Login from https://fpmglobal.online succeeds with HTTP 200');
+      assert(loginCustomRes.headers.get('access-control-allow-origin') === 'https://fpmglobal.online', 'Login response includes Access-Control-Allow-Origin: https://fpmglobal.online');
+      const loginCustomJson: any = await loginCustomRes.json();
+      assert(loginCustomJson.token !== undefined, 'Login response contains valid authentication token');
+      const authToken = loginCustomJson.token;
+
+      // Test 3c: Login POST request from https://www.fpmglobal.online
+      const loginWwwRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Origin': 'https://www.fpmglobal.online',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailOrPhone: 'admin@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(loginWwwRes.status === 200, 'Login from https://www.fpmglobal.online succeeds with HTTP 200');
+      assert(loginWwwRes.headers.get('access-control-allow-origin') === 'https://www.fpmglobal.online', 'Login response includes Access-Control-Allow-Origin: https://www.fpmglobal.online');
+
+      // Test 3d: Login POST request from Vercel domain (https://fpmglobal.vercel.app)
+      const loginVercelRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Origin': 'https://fpmglobal.vercel.app',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailOrPhone: 'admin@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(loginVercelRes.status === 200, 'Login from Vercel domain succeeds with HTTP 200');
+      assert(loginVercelRes.headers.get('access-control-allow-origin') === 'https://fpmglobal.vercel.app', 'Login response preserves Access-Control-Allow-Origin for Vercel domain');
+
+      // Test 3e: Login POST request from localhost:5173
+      const loginLocalRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Origin': 'http://localhost:5173',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailOrPhone: 'admin@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(loginLocalRes.status === 200, 'Login from http://localhost:5173 succeeds with HTTP 200');
+      assert(loginLocalRes.headers.get('access-control-allow-origin') === 'http://localhost:5173', 'Login response preserves Access-Control-Allow-Origin for localhost');
+
+      // Test 3f: Rejection of unapproved origin (https://unauthorized-attacker.com)
+      const loginUnapprovedRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Origin': 'https://unauthorized-attacker.com',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailOrPhone: 'admin@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(loginUnapprovedRes.status === 403, 'Unapproved origin rejected with HTTP 403 Forbidden');
+      assert(loginUnapprovedRes.headers.get('access-control-allow-origin') === null, 'Unapproved origin does NOT receive Access-Control-Allow-Origin header');
+      const unapprovedJson: any = await loginUnapprovedRes.json();
+      assert(unapprovedJson.error === 'Blocked by CORS policy', 'Unapproved origin returns clean Blocked by CORS policy error');
+
+      // Test 3g: Authenticated API call from https://fpmglobal.online
+      const authApiRes = await fetch(`${baseTestUrl}/api/branches`, {
+        method: 'GET',
+        headers: {
+          'Origin': 'https://fpmglobal.online',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      assert(authApiRes.status === 200, 'Authenticated API call from https://fpmglobal.online succeeds with HTTP 200');
+      assert(authApiRes.headers.get('access-control-allow-origin') === 'https://fpmglobal.online', 'Authenticated API response retains Access-Control-Allow-Origin');
+
+      // Test 3h: Error response from allowed origin retains CORS headers (Failed Login)
+      const failedLoginRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Origin': 'https://fpmglobal.online',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailOrPhone: 'admin@fpmchurch.org',
+          password: 'WrongPassword123'
+        })
+      });
+      assert(failedLoginRes.status === 401, 'Invalid password returns HTTP 401');
+      assert(failedLoginRes.headers.get('access-control-allow-origin') === 'https://fpmglobal.online', '401 Error response retains Access-Control-Allow-Origin for legitimate origin');
+
+    } finally {
+      testServer.close();
     }
 
   } catch (err: any) {

@@ -41,52 +41,113 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://*.supabase.in; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.vercel.app; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://*.supabase.in; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.vercel.app https://fpmglobal.online https://*.fpmglobal.online; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
   );
   next();
 });
 
-// Production CORS Configuration with Strict Preview-Domain Validation
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:3000',
-      'http://192.168.1.234:3000',
-      'http://192.168.1.234:5000',
-      'http://192.168.1.234:5173',
-      'http://10.164.108.241:3000',
-      'http://10.164.108.241:5000',
-      'http://10.164.108.241:5173'
-    ];
+// Production & Custom Allowed Domains
+export const isAllowedCustomDomain = (hostname: string): boolean => {
+  return hostname === 'fpmglobal.online' || hostname === 'www.fpmglobal.online';
+};
 
-const isAllowedVercelDomain = (hostname: string): boolean => {
+// Vercel Preview & Production Deployment Subdomains
+export const isAllowedVercelDomain = (hostname: string): boolean => {
   // Restrict preview origins strictly to verified FPM deployment subdomains
   return /^(fpmglobal|fpmone|ivickies-projects)[\w-]*\.vercel\.app$/.test(hostname);
 };
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow non-browser agents (mobile app, postman, curl) without origin header
-    if (!origin || process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
+// Local Development Hostnames & Private Network IPs
+export const isAllowedDevHost = (hostname: string): boolean => {
+  return /^localhost$|^127\.0\.0\.1$|^192\.168\.\d+\.\d+$|^10\.\d+\.\d+\.\d+$|^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname);
+};
+
+export const getExplicitAllowedOrigins = (): string[] => {
+  const baseAllowedOrigins = [
+    'https://fpmglobal.online',
+    'https://www.fpmglobal.online',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://192.168.1.234:3000',
+    'http://192.168.1.234:5000',
+    'http://192.168.1.234:5173',
+    'http://10.164.108.241:3000',
+    'http://10.164.108.241:5000',
+    'http://10.164.108.241:5173'
+  ];
+
+  const envOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim().replace(/\/$/, '')).filter(Boolean)
+    : [];
+
+  return Array.from(new Set([...baseAllowedOrigins, ...envOrigins]));
+};
+
+export const isOriginAllowed = (origin: string | undefined): boolean => {
+  // Non-browser clients (mobile app, CLI, internal jobs) send no Origin header
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const normalized = origin.trim().replace(/\/$/, '');
+    const url = new URL(normalized);
+    const hostname = url.hostname.toLowerCase();
+
+    // 1. Explicit allowlist check
+    const allowed = getExplicitAllowedOrigins();
+    if (allowed.includes(normalized)) {
+      return true;
     }
-    try {
-      const hostname = new URL(origin).hostname;
-      if (
-        allowedOrigins.includes(origin) ||
-        isAllowedVercelDomain(hostname) ||
-        /^localhost$|^127\.0\.0\.1$|^192\.168\.\d+\.\d+$|^10\.\d+\.\d+\.\d+$|^172\.\d+\.\d+\.\d+$/.test(hostname)
-      ) {
-        return callback(null, true);
-      }
-    } catch (_) {}
-    callback(new Error('Blocked by CORS policy'));
+
+    // 2. Production Custom Domains (fpmglobal.online / www.fpmglobal.online)
+    if (isAllowedCustomDomain(hostname)) {
+      return true;
+    }
+
+    // 3. Verified Vercel Preview / Production Subdomains
+    if (isAllowedVercelDomain(hostname)) {
+      return true;
+    }
+
+    // 4. Local Development Hostnames & Private Network IPs
+    if (isAllowedDevHost(hostname)) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Blocked by CORS policy'));
+    }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-secret', 'x-request-id']
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-cron-secret',
+    'x-request-id',
+    'Accept',
+    'Origin',
+    'X-Requested-With'
+  ],
+  exposedHeaders: ['X-Request-Id'],
+  maxAge: 86400
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Apply General API Rate Limiting across all API routes (300 req/min allowance)
 app.use('/api', generalApiRateLimiter);
@@ -163,6 +224,13 @@ app.use('/api', apiRoutes);
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.message === 'Blocked by CORS policy') {
+    // 403 Forbidden for CORS origin rejections - do not report as 500 Internal Server Error
+    return res.status(403).json({
+      success: false,
+      error: 'Blocked by CORS policy'
+    });
+  }
   console.error('[GLOBAL ERROR HANDLER]', err.message || err);
   const status = err.status || 500;
   res.status(status).json({
@@ -172,7 +240,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Automatic 4-hour clock-out cron worker (runs in persistent standalone server environment)
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && require.main === module) {
   setInterval(() => {
     try {
       const expiredCount = AttendanceService.autoClockOutExpiredSessions();
@@ -185,9 +253,13 @@ if (!process.env.VERCEL) {
   }, 10 * 60 * 1000);
 }
 
-// Ensure DB state is hydrated from Supabase PostgreSQL (handles serverless cold starts & standalone boots)
+// NOTE: Database hydration from Supabase is strictly disabled by default per user directive.
+// It will only execute if HYDRATE_DB=true is explicitly configured in environment variables.
 let dbHydrationPromise: Promise<boolean> | null = null;
 export const ensureDbHydrated = (): Promise<boolean> => {
+  if (process.env.HYDRATE_DB !== 'true') {
+    return Promise.resolve(false);
+  }
   if (!dbHydrationPromise) {
     dbHydrationPromise = db.initFromPostgres().catch((err: any) => {
       console.warn('[SERVER] Supabase PostgreSQL hydration warning:', err.message);
@@ -197,13 +269,8 @@ export const ensureDbHydrated = (): Promise<boolean> => {
   return dbHydrationPromise;
 };
 
-app.use(async (_req: Request, _res: Response, next: NextFunction) => {
-  await ensureDbHydrated();
-  next();
-});
-
 export let server: any;
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && require.main === module) {
   server = app.listen(Number(PORT), '0.0.0.0', async () => {
     console.log(`=======================================================`);
     console.log(`  FAITH PREACHERS MINISTRIES INT'L - FPM GLOBAL API SERVER`);
@@ -212,7 +279,9 @@ if (!process.env.VERCEL) {
     console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`=======================================================`);
     DiscoveryService.start(5001, Number(PORT));
-    await ensureDbHydrated();
+    if (process.env.HYDRATE_DB === 'true') {
+      await ensureDbHydrated();
+    }
   });
 }
 
