@@ -35,8 +35,18 @@ import {
   getFinanceAnnualStatementHandler,
   getFinanceCategoryAnalysisHandler,
   exportFinanceReportHandler,
-  uploadMediaHandler
+  uploadMediaHandler,
+  uploadAvatarHandler,
+  getDbStatusHandler
 } from './controllers/apiControllers';
+import { requireCronAuth } from './middleware/authMiddleware';
+import {
+  rateLimitStore,
+  checkAccountLoginThrottle,
+  recordFailedLogin,
+  clearLoginAttempts,
+  createRateLimiter
+} from './middleware/rateLimitMiddleware';
 import { FinanceService } from './services/financeService';
 import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from './data/mockDb';
 
@@ -2044,6 +2054,198 @@ async function runTests() {
       process.env.VERCEL = prevVercel;
       process.env.NODE_ENV = prevNodeEnv;
       if (!prevVercel) delete process.env.VERCEL;
+    }
+
+    // =========================================================================
+    // 20. Production Security Hardening & Vulnerability Verification Tests
+    // =========================================================================
+    console.log('\n--- 20. Production Security Hardening & Vulnerability Verification ---');
+
+    // 1. SEC-01 Rate Limiting: Progressive failed login throttling
+    const testEmail = 'throttletest@fpmchurch.org';
+    clearLoginAttempts(testEmail);
+    const initialCheck = checkAccountLoginThrottle(testEmail);
+    assert(!initialCheck.isThrottled, 'Initial account state has zero failed login throttle');
+
+    // Simulate 10 failed login attempts
+    for (let i = 0; i < 10; i++) {
+      recordFailedLogin(testEmail);
+    }
+    const throttledCheck = checkAccountLoginThrottle(testEmail);
+    assert(throttledCheck.isThrottled, 'Account login throttled after 10 failed attempts');
+    assert(throttledCheck.retryAfterSeconds > 0, 'Throttled response provides positive retryAfterSeconds');
+
+    // Successful login clears throttle
+    clearLoginAttempts(testEmail);
+    const resetCheck = checkAccountLoginThrottle(testEmail);
+    assert(!resetCheck.isThrottled, 'Clearing login attempts restores account login access immediately');
+
+    // Rate limiter header and 429 response verification
+    const testLimiter = createRateLimiter({
+      windowMs: 10000,
+      max: 2,
+      message: 'Rate limit test reached'
+    });
+    let rlStatus = 200;
+    let rlHeaders: Record<string, any> = {};
+    let rlBody: any = null;
+    const makeRlReq = () => {
+      const mockReq: any = { path: '/test-rate-limit', ip: '198.51.100.1', headers: {} };
+      const mockRes: any = {
+        setHeader: (k: string, v: any) => { rlHeaders[k] = v; },
+        status: (s: number) => { rlStatus = s; return mockRes; },
+        json: (b: any) => { rlBody = b; return mockRes; }
+      };
+      let nextCalled = false;
+      testLimiter(mockReq, mockRes, () => { nextCalled = true; });
+      return nextCalled;
+    };
+    assert(makeRlReq() === true, 'Rate limiter permits first request under ceiling');
+    assert(makeRlReq() === true, 'Rate limiter permits second request under ceiling');
+    assert(makeRlReq() === false, 'Rate limiter blocks third request exceeding ceiling');
+    assert(rlStatus === 429, 'Rate limiter returns HTTP status 429 on limit breach');
+    assert(rlHeaders['Retry-After'] !== undefined, 'Rate limiter sets Retry-After header on 429');
+    assert(rlHeaders['X-RateLimit-Limit'] === 2, 'Rate limiter sets X-RateLimit-Limit header');
+    assert(rlBody?.success === false, 'Rate limiter response contains success: false');
+
+    // 2. SEC-02 Token Revocation on Account Suspension
+    // Create an active user session token
+    const testAdminLogin = await AuthService.login('admin@fpmchurch.org', 'Password123!');
+    assert(!!testAdminLogin.token, 'Login succeeds and issues active JWT token');
+    const validSessionBefore = AuthService.getSessionByToken(testAdminLogin.token!);
+    assert(validSessionBefore !== null, 'Session token is verified while user accountStatus is active');
+
+    // Transition admin user accountStatus to suspended in db.users
+    const secAdminUser = db.users.find(u => u.id === validSessionBefore!.userId)!;
+    const originalAdminStatus = secAdminUser.accountStatus;
+    secAdminUser.accountStatus = 'suspended';
+
+    // Verify token is now immediately rejected
+    const suspendedSession = AuthService.getSessionByToken(testAdminLogin.token!);
+    assert(suspendedSession === null, 'Token is immediately invalidated upon account suspension (SEC-02)');
+
+    // Restore user accountStatus
+    secAdminUser.accountStatus = originalAdminStatus;
+    const restoredSession = AuthService.getSessionByToken(testAdminLogin.token!);
+    assert(restoredSession !== null, 'Token validity restored when accountStatus returns to active');
+
+    // 3. SEC-03 Timing-Safe Cron Authentication
+    let cronStatus = 200;
+    let cronResponse: any = null;
+    let cronNextCalled = false;
+    const mockCronRes: any = {
+      status: (code: number) => { cronStatus = code; return mockCronRes; },
+      json: (data: any) => { cronResponse = data; return mockCronRes; }
+    };
+    
+    // Valid cron secret
+    cronNextCalled = false;
+    const validCronReq: any = {
+      headers: { 'x-cron-secret': process.env.CRON_SECRET || 'fpm_internal_cron_secret_2026' }
+    };
+    requireCronAuth(validCronReq, mockCronRes, () => { cronNextCalled = true; });
+    assert(cronNextCalled, 'Valid cron secret passes requireCronAuth');
+
+    // Invalid cron secret
+    cronNextCalled = false;
+    const invalidCronReq: any = {
+      headers: { 'x-cron-secret': 'attacker_wrong_secret_123' }
+    };
+    requireCronAuth(invalidCronReq, mockCronRes, () => { cronNextCalled = true; });
+    assert(!cronNextCalled, 'Invalid cron secret is rejected by requireCronAuth');
+    assert(cronStatus === 401, 'Invalid cron secret returns HTTP 401');
+
+    // 4. SEC-06 Mass Assignment Prevention
+    const testBranch = db.branches[0];
+    const originalHq = testBranch.isHeadquarters;
+    const originalBranchId = testBranch.id;
+
+    // Non-super-admin attempting to elevate isHeadquarters or rewrite id
+    let branchUpdateRes: any = null;
+    const mockBranchReq: any = {
+      user: {
+        userId: IDS.USER_SARAH,
+        fullName: 'Sarah Jenkins',
+        roleName: 'Branch Administrator',
+        adminLevel: 'branch_admin',
+        branchId: testBranch.id
+      },
+      params: { id: testBranch.id },
+      body: {
+        id: 'maliciously-injected-id',
+        isHeadquarters: !originalHq,
+        name: 'Updated Branch Name'
+      }
+    };
+    const mockBranchRes: any = {
+      json: (data: any) => { branchUpdateRes = data; return mockBranchRes; }
+    };
+    updateBranchHandler(mockBranchReq, mockBranchRes);
+    assert(testBranch.id === originalBranchId, 'Branch ID cannot be overwritten via mass assignment (SEC-06)');
+    assert(testBranch.isHeadquarters === originalHq, 'Branch Admin cannot modify isHeadquarters via mass assignment (SEC-06)');
+    assert(testBranch.name === 'Updated Branch Name', 'Whitelisted field name was updated cleanly');
+
+    // Mass assignment prevention in Settings
+    const originalSettingsId = db.attendanceSettings.id;
+    let settingsUpdateRes: any = null;
+    const mockSettingsReq: any = {
+      user: {
+        userId: IDS.USER_ADMIN,
+        fullName: 'Super Admin',
+        roleName: 'Super Administrator',
+        adminLevel: 'super_admin'
+      },
+      body: {
+        id: 'injected-settings-id',
+        unknownField: 'malicious-data',
+        defaultGracePeriodMinutes: 20
+      }
+    };
+    const mockSettingsRes: any = {
+      json: (data: any) => { settingsUpdateRes = data; return mockSettingsRes; }
+    };
+    updateSettingsHandler(mockSettingsReq, mockSettingsRes);
+    assert(db.attendanceSettings.id === originalSettingsId, 'Settings ID cannot be overwritten via mass assignment (SEC-06)');
+    assert((db.attendanceSettings as any).unknownField === undefined, 'Injected arbitrary properties rejected from Settings (SEC-06)');
+    assert(db.attendanceSettings.defaultGracePeriodMinutes === 20, 'Whitelisted setting defaultGracePeriodMinutes updated');
+
+    // 5. SEC-08 Magic-Byte File Validation
+    let avatarStatus = 200;
+    let avatarResponse: any = null;
+    const mockAvatarRes: any = {
+      status: (code: number) => { avatarStatus = code; return mockAvatarRes; },
+      json: (data: any) => { avatarResponse = data; return mockAvatarRes; }
+    };
+
+    // Spoofed file (HTML payload with spoofed image/jpeg MIME)
+    const spoofedFileReq: any = {
+      file: {
+        buffer: Buffer.from('<html><script>alert("xss")</script></html>'),
+        originalname: 'profile.jpg',
+        mimetype: 'image/jpeg',
+        size: 42
+      },
+      get: () => 'localhost:5000'
+    };
+    await uploadAvatarHandler(spoofedFileReq, mockAvatarRes);
+    assert(avatarStatus === 400, 'Spoofed file with invalid magic bytes rejected with HTTP 400 (SEC-08)');
+    assert(avatarResponse?.error?.includes('signature') || avatarResponse?.error?.includes('Invalid image'), 'Rejection error explains magic byte signature requirement');
+
+    // 6. SEC-07 Production Health & DB Status Sanitization
+    const prevStatusNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      let dbStatusBody: any = null;
+      const mockStatusRes: any = {
+        json: (data: any) => { dbStatusBody = data; return mockStatusRes; }
+      };
+      await getDbStatusHandler({} as any, mockStatusRes);
+      assert(dbStatusBody.success === true, 'Production db status returns success: true');
+      assert(dbStatusBody.version === undefined, 'Production db status suppresses database engine version (SEC-07)');
+      assert(dbStatusBody.counts === undefined, 'Production db status suppresses table counts (SEC-07)');
+      assert(dbStatusBody.error === undefined, 'Production db status suppresses raw error strings (SEC-07)');
+    } finally {
+      process.env.NODE_ENV = prevStatusNodeEnv;
     }
 
   } catch (err: any) {

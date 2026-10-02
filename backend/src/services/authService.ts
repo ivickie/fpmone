@@ -5,6 +5,7 @@ import { db, IDS } from '../data/mockDb';
 import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem } from '../types';
 import { AuditService } from './auditService';
 import { persistUser, persistMember, persistNotification } from '../db/sync';
+import { checkAccountLoginThrottle, recordFailedLogin, clearLoginAttempts } from '../middleware/rateLimitMiddleware';
 
 const DEFAULT_DEV_JWT = 'fpm_global_super_secret_jwt_key_faith_preachers_ministry_2026';
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_DEV_JWT)) {
@@ -16,14 +17,25 @@ const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_DEV_JWT;
 export class AuthService {
   public static async login(emailOrPhone: string, password: string): Promise<{ token?: string; user?: AuthUserSession; error?: string; status?: string }> {
     const cleanIdentifier = emailOrPhone.trim().toLowerCase();
+
+    // Check account-level throttle (progressive delay after failed attempts)
+    const throttle = checkAccountLoginThrottle(cleanIdentifier);
+    if (throttle.isThrottled) {
+      return {
+        error: `Too many failed login attempts. Please wait ${throttle.retryAfterSeconds} seconds before trying again.`
+      };
+    }
+
     const user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
 
     if (!user) {
+      recordFailedLogin(cleanIdentifier);
       return { error: 'Invalid email/phone or password.' };
     }
 
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
     if (!isValidPassword) {
+      recordFailedLogin(cleanIdentifier);
       return { error: 'Invalid email/phone or password.' };
     }
 
@@ -90,6 +102,7 @@ export class AuthService {
     const token = jwt.sign(sessionUser, JWT_SECRET, { expiresIn: '7d' });
 
     user.lastLoginAt = new Date().toISOString();
+    clearLoginAttempts(cleanIdentifier);
     persistUser(user).catch(() => {});
     AuditService.log(sessionUser.fullName, sessionUser.roleName, 'USER_LOGIN', 'user', user.id, user.id);
 
@@ -195,7 +208,16 @@ export class AuthService {
 
   public static getSessionByToken(token: string): AuthUserSession | null {
     try {
-      return jwt.verify(token, JWT_SECRET) as AuthUserSession;
+      const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as AuthUserSession;
+      if (!decoded || !decoded.userId) return null;
+
+      // Immediate server-side revocation on account suspension, rejection, or deletion
+      const user = db.users.find(u => u.id === decoded.userId);
+      if (user && user.accountStatus !== 'active') {
+        return null;
+      }
+
+      return decoded;
     } catch {
       return null;
     }

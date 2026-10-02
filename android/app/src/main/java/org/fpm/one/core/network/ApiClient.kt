@@ -37,7 +37,7 @@ object ApiClient {
 
   private val client: OkHttpClient by lazy {
     val logging = HttpLoggingInterceptor().apply {
-      level = HttpLoggingInterceptor.Level.BODY
+      level = HttpLoggingInterceptor.Level.BASIC
     }
     OkHttpClient.Builder()
       .connectTimeout(15, TimeUnit.SECONDS)

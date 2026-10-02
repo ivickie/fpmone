@@ -143,7 +143,30 @@ export const updateBranchHandler = (req: Request, res: Response) => {
   }
   const branch = db.branches.find(b => b.id === req.params.id);
   if (!branch) return res.status(404).json({ success: false, error: 'Branch not found.' });
-  Object.assign(branch, req.body, { updatedAt: new Date().toISOString() });
+
+  // Whitelist allowable mutable fields to prevent mass assignment of id, createdAt, or unauthorized elevation
+  const { name, branchCode, code, address, city, state, country, phone, email, branchPastorName, pastorName, branchPastorId, logoUrl, coverImageUrl, imageUrl, status } = req.body;
+  if (name !== undefined) branch.name = String(name).trim();
+  if (branchCode !== undefined || code !== undefined) branch.branchCode = String(branchCode || code).trim().toUpperCase();
+  if (address !== undefined) branch.address = String(address).trim();
+  if (city !== undefined) branch.city = String(city).trim();
+  if (state !== undefined) branch.state = String(state).trim();
+  if (country !== undefined) branch.country = String(country).trim();
+  if (phone !== undefined) branch.phone = String(phone).trim();
+  if (email !== undefined) branch.email = String(email).trim().toLowerCase();
+  if (branchPastorName !== undefined || pastorName !== undefined) branch.branchPastorName = String(branchPastorName || pastorName).trim();
+  if (branchPastorId !== undefined) branch.branchPastorId = String(branchPastorId).trim();
+  if (logoUrl !== undefined) branch.logoUrl = logoUrl;
+  if (coverImageUrl !== undefined) branch.coverImageUrl = coverImageUrl;
+  if (imageUrl !== undefined) branch.imageUrl = imageUrl;
+  if (status !== undefined) branch.status = status;
+
+  // Only Super Admin can change headquarters status
+  if (isSuperAdmin && req.body.isHeadquarters !== undefined) {
+    branch.isHeadquarters = Boolean(req.body.isHeadquarters);
+  }
+
+  branch.updatedAt = new Date().toISOString();
   persistBranch(branch).catch(() => {});
   AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'BRANCH_UPDATED', 'branch', branch.id, req.user?.userId, null, branch);
   return res.json(branch);
@@ -2155,7 +2178,40 @@ export const updateSettingsHandler = (req: Request, res: Response) => {
     });
   }
 
-  Object.assign(db.attendanceSettings, req.body, { updatedAt: new Date().toISOString() });
+  // Whitelist allowable settings properties to prevent mass assignment
+  const {
+    defaultGracePeriodMinutes,
+    autoClockOutHours,
+    manualClockOutEnabled,
+    earliestClockInMinutes,
+    allowBiometricClockIn,
+    allowQrClockIn,
+    allowPinClockIn
+  } = req.body;
+
+  if (defaultGracePeriodMinutes !== undefined && !isNaN(Number(defaultGracePeriodMinutes))) {
+    db.attendanceSettings.defaultGracePeriodMinutes = Math.max(0, Number(defaultGracePeriodMinutes));
+  }
+  if (autoClockOutHours !== undefined && !isNaN(Number(autoClockOutHours))) {
+    db.attendanceSettings.autoClockOutHours = Math.max(0.5, Number(autoClockOutHours));
+  }
+  if (manualClockOutEnabled !== undefined) {
+    db.attendanceSettings.manualClockOutEnabled = Boolean(manualClockOutEnabled);
+  }
+  if (earliestClockInMinutes !== undefined && !isNaN(Number(earliestClockInMinutes))) {
+    db.attendanceSettings.earliestClockInMinutes = Math.max(0, Number(earliestClockInMinutes));
+  }
+  if (allowBiometricClockIn !== undefined) {
+    db.attendanceSettings.allowBiometricClockIn = Boolean(allowBiometricClockIn);
+  }
+  if (allowQrClockIn !== undefined) {
+    db.attendanceSettings.allowQrClockIn = Boolean(allowQrClockIn);
+  }
+  if (allowPinClockIn !== undefined) {
+    db.attendanceSettings.allowPinClockIn = Boolean(allowPinClockIn);
+  }
+
+  db.attendanceSettings.updatedAt = new Date().toISOString();
   return res.json(db.attendanceSettings);
 };
 
@@ -2217,6 +2273,18 @@ export const uploadAvatarHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Only image files (JPEG, PNG, WEBP) are allowed for profile photos.' });
     }
 
+    // Magic-byte inspection for authentic binary image headers
+    const isJpeg = file.buffer.length >= 3 && file.buffer[0] === 0xFF && file.buffer[1] === 0xD8 && file.buffer[2] === 0xFF;
+    const isPng = file.buffer.length >= 8 && file.buffer[0] === 0x89 && file.buffer[1] === 0x50 && file.buffer[2] === 0x4E && file.buffer[3] === 0x47;
+    const isWebp = file.buffer.length >= 12 && file.buffer.toString('ascii', 0, 4) === 'RIFF' && file.buffer.toString('ascii', 8, 12) === 'WEBP';
+
+    if (!isJpeg && !isPng && !isWebp) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid image file signature. Only authentic JPEG, PNG, or WEBP images are accepted.'
+      });
+    }
+
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
     const protocol = req.protocol || 'http';
     const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
@@ -2268,6 +2336,18 @@ export const getDbStatusHandler = async (req: Request, res: Response) => {
   try {
     const { checkConnection } = await import('../db');
     const status = await checkConnection();
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // In production, avoid leaking internal database engine versions, counts, or raw connection strings
+    if (isProduction) {
+      return res.json({
+        success: true,
+        database: 'supabase_postgresql',
+        connected: status.connected,
+        timestamp: status.timestamp
+      });
+    }
+
     return res.json({
       success: true,
       database: 'supabase_postgresql',
@@ -2293,7 +2373,7 @@ export const getDbStatusHandler = async (req: Request, res: Response) => {
       }
     });
   } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Database status check failed' });
   }
 };
 

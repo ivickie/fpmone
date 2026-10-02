@@ -3,6 +3,28 @@ import { AuditLogItem } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { persistAuditLog } from '../db/sync';
 
+function sanitizePayload(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(sanitizePayload);
+
+  const sensitiveKeys = new Set([
+    'password', 'passwordhash', 'token', 'secret', 'authorization',
+    'refreshtoken', 'accesstoken', 'creditcard', 'cvv', 'pin'
+  ]);
+
+  const sanitized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (sensitiveKeys.has(key.toLowerCase())) {
+      sanitized[key] = '[REDACTED]';
+    } else if (value && typeof value === 'object') {
+      sanitized[key] = sanitizePayload(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 export class AuditService {
   public static log(
     actorName: string,
@@ -23,8 +45,8 @@ export class AuditService {
       action,
       targetType,
       targetId,
-      previousState,
-      newState,
+      previousState: sanitizePayload(previousState),
+      newState: sanitizePayload(newState),
       ipAddress,
       createdAt: new Date().toISOString()
     };

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/authService';
 import { AuthUserSession } from '../types';
@@ -8,6 +9,14 @@ declare global {
       user?: AuthUserSession;
     }
   }
+}
+
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -52,12 +61,19 @@ export const scopeToBranch = (req: Request, res: Response, next: NextFunction) =
 
 /**
  * Middleware for internal/cron tasks: accepts either an authorized admin session OR a matching CRON_SECRET header
+ * Compares secrets in constant time using crypto.timingSafeEqual.
  */
 export const requireCronAuth = (req: Request, res: Response, next: NextFunction) => {
   const cronSecretHeader = req.headers['x-cron-secret'];
-  const expectedSecret = process.env.CRON_SECRET || 'fpm_internal_cron_secret_2026';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const configuredSecret = process.env.CRON_SECRET;
+  const expectedSecret = configuredSecret || (isProduction ? '' : 'fpm_internal_cron_secret_2026');
 
-  if (cronSecretHeader && cronSecretHeader === expectedSecret) {
+  if (isProduction && (!configuredSecret || configuredSecret === 'fpm_internal_cron_secret_2026')) {
+    console.error('[CRITICAL SECURITY WARNING] CRON_SECRET must be configured with a cryptographically secure token in production!');
+  }
+
+  if (typeof cronSecretHeader === 'string' && expectedSecret && timingSafeEqualStr(cronSecretHeader, expectedSecret)) {
     return next();
   }
 

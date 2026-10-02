@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@drawable/church_logo"
         android:label="@string/app_name"
         android:roundIcon="@drawable/church_logo"

@@ -3,70 +3,52 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import apiRoutes from './routes/api';
 import { AttendanceService } from './services/attendanceService';
 import { DiscoveryService } from './services/discoveryService';
 import { StorageService } from './services/storageService';
 import { db } from './data/mockDb';
 import { checkConnection } from './db';
+import { generalApiRateLimiter } from './middleware/rateLimitMiddleware';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Disable server fingerprinting header
+app.disable('x-powered-by');
+
 // Trust reverse proxy (Vercel, Nginx) for protocol, host, and client IP
 app.set('trust proxy', 1);
 
-// Security Headers Middleware
+// Correlation / Request ID Tracking Middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const reqId = (req.headers['x-request-id'] as string) || uuidv4();
+  res.setHeader('X-Request-Id', reqId);
+  (req as any).id = reqId;
+  next();
+});
+
+// Production Security Headers Middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('X-XSS-Protection', '0');
-  res.setHeader('Content-Security-Policy', "default-src 'self' * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:;");
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://*.supabase.in; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.vercel.app; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+  );
   next();
 });
 
-// In-Memory Rate Limiting for Sensitive Endpoints
-interface RateLimitEntry {
-  count: number;
-  resetTime: number;
-}
-const rateLimitMap = new Map<string, RateLimitEntry>();
-
-export const createRateLimiter = (maxRequests: number, windowMs: number) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    const key = `${req.path}_${ip}`;
-    const now = Date.now();
-    const entry = rateLimitMap.get(key);
-
-    if (!entry || now > entry.resetTime) {
-      rateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
-      return next();
-    }
-
-    if (entry.count >= maxRequests) {
-      return res.status(429).json({
-        success: false,
-        error: 'Too many requests. Please try again later.'
-      });
-    }
-
-    entry.count++;
-    next();
-  };
-};
-
-// Rate limit sensitive endpoints
-app.use('/api/auth/login', createRateLimiter(15, 60 * 1000));
-app.use('/api/auth/register', createRateLimiter(10, 60 * 1000));
-app.use('/api/attendance/clock-in', createRateLimiter(30, 60 * 1000));
-
-// CORS Configuration
+// Production CORS Configuration with Strict Preview-Domain Validation
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : [
       'http://localhost:3000',
       'http://localhost:5173',
@@ -79,6 +61,11 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
       'http://10.164.108.241:5173'
     ];
 
+const isAllowedVercelDomain = (hostname: string): boolean => {
+  // Restrict preview origins strictly to verified FPM deployment subdomains
+  return /^(fpmglobal|fpmone|ivickies-projects)[\w-]*\.vercel\.app$/.test(hostname);
+};
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow non-browser agents (mobile app, postman, curl) without origin header
@@ -87,10 +74,9 @@ app.use(cors({
     }
     try {
       const hostname = new URL(origin).hostname;
-      // Allow configured origins, Vercel deployments, and local LAN addresses
       if (
         allowedOrigins.includes(origin) ||
-        hostname.endsWith('.vercel.app') ||
+        isAllowedVercelDomain(hostname) ||
         /^localhost$|^127\.0\.0\.1$|^192\.168\.\d+\.\d+$|^10\.\d+\.\d+\.\d+$|^172\.\d+\.\d+\.\d+$/.test(hostname)
       ) {
         return callback(null, true);
@@ -99,14 +85,21 @@ app.use(cors({
     callback(new Error('Blocked by CORS policy'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-secret']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-secret', 'x-request-id']
 }));
 
-app.use(express.json());
+// Apply General API Rate Limiting across all API routes (300 req/min allowance)
+app.use('/api', generalApiRateLimiter);
 
-// Request logging in development
+// Express JSON body parser with 10MB limit
+app.use(express.json({ limit: '10mb' }));
+
+// Request logging in development (Correlation ID tagged)
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  const reqId = (req as any).id || '-';
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[${new Date().toISOString()}] [${reqId}] ${req.method} ${req.originalUrl}`);
+  }
   next();
 });
 
@@ -123,6 +116,16 @@ app.get('/', (req, res) => {
 
 app.get('/health', async (req, res) => {
   const dbStatus = await checkConnection();
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // In production, avoid leaking internal database engine versions or raw connection errors
+  if (isProduction) {
+    return res.json({
+      status: dbStatus.connected ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString()
+    });
+  }
+
   res.json({
     status: dbStatus.connected ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),

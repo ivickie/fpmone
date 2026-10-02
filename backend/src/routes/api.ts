@@ -31,6 +31,14 @@ import {
   exportFinanceReportHandler
 } from '../controllers/apiControllers';
 import { requireAuth, requireAdmin, requireCronAuth } from '../middleware/authMiddleware';
+import {
+  loginRateLimiter,
+  registrationRateLimiter,
+  uploadRateLimiter,
+  exportRateLimiter,
+  broadcastRateLimiter,
+  clockInRateLimiter
+} from '../middleware/rateLimitMiddleware';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -42,8 +50,8 @@ const upload = multer({
 const router = Router();
 
 // --- AUTH ---
-router.post('/auth/login', loginHandler);
-router.post('/auth/register', registerHandler);
+router.post('/auth/login', loginRateLimiter, loginHandler);
+router.post('/auth/register', registrationRateLimiter, registerHandler);
 router.get('/auth/profile', requireAuth, getProfileHandler);
 router.put('/auth/profile', requireAuth, updateProfileHandler);
 
@@ -85,14 +93,14 @@ router.get('/workers/:id', requireAuth, requireAdmin, getWorkerByIdHandler);
 router.put('/workers/:id', requireAuth, requireAdmin, updateWorkerHandler);
 
 // --- ATTENDANCE ---
-router.post('/attendance/clock-in', requireAuth, clockInHandler);
+router.post('/attendance/clock-in', requireAuth, clockInRateLimiter, clockInHandler);
 router.post('/attendance/clock-out', requireAuth, clockOutHandler);
 router.post('/attendance/auto-clock-out', requireCronAuth, triggerAutoClockOutHandler); // Secured Cron / Scheduled task
 router.post('/attendance/mark-absences', requireAuth, requireAdmin, markAbsencesHandler);
 router.post('/attendance/excuse', requireAuth, requireAdmin, excuseAbsenceHandler);
 router.get('/attendance/dashboard', requireAuth, requireAdmin, getAttendanceDashboardHandler);
 router.get('/attendance/matrix', requireAuth, requireAdmin, getAttendanceMatrixHandler);
-router.get('/attendance/export', requireAuth, requireAdmin, exportAttendanceCsvHandler);
+router.get('/attendance/export', requireAuth, requireAdmin, exportRateLimiter, exportAttendanceCsvHandler);
 router.get('/attendance/my-history', requireAuth, getMyAttendanceHistoryHandler);
 
 // --- SERVICES SCHEDULE ---
@@ -134,13 +142,13 @@ router.delete('/testimonies/:id', requireAuth, deleteTestimonyHandler);
 
 // --- NOTIFICATIONS ---
 router.get('/notifications', requireAuth, getNotificationsHandler);
-router.post('/notifications/broadcast', requireAuth, requireAdmin, broadcastNotificationHandler);
+router.post('/notifications/broadcast', requireAuth, requireAdmin, broadcastRateLimiter, broadcastNotificationHandler);
 router.put('/notifications/:id/read', requireAuth, markNotificationReadHandler);
 router.delete('/notifications/:id', requireAuth, requireAdmin, deleteNotificationHandler);
 
 // --- MEDIA MANAGEMENT (SUPABASE STORAGE) ---
-router.post('/media/upload', requireAuth, upload.single('file'), uploadMediaHandler);
-router.post('/media/upload-avatar', upload.single('file'), uploadAvatarHandler);
+router.post('/media/upload', requireAuth, uploadRateLimiter, upload.single('file'), uploadMediaHandler);
+router.post('/media/upload-avatar', uploadRateLimiter, upload.single('file'), uploadAvatarHandler);
 router.delete('/media/:id', requireAuth, deleteMediaHandler);
 router.get('/media', listMediaHandler);
 
@@ -179,6 +187,6 @@ router.post('/finance/opening-balance', requireAuth, setFinanceOpeningBalanceHan
 router.get('/finance/statements/monthly', requireAuth, getFinanceMonthlyStatementHandler);
 router.get('/finance/statements/annual', requireAuth, getFinanceAnnualStatementHandler);
 router.get('/finance/analysis', requireAuth, getFinanceCategoryAnalysisHandler);
-router.get('/finance/export', requireAuth, exportFinanceReportHandler);
+router.get('/finance/export', requireAuth, exportRateLimiter, exportFinanceReportHandler);
 
 export default router;
