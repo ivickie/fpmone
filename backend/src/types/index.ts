@@ -102,6 +102,7 @@ export interface Department {
   description?: string;
   hodName?: string;
   hodId?: string;
+  hodEmail?: string;
   status: 'active' | 'inactive' | 'archived';
   createdAt: string;
   updatedAt: string;

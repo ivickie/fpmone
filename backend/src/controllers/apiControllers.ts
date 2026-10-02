@@ -251,6 +251,8 @@ export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: s
 
   dept.hodId = newHodUserId;
   if (newHodName) dept.hodName = newHodName;
+  const user = db.users.find(u => u.id === newHodUserId);
+  if (user) dept.hodEmail = user.email;
 
   // 1. Ensure the new HOD's worker record (if exists) is linked to this department and has HOD position
   const targetMember = db.members.find(m => m.userId === newHodUserId);
@@ -297,6 +299,7 @@ export function clearDepartmentHod(departmentId: string): void {
 
   dept.hodId = undefined;
   dept.hodName = undefined;
+  dept.hodEmail = undefined;
 
   const deptWorkers = db.workers.filter(w => w.departmentId === departmentId);
   deptWorkers.forEach(w => {
@@ -312,6 +315,106 @@ export function clearDepartmentHod(departmentId: string): void {
   persistDepartment(dept).catch(() => {});
 }
 
+export interface HodResolutionResult {
+  isValid: boolean;
+  error?: string;
+  statusCode?: number;
+  hodUserId?: string;
+  hodMemberId?: string;
+  hodName?: string;
+  hodEmail?: string;
+}
+
+export function validateAndResolveHod(
+  hodEmail: string | undefined | null,
+  targetBranchId: string | undefined,
+  callerUser: any
+): HodResolutionResult {
+  if (hodEmail === undefined || hodEmail === null || hodEmail.trim() === '') {
+    return { isValid: true };
+  }
+
+  const cleanEmail = hodEmail.trim().toLowerCase();
+
+  // 1. Confirm that the email belongs to an existing user
+  const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+  if (!user) {
+    return {
+      isValid: false,
+      statusCode: 400,
+      error: `No registered member found with email address: "${cleanEmail}".`
+    };
+  }
+
+  // 2. Prevent suspended, rejected, or otherwise ineligible accounts from being assigned
+  if (user.accountStatus !== 'active') {
+    return {
+      isValid: false,
+      statusCode: 400,
+      error: `Cannot assign HOD: The account for "${user.email}" is ${user.accountStatus}. Only active member accounts can be assigned as Head of Department.`
+    };
+  }
+
+  // 3. Find associated member profile
+  const member = db.members.find(m => m.userId === user.id);
+  if (!member) {
+    return {
+      isValid: false,
+      statusCode: 400,
+      error: `No member profile found for user account: "${cleanEmail}".`
+    };
+  }
+
+  // 4. Confirm that the member has the appropriate HOD role assigned in their member profile
+  const role = db.ministryRoles.find(r => r.id === member.primaryRoleId);
+  const isHodRole = member.primaryRoleId === IDS.ROLE_HOD ||
+    role?.code === 'HOD' ||
+    (role?.name && role.name.toLowerCase() === 'hod') ||
+    (role?.name && role.name.toLowerCase().includes('head of department'));
+
+  if (!isHodRole) {
+    const currentRoleName = role?.name || 'Member';
+    return {
+      isValid: false,
+      statusCode: 400,
+      error: `Member "${member.firstName} ${member.lastName}" (${user.email}) does not have the HOD role assigned in their member profile (current role: "${currentRoleName}"). Please update their role to HOD under Members before assigning them as Head of Department.`
+    };
+  }
+
+  // 5. Enforce branch isolation and permissions
+  const isSuperAdmin = callerUser?.adminLevel === 'super_admin';
+  const isBranchAdmin = callerUser?.adminLevel === 'branch_admin';
+
+  // If caller is branch admin, caller can only assign members from their own branch
+  if (isBranchAdmin && !isSuperAdmin && callerUser?.branchId && member.primaryBranchId !== callerUser.branchId) {
+    return {
+      isValid: false,
+      statusCode: 403,
+      error: 'Branch isolation violation: As a Branch Administrator, you can only assign members belonging to your assigned branch as Head of Department.'
+    };
+  }
+
+  // If department belongs to a specific branch, member must belong to that branch
+  if (targetBranchId && member.primaryBranchId && member.primaryBranchId !== targetBranchId) {
+    const deptBranch = db.branches.find(b => b.id === targetBranchId);
+    const memberBranch = db.branches.find(b => b.id === member.primaryBranchId);
+    return {
+      isValid: false,
+      statusCode: 400,
+      error: `Cannot assign HOD: Member "${member.firstName} ${member.lastName}" belongs to "${memberBranch?.name || 'another branch'}", but this department belongs to "${deptBranch?.name || 'another branch'}". Heads of Department must be members of the department's branch.`
+    };
+  }
+
+  const fullName = `${member.firstName} ${member.lastName}`.trim();
+  return {
+    isValid: true,
+    hodUserId: user.id,
+    hodMemberId: member.id,
+    hodName: fullName,
+    hodEmail: user.email
+  };
+}
+
 export const getDepartmentsHandler = (req: Request, res: Response) => {
   const { branchId, includeArchived } = req.query;
   let depts = db.departments;
@@ -321,7 +424,152 @@ export const getDepartmentsHandler = (req: Request, res: Response) => {
   if (branchId) {
     depts = depts.filter(d => !d.branchId || d.branchId === branchId);
   }
-  return res.json(depts);
+
+  // Ensure hodEmail is always populated if an HOD is assigned
+  const enriched = depts.map(d => {
+    if (!d.hodEmail && d.hodId) {
+      const u = db.users.find(user => user.id === d.hodId);
+      if (u) {
+        d.hodEmail = u.email;
+      } else {
+        const m = db.members.find(mem => mem.id === d.hodId || mem.userId === d.hodId);
+        if (m) {
+          const mu = db.users.find(user => user.id === m.userId);
+          if (mu) d.hodEmail = mu.email;
+        }
+      }
+    }
+    return d;
+  });
+
+  return res.json(enriched);
+};
+
+export const lookupHodHandler = (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string;
+    const branchId = req.query.branchId as string;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, error: 'Email parameter is required.' });
+    }
+
+    const effectiveBranchId = req.user?.adminLevel === 'super_admin' ? branchId : req.user?.branchId;
+    const validation = validateAndResolveHod(email, effectiveBranchId, req.user);
+
+    if (!validation.isValid) {
+      const user = db.users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+      const member = user ? db.members.find(m => m.userId === user.id) : undefined;
+      const role = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
+      const branch = member ? db.branches.find(b => b.id === member.primaryBranchId) : undefined;
+
+      return res.status(200).json({
+        success: false,
+        eligible: false,
+        error: validation.error,
+        member: user && member ? {
+          userId: user.id,
+          memberId: member.id,
+          email: user.email,
+          fullName: `${member.firstName} ${member.lastName}`.trim(),
+          roleName: role?.name || 'Member',
+          roleCode: role?.code || 'MEMBER',
+          accountStatus: user.accountStatus,
+          branchId: member.primaryBranchId,
+          branchName: branch?.name || 'Unknown Branch'
+        } : null
+      });
+    }
+
+    const branch = db.branches.find(b => b.id === effectiveBranchId);
+    return res.json({
+      success: true,
+      eligible: true,
+      member: {
+        userId: validation.hodUserId,
+        memberId: validation.hodMemberId,
+        email: validation.hodEmail,
+        fullName: validation.hodName,
+        roleName: 'HOD',
+        roleCode: 'HOD',
+        branchId: effectiveBranchId,
+        branchName: branch?.name || 'HQ'
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getEligibleHodsHandler = (req: Request, res: Response) => {
+  try {
+    const queryStr = ((req.query.query as string) || '').trim().toLowerCase();
+    const branchId = req.query.branchId as string;
+    const isSuperAdmin = req.user?.adminLevel === 'super_admin';
+    const effectiveBranchId = isSuperAdmin ? branchId : req.user?.branchId;
+
+    const list = db.members
+      .map(member => {
+        const user = db.users.find(u => u.id === member.userId);
+        if (!user) return null;
+
+        const role = db.ministryRoles.find(r => r.id === member.primaryRoleId);
+        const branch = db.branches.find(b => b.id === member.primaryBranchId);
+        const isHodRole = member.primaryRoleId === IDS.ROLE_HOD ||
+          role?.code === 'HOD' ||
+          (role?.name && role.name.toLowerCase() === 'hod') ||
+          (role?.name && role.name.toLowerCase().includes('head of department'));
+
+        const isBranchMatch = !effectiveBranchId || member.primaryBranchId === effectiveBranchId;
+        const isActive = user.accountStatus === 'active';
+        const isEligible = isHodRole && isActive && isBranchMatch;
+
+        let ineligibilityReason: string | undefined;
+        if (!isActive) {
+          ineligibilityReason = `Account is ${user.accountStatus}`;
+        } else if (!isHodRole) {
+          ineligibilityReason = `Role is "${role?.name || 'Member'}" (requires HOD role)`;
+        } else if (!isBranchMatch) {
+          ineligibilityReason = `Belongs to ${branch?.name || 'another branch'}`;
+        }
+
+        return {
+          userId: user.id,
+          memberId: member.id,
+          email: user.email,
+          fullName: `${member.firstName} ${member.lastName}`.trim(),
+          firstName: member.firstName,
+          lastName: member.lastName,
+          roleName: role?.name || 'Member',
+          roleCode: role?.code || 'MEMBER',
+          accountStatus: user.accountStatus,
+          branchId: member.primaryBranchId,
+          branchName: branch?.name || 'HQ',
+          isHodRole,
+          isEligible,
+          ineligibilityReason
+        };
+      })
+      .filter((m): m is NonNullable<typeof m> => {
+        if (!m) return false;
+        if (!queryStr) return true;
+        return (
+          m.email.toLowerCase().includes(queryStr) ||
+          m.fullName.toLowerCase().includes(queryStr)
+        );
+      });
+
+    // Sort: eligible first, then alphabetical by fullName
+    list.sort((a, b) => {
+      if (a.isEligible && !b.isEligible) return -1;
+      if (!a.isEligible && b.isEligible) return 1;
+      return a.fullName.localeCompare(b.fullName);
+    });
+
+    return res.json(list.slice(0, 20));
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 };
 
 export const createDepartmentHandler = (req: Request, res: Response) => {
@@ -336,11 +584,32 @@ export const createDepartmentHandler = (req: Request, res: Response) => {
     });
   }
 
-  const { name, code, description, hodName, hodId, branchId } = req.body;
+  const { name, code, description, hodName, hodId, hodEmail, branchId } = req.body;
   if (!name || !code) return res.status(400).json({ success: false, error: 'Name and Code are required.' });
 
   // If not super admin, department must belong to caller's branch
   const effectiveBranchId = isSuperAdmin ? (branchId || req.user?.branchId) : req.user?.branchId;
+
+  let resolvedHodId: string | undefined = hodId;
+  let resolvedHodName: string | undefined = hodName;
+  let resolvedHodEmail: string | undefined;
+
+  // Validate and resolve HOD by email if provided
+  if (hodEmail !== undefined && hodEmail !== null && hodEmail.trim() !== '') {
+    const validation = validateAndResolveHod(hodEmail, effectiveBranchId, req.user);
+    if (!validation.isValid) {
+      return res.status(validation.statusCode || 400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+    resolvedHodId = validation.hodUserId;
+    resolvedHodName = validation.hodName;
+    resolvedHodEmail = validation.hodEmail;
+  } else if (resolvedHodId) {
+    const u = db.users.find(usr => usr.id === resolvedHodId);
+    if (u) resolvedHodEmail = u.email;
+  }
 
   const newDeptId = uuidv4();
   const newDept: Department = {
@@ -348,8 +617,9 @@ export const createDepartmentHandler = (req: Request, res: Response) => {
     name,
     code: code.toUpperCase(),
     description,
-    hodName,
-    hodId,
+    hodName: resolvedHodName,
+    hodId: resolvedHodId,
+    hodEmail: resolvedHodEmail,
     branchId: effectiveBranchId,
     status: 'active',
     createdAt: new Date().toISOString(),
@@ -359,12 +629,21 @@ export const createDepartmentHandler = (req: Request, res: Response) => {
   db.departments.push(newDept);
   persistDepartment(newDept).catch(() => {});
 
-  // Single HOD enforcement if hodId provided
-  if (hodId) {
-    enforceSingleDepartmentHod(newDeptId, hodId, hodName);
+  // Single HOD enforcement if hodId resolved
+  if (resolvedHodId) {
+    enforceSingleDepartmentHod(newDeptId, resolvedHodId, resolvedHodName);
   }
 
-  AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'DEPARTMENT_CREATED', 'department', newDept.id, req.user?.userId, null, newDept);
+  AuditService.log(
+    req.user?.fullName || 'Admin',
+    req.user?.roleName || 'admin',
+    'DEPARTMENT_CREATED',
+    'department',
+    newDept.id,
+    req.user?.userId,
+    null,
+    newDept
+  );
   return res.status(201).json(newDept);
 };
 
@@ -401,7 +680,8 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
     // If caller is an HOD without branch admin/super admin privileges:
     // They cannot reassign HOD or transfer department across branches
     if (!isSuperAdmin && !isBranchAdmin) {
-      if (req.body.hodId !== undefined && req.body.hodId !== dept.hodId) {
+      if ((req.body.hodId !== undefined && req.body.hodId !== dept.hodId) ||
+          (req.body.hodEmail !== undefined && req.body.hodEmail !== dept.hodEmail)) {
         return res.status(403).json({
           success: false,
           error: 'Only Branch Administrators or Super Administrators can appoint or change the Head of Department.'
@@ -415,26 +695,53 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
       }
     }
 
-    const { name, code, description, hodName, hodId, status } = req.body;
+    const { name, code, description, hodName, hodId, hodEmail, status } = req.body;
     if (name) dept.name = name;
     if (code) dept.code = code.toUpperCase();
     if (description !== undefined) dept.description = description;
 
-    // Single HOD enforcement when appointing/updating HOD (only by branch admin or super admin)
-    if (hodId !== undefined && (isSuperAdmin || isBranchAdmin)) {
-      if (hodId) {
-        const resolvedName = hodName || (() => {
-          const m = db.members.find(mem => mem.userId === hodId);
-          return m ? `${m.firstName} ${m.lastName}` : dept.hodName;
-        })();
-        dept.hodId = hodId;
-        dept.hodName = resolvedName;
-        enforceSingleDepartmentHod(dept.id, hodId, resolvedName);
-      } else {
-        clearDepartmentHod(dept.id);
+    // HOD Assignment handling
+    if (isSuperAdmin || isBranchAdmin) {
+      if (hodEmail !== undefined) {
+        if (hodEmail === null || hodEmail.trim() === '') {
+          // Clear HOD
+          dept.hodId = undefined;
+          dept.hodName = undefined;
+          dept.hodEmail = undefined;
+          clearDepartmentHod(dept.id);
+        } else {
+          const validation = validateAndResolveHod(hodEmail, dept.branchId, req.user);
+          if (!validation.isValid) {
+            return res.status(validation.statusCode || 400).json({
+              success: false,
+              error: validation.error
+            });
+          }
+          dept.hodId = validation.hodUserId;
+          dept.hodName = validation.hodName;
+          dept.hodEmail = validation.hodEmail;
+          enforceSingleDepartmentHod(dept.id, validation.hodUserId!, validation.hodName);
+        }
+      } else if (hodId !== undefined) {
+        if (hodId) {
+          const resolvedName = hodName || (() => {
+            const m = db.members.find(mem => mem.userId === hodId);
+            return m ? `${m.firstName} ${m.lastName}` : dept.hodName;
+          })();
+          const u = db.users.find(usr => usr.id === hodId);
+          dept.hodId = hodId;
+          dept.hodName = resolvedName;
+          dept.hodEmail = u?.email;
+          enforceSingleDepartmentHod(dept.id, hodId, resolvedName);
+        } else {
+          dept.hodId = undefined;
+          dept.hodName = undefined;
+          dept.hodEmail = undefined;
+          clearDepartmentHod(dept.id);
+        }
+      } else if (hodName !== undefined) {
+        dept.hodName = hodName;
       }
-    } else if (hodName !== undefined && (isSuperAdmin || isBranchAdmin)) {
-      dept.hodName = hodName;
     }
 
     if (status && (isSuperAdmin || isBranchAdmin)) dept.status = status;

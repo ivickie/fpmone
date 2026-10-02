@@ -87,6 +87,20 @@ export const api = {
   createDepartment: (data: any) => apiRequest('/departments', { method: 'POST', body: JSON.stringify(data) }),
   updateDepartment: (id: string, data: any) => apiRequest(`/departments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDepartment: (id: string) => apiRequest(`/departments/${id}`, { method: 'DELETE' }),
+  lookupHod: (email: string, branchId?: string) => {
+    const qs = new URLSearchParams({
+      email: email.trim(),
+      ...(branchId ? { branchId } : {})
+    }).toString();
+    return apiRequest(`/departments/lookup-hod?${qs}`);
+  },
+  getEligibleHods: (query?: string, branchId?: string) => {
+    const qs = new URLSearchParams({
+      ...(query ? { query: query.trim() } : {}),
+      ...(branchId ? { branchId } : {})
+    }).toString();
+    return apiRequest(`/departments/eligible-hods?${qs}`);
+  },
   getPositions: (deptId: string) => apiRequest(`/departments/${deptId}/positions`),
   createPosition: (deptId: string, data: any) => apiRequest(`/departments/${deptId}/positions`, { method: 'POST', body: JSON.stringify(data) }),
   deletePosition: (deptId: string, positionId: string) => apiRequest(`/departments/${deptId}/positions/${positionId}`, { method: 'DELETE' }),

@@ -2587,6 +2587,224 @@ async function runTests() {
       assert(failedLoginRes.status === 401, 'Invalid password returns HTTP 401');
       assert(failedLoginRes.headers.get('access-control-allow-origin') === 'https://fpmglobal.online', '401 Error response retains Access-Control-Allow-Origin for legitimate origin');
 
+      // =========================================================================
+      // HOD ASSIGNMENT BY EMAIL TESTS
+      // =========================================================================
+      console.log('\n--- Department HOD Assignment by Email Tests ---');
+
+      // Helper tokens
+      const adminToken = authToken; // Super admin token
+
+      // Branch Admin token for Ilorin HQ
+      const ilorinAdminLoginRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrPhone: 'admin.ilorin@faithpreachers.org', password: 'Password123!' })
+      });
+      const ilorinAdminToken = ((await ilorinAdminLoginRes.json()) as any).token;
+
+      // Branch Admin token for Lagos
+      const lagosAdminLoginRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrPhone: 'admin.lagos@faithpreachers.org', password: 'Password123!' })
+      });
+      const lagosAdminToken = ((await lagosAdminLoginRes.json()) as any).token;
+
+      // Regular HOD user token (without branch admin privileges)
+      const hodUserLoginRes = await fetch(`${baseTestUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrPhone: 'hod.choir@fpmchurch.org', password: 'Password123!' })
+      });
+      const hodUserToken = ((await hodUserLoginRes.json()) as any).token;
+
+      // Test 1: Autocomplete / Eligible HODs endpoint
+      const eligibleHodsRes = await fetch(`${baseTestUrl}/api/departments/eligible-hods?query=hod`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      assert(eligibleHodsRes.status === 200, 'Eligible HODs autocomplete endpoint returns HTTP 200');
+      const eligibleHods: any = await eligibleHodsRes.json();
+      assert(Array.isArray(eligibleHods) && eligibleHods.length > 0, 'Eligible HODs returns list of candidates');
+      const rachelCand = eligibleHods.find((c: any) => c.email === 'hod.choir@fpmchurch.org');
+      assert(rachelCand && rachelCand.isEligible === true, 'Rachel Adams is marked as eligible HOD');
+
+      // Test 2: Lookup HOD endpoint with eligible email
+      const lookupValidRes = await fetch(`${baseTestUrl}/api/departments/lookup-hod?email=hod.choir@fpmchurch.org`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      assert(lookupValidRes.status === 200, 'Lookup HOD endpoint returns HTTP 200');
+      const lookupValidJson: any = await lookupValidRes.json();
+      assert(lookupValidJson.eligible === true, 'Lookup verifies eligible HOD');
+      assert(lookupValidJson.member.fullName.includes('Rachel'), 'Lookup returns confirmed HOD member name');
+
+      // Test 3: Lookup HOD endpoint with member who lacks HOD role
+      const lookupNonHodRes = await fetch(`${baseTestUrl}/api/departments/lookup-hod?email=worker.sarah@fpmchurch.org`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      const lookupNonHodJson: any = await lookupNonHodRes.json();
+      assert(lookupNonHodJson.eligible === false, 'Lookup rejects member without HOD role');
+      assert(lookupNonHodJson.error.includes('Worker') || lookupNonHodJson.error.includes('role'), 'Lookup explains role requirement');
+
+      // Test 4 (Scenario 1): Assign an eligible HOD using registered email when creating department
+      const createDeptRes = await fetch(`${baseTestUrl}/api/departments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: 'Evangelism & Outreach',
+          code: 'EVANG',
+          description: 'Reaching the lost and soul winning',
+          hodEmail: 'hod.choir@fpmchurch.org',
+          branchId: 'b1111111-1111-1111-1111-111111111111'
+        })
+      });
+      assert(createDeptRes.status === 201, 'Create department with valid HOD email returns HTTP 201');
+      const createdDept: any = await createDeptRes.json();
+      assert(createdDept.hodEmail === 'hod.choir@fpmchurch.org', 'Created department assigns hodEmail');
+      assert(createdDept.hodName.includes('Rachel'), 'Created department resolves hodName');
+      assert(Boolean(createdDept.hodId), 'Created department resolves hodId to user ID');
+
+      // Test 5 (Scenario 2): Edit department and verify current HOD email is prefilled/returned in GET
+      const getDeptsRes = await fetch(`${baseTestUrl}/api/departments?branchId=b1111111-1111-1111-1111-111111111111`);
+      assert(getDeptsRes.status === 200, 'GET /departments returns HTTP 200');
+      const deptsList: any = await getDeptsRes.json();
+      const fetchedDept = deptsList.find((d: any) => d.id === createdDept.id);
+      assert(fetchedDept && fetchedDept.hodEmail === 'hod.choir@fpmchurch.org', 'GET departments includes hodEmail for prefilling in edit form');
+
+      // Test 6 (Scenario 3): Replace an existing HOD with another eligible member
+      const updateReplaceRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'hod.media@faithpreachers.org'
+        })
+      });
+      assert(updateReplaceRes.status === 200, 'Replacing HOD with another eligible member returns HTTP 200');
+      const replacedDept: any = await updateReplaceRes.json();
+      assert(replacedDept.hodEmail === 'hod.media@faithpreachers.org', 'Department hodEmail updated to new HOD');
+      assert(replacedDept.hodName.includes('Emmanuel'), 'Department hodName updated to new HOD name');
+
+      // Test 7 (Scenario 4): Enter email that does not belong to any member
+      const updateNotFoundRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'ghost.user@faithpreachers.org'
+        })
+      });
+      assert(updateNotFoundRes.status === 400, 'Unregistered HOD email returns HTTP 400');
+      const updateNotFoundJson: any = await updateNotFoundRes.json();
+      assert(updateNotFoundJson.error.includes('No registered member found'), 'Rejection explains email not found');
+
+      // Test 8 (Scenario 5): Enter email of a member who does not have the HOD role
+      const updateWorkerRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'worker.sarah@fpmchurch.org'
+        })
+      });
+      assert(updateWorkerRes.status === 400, 'Non-HOD role member rejected with HTTP 400');
+      const updateWorkerJson: any = await updateWorkerRes.json();
+      assert(updateWorkerJson.error.includes('does not have the HOD role'), 'Rejection explains role mismatch');
+
+      // Test 9 (Scenario 6): Attempt to assign an ineligible or suspended account
+      const updateSuspendedRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'suspended.hod@faithpreachers.org'
+        })
+      });
+      assert(updateSuspendedRes.status === 400, 'Suspended HOD account rejected with HTTP 400');
+      const updateSuspendedJson: any = await updateSuspendedRes.json();
+      assert(updateSuspendedJson.error.includes('suspended'), 'Rejection explains suspended account status');
+
+      // Also attempt pending account
+      const updatePendingRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'daniel.new@fpmchurch.org'
+        })
+      });
+      assert(updatePendingRes.status === 400, 'Pending account rejected with HTTP 400');
+
+      // Test 10 (Scenario 7): Verify assignment removal & persistence
+      const clearHodRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: ''
+        })
+      });
+      assert(clearHodRes.status === 200, 'Clearing HOD returns HTTP 200');
+      const clearedDept: any = await clearHodRes.json();
+      assert(!clearedDept.hodId && !clearedDept.hodEmail, 'Department HOD is cleared and unassigned');
+
+      // Re-assign and verify persistence
+      await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'hod.media@faithpreachers.org'
+        })
+      });
+      const persistCheckRes = await fetch(`${baseTestUrl}/api/departments`);
+      const persistCheckList: any = await persistCheckRes.json();
+      const persistedDept = persistCheckList.find((d: any) => d.id === createdDept.id);
+      assert(persistedDept.hodEmail === 'hod.media@faithpreachers.org', 'Assignment persists after re-fetching departments');
+
+      // Test 11 (Scenario 8): Unauthorized user cannot modify HOD assignment
+      const unauthHodUpdateRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${hodUserToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'hod.choir@fpmchurch.org'
+        })
+      });
+      assert(unauthHodUpdateRes.status === 403, 'Regular HOD cannot reassign department HOD (HTTP 403)');
+
+      // Branch isolation: Lagos Branch Admin attempting to assign an HQ member
+      const crossBranchUpdateRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${lagosAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          hodEmail: 'hod.media@faithpreachers.org'
+        })
+      });
+      assert(crossBranchUpdateRes.status === 403, 'Branch Admin modifying department outside branch blocked with HTTP 403');
+
     } finally {
       testServer.close();
     }

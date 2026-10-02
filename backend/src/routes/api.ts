@@ -4,6 +4,7 @@ import {
   loginHandler, registerHandler, getProfileHandler, updateProfileHandler,
   getBranchesHandler, createBranchHandler, updateBranchHandler, deleteBranchHandler,
   getDepartmentsHandler, createDepartmentHandler, updateDepartmentHandler, deleteDepartmentHandler,
+  lookupHodHandler, getEligibleHodsHandler,
   getDepartmentPositionsHandler, createPositionHandler, deletePositionHandler,
   getRolesHandler, createRoleHandler, updateRoleHandler, deleteRoleHandler,
   getPendingApprovalsHandler, approveMemberHandler, rejectMemberHandler, requestChangesHandler,
@@ -63,6 +64,8 @@ router.delete('/branches/:id', requireAuth, requireAdmin, deleteBranchHandler);
 
 // --- DEPARTMENTS, POSITIONS & ROLES ---
 router.get('/departments', getDepartmentsHandler);
+router.get('/departments/eligible-hods', requireAuth, requireAdmin, getEligibleHodsHandler);
+router.get('/departments/lookup-hod', requireAuth, requireAdmin, lookupHodHandler);
 router.post('/departments', requireAuth, requireAdmin, createDepartmentHandler);
 router.put('/departments/:id', requireAuth, requireAdmin, updateDepartmentHandler);
 router.delete('/departments/:id', requireAuth, requireAdmin, deleteDepartmentHandler);

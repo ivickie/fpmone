@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Layers, Plus, Users, UserCheck, Edit3, Trash2, Tag, X, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Layers, Plus, Users, UserCheck, Edit3, Trash2, Tag, X, Loader2, Mail, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -34,8 +34,21 @@ export const DepartmentsPage: React.FC = () => {
     code: '',
     description: '',
     hodName: '',
+    hodEmail: '',
     status: 'active'
   });
+
+  // HOD Email Lookup & Validation State
+  const [hodSuggestions, setHodSuggestions] = useState<any[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [hodLookupLoading, setHodLookupLoading] = useState(false);
+  const [hodValidation, setHodValidation] = useState<{
+    checked: boolean;
+    eligible: boolean;
+    error?: string;
+    member?: any;
+  } | null>(null);
+  const lookupTimerRef = useRef<any>(null);
 
   const fetchDepartments = async () => {
     setLoading(true);
@@ -53,14 +66,105 @@ export const DepartmentsPage: React.FC = () => {
     fetchDepartments();
   }, [selectedBranchId]);
 
+  const fetchHodSuggestions = async (query: string) => {
+    try {
+      const data = await api.getEligibleHods(query, selectedBranchId || selectedDept?.branchId);
+      setHodSuggestions(data || []);
+    } catch {
+      setHodSuggestions([]);
+    }
+  };
+
+  const handleHodEmailChange = (val: string) => {
+    setFormData(prev => ({ ...prev, hodEmail: val }));
+    if (!val.trim()) {
+      setHodValidation(null);
+      setHodSuggestions([]);
+      setSuggestionsOpen(false);
+      setFormData(prev => ({ ...prev, hodName: '' }));
+      return;
+    }
+
+    setSuggestionsOpen(true);
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+
+    lookupTimerRef.current = setTimeout(async () => {
+      fetchHodSuggestions(val);
+
+      if (val.includes('@') && val.includes('.')) {
+        setHodLookupLoading(true);
+        try {
+          const res = await api.lookupHod(val, selectedBranchId || selectedDept?.branchId);
+          if (res.success && res.eligible) {
+            setHodValidation({
+              checked: true,
+              eligible: true,
+              member: res.member
+            });
+            setFormData(prev => ({ ...prev, hodName: res.member.fullName }));
+          } else {
+            setHodValidation({
+              checked: true,
+              eligible: false,
+              error: res.error,
+              member: res.member
+            });
+          }
+        } catch (err: any) {
+          setHodValidation({
+            checked: true,
+            eligible: false,
+            error: err.message || 'Error validating HOD email.'
+          });
+        } finally {
+          setHodLookupLoading(false);
+        }
+      }
+    }, 300);
+  };
+
+  const handleSelectSuggestion = (item: any) => {
+    setFormData(prev => ({
+      ...prev,
+      hodEmail: item.email,
+      hodName: item.fullName
+    }));
+    setSuggestionsOpen(false);
+    if (item.isEligible) {
+      setHodValidation({
+        checked: true,
+        eligible: true,
+        member: item
+      });
+    } else {
+      setHodValidation({
+        checked: true,
+        eligible: false,
+        error: item.ineligibilityReason || `Member does not have the HOD role (current role: ${item.roleName}).`,
+        member: item
+      });
+    }
+  };
+
+  const handleClearHod = () => {
+    setFormData(prev => ({ ...prev, hodEmail: '', hodName: '' }));
+    setHodValidation(null);
+    setHodSuggestions([]);
+    setSuggestionsOpen(false);
+  };
+
   const openCreateModal = () => {
     setFormData({
       name: '',
       code: '',
       description: '',
       hodName: '',
+      hodEmail: '',
       status: 'active'
     });
+    setHodValidation(null);
+    setHodSuggestions([]);
+    setSuggestionsOpen(false);
     setModalOpen(true);
   };
 
@@ -71,8 +175,24 @@ export const DepartmentsPage: React.FC = () => {
       code: d.code || '',
       description: d.description || '',
       hodName: d.hodName || '',
+      hodEmail: d.hodEmail || '',
       status: d.status || 'active'
     });
+    if (d.hodEmail) {
+      setHodValidation({
+        checked: true,
+        eligible: true,
+        member: {
+          fullName: d.hodName,
+          email: d.hodEmail,
+          roleName: 'HOD'
+        }
+      });
+    } else {
+      setHodValidation(null);
+    }
+    setHodSuggestions([]);
+    setSuggestionsOpen(false);
     setEditModalOpen(true);
   };
 
@@ -99,6 +219,10 @@ export const DepartmentsPage: React.FC = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.hodEmail && hodValidation && !hodValidation.eligible) {
+      toast.error(hodValidation.error || 'Cannot assign ineligible member as Head of Department.');
+      return;
+    }
     setActionLoading(true);
     try {
       await api.createDepartment({
@@ -118,6 +242,10 @@ export const DepartmentsPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDept) return;
+    if (formData.hodEmail && hodValidation && !hodValidation.eligible) {
+      toast.error(hodValidation.error || 'Cannot assign ineligible member as Head of Department.');
+      return;
+    }
     setActionLoading(true);
     try {
       await api.updateDepartment(selectedDept.id, formData);
@@ -230,11 +358,14 @@ export const DepartmentsPage: React.FC = () => {
                     {d.description || 'No description provided.'}
                   </p>
 
-                  <div className="pt-2 border-t border-slate-100 text-xs flex items-center justify-between text-slate-500">
+                  <div className="pt-2 border-t border-slate-100 text-xs flex flex-col gap-0.5 text-slate-500">
                     <div className="flex items-center space-x-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                      <span>HOD: <strong className="text-slate-800">{d.hodName || 'Unassigned'}</strong></span>
+                      <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate">HOD: <strong className="text-slate-800">{d.hodName || 'Unassigned'}</strong></span>
                     </div>
+                    {d.hodEmail && (
+                      <span className="text-[11px] text-slate-400 pl-5 truncate">{d.hodEmail}</span>
+                    )}
                   </div>
                 </div>
 
@@ -315,15 +446,128 @@ export const DepartmentsPage: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">HOD Name</label>
-                <input
-                  type="text"
-                  value={formData.hodName}
-                  onChange={e => setFormData({ ...formData, hodName: e.target.value })}
-                  placeholder="e.g. Brother John Mensah"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                />
+              <div className="space-y-1.5 relative">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                    HOD Email Address
+                  </label>
+                  {formData.hodEmail && (
+                    <button
+                      type="button"
+                      onClick={handleClearHod}
+                      className="text-[10px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    value={formData.hodEmail}
+                    onChange={e => handleHodEmailChange(e.target.value)}
+                    onFocus={() => {
+                      if (formData.hodEmail) {
+                        fetchHodSuggestions(formData.hodEmail);
+                        setSuggestionsOpen(true);
+                      }
+                    }}
+                    placeholder="Enter member's registered email (e.g. hod.choir@fpmchurch.org)"
+                    className={`w-full pl-9 pr-8 py-2.5 bg-slate-50 border rounded-xl text-xs transition-colors ${
+                      hodValidation?.checked
+                        ? hodValidation.eligible
+                          ? 'border-emerald-500 bg-emerald-50/20'
+                          : 'border-red-400 bg-red-50/20'
+                        : 'border-slate-200 focus:border-blue-500'
+                    }`}
+                  />
+                  {hodLookupLoading && (
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Autocomplete Suggestions Dropdown */}
+                {suggestionsOpen && hodSuggestions.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
+                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Matching Members
+                    </div>
+                    {hodSuggestions.map(sug => (
+                      <button
+                        key={sug.userId}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(sug)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">{sug.fullName}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{sug.email}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span
+                            className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              sug.isEligible
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {sug.isEligible ? 'Eligible HOD' : sug.roleName}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Live Eligibility / Confirmation Feedback Card */}
+                {hodValidation?.checked && (
+                  <div
+                    className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                      hodValidation.eligible
+                        ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                        : 'bg-amber-50/80 border-amber-200 text-amber-900'
+                    }`}
+                  >
+                    {hodValidation.eligible ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="min-w-0">
+                      {hodValidation.eligible ? (
+                        <>
+                          <p className="font-bold text-emerald-950">
+                            Confirmed HOD: {hodValidation.member?.fullName || formData.hodName}
+                          </p>
+                          <p className="text-[11px] text-emerald-800 mt-0.5">
+                            Active member with HOD role. Ready to assign to this department.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-bold text-amber-950">
+                            {hodValidation.member ? `Ineligible: ${hodValidation.member.fullName}` : 'HOD Ineligible'}
+                          </p>
+                          <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">
+                            {hodValidation.error}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!formData.hodEmail && (
+                  <p className="text-[11px] text-slate-400">
+                    Enter the registered email of an active member holding the HOD role.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end space-x-2 pt-3">
@@ -419,19 +663,143 @@ export const DepartmentsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Head of Department (HOD)</label>
                 {isBranchAdmin ? (
-                  <input
-                    type="text"
-                    value={formData.hodName}
-                    onChange={e => setFormData({ ...formData, hodName: e.target.value })}
-                    placeholder="Enter full name of assigned HOD"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
+                  <div className="space-y-1.5 relative">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                        HOD Email Address
+                      </label>
+                      {formData.hodEmail && (
+                        <button
+                          type="button"
+                          onClick={handleClearHod}
+                          className="text-[10px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                        >
+                          Remove HOD
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="email"
+                        value={formData.hodEmail}
+                        onChange={e => handleHodEmailChange(e.target.value)}
+                        onFocus={() => {
+                          if (formData.hodEmail) {
+                            fetchHodSuggestions(formData.hodEmail);
+                            setSuggestionsOpen(true);
+                          }
+                        }}
+                        placeholder="Enter member's registered email (e.g. hod.choir@fpmchurch.org)"
+                        className={`w-full pl-9 pr-8 py-2.5 bg-slate-50 border rounded-xl text-xs transition-colors ${
+                          hodValidation?.checked
+                            ? hodValidation.eligible
+                              ? 'border-emerald-500 bg-emerald-50/20'
+                              : 'border-red-400 bg-red-50/20'
+                            : 'border-slate-200 focus:border-blue-500'
+                        }`}
+                      />
+                      {hodLookupLoading && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Autocomplete Suggestions Dropdown */}
+                    {suggestionsOpen && hodSuggestions.length > 0 && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
+                        <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Matching Members
+                        </div>
+                        {hodSuggestions.map(sug => (
+                          <button
+                            key={sug.userId}
+                            type="button"
+                            onClick={() => handleSelectSuggestion(sug)}
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 truncate">{sug.fullName}</p>
+                              <p className="text-[11px] text-slate-500 truncate">{sug.email}</p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <span
+                                className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  sug.isEligible
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {sug.isEligible ? 'Eligible HOD' : sug.roleName}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Live Eligibility / Confirmation Feedback Card */}
+                    {hodValidation?.checked ? (
+                      <div
+                        className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                          hodValidation.eligible
+                            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                            : 'bg-amber-50/80 border-amber-200 text-amber-900'
+                        }`}
+                      >
+                        {hodValidation.eligible ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        )}
+                        <div className="min-w-0">
+                          {hodValidation.eligible ? (
+                            <>
+                              <p className="font-bold text-emerald-950">
+                                Confirmed HOD: {hodValidation.member?.fullName || formData.hodName}
+                              </p>
+                              <p className="text-[11px] text-emerald-800 mt-0.5">
+                                Active member with HOD role. Ready to assign to this department.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-bold text-amber-950">
+                                {hodValidation.member ? `Ineligible: ${hodValidation.member.fullName}` : 'HOD Ineligible'}
+                              </p>
+                              <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">
+                                {hodValidation.error}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ) : selectedDept?.hodEmail && !formData.hodEmail ? (
+                      <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center justify-between">
+                        <span>HOD will be removed upon saving changes.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, hodEmail: selectedDept.hodEmail, hodName: selectedDept.hodName }));
+                            setHodValidation({ checked: true, eligible: true, member: { fullName: selectedDept.hodName, email: selectedDept.hodEmail } });
+                          }}
+                          className="text-[10px] text-red-600 underline font-bold cursor-pointer"
+                        >
+                          Undo
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
-                  <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-semibold flex items-center justify-between">
-                    <span>{formData.hodName || 'You (HOD)'}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Contact Branch Administrator to reassign</span>
+                  <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 flex flex-col gap-0.5">
+                    <span className="font-semibold text-xs">{formData.hodName || 'You (HOD)'}</span>
+                    {formData.hodEmail && <span className="text-[11px] text-slate-500">{formData.hodEmail}</span>}
+                    <span className="text-[10px] text-slate-400 mt-1">Contact Branch Administrator to reassign</span>
                   </div>
                 )}
               </div>
