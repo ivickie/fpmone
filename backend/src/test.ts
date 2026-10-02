@@ -34,7 +34,8 @@ import {
   getFinanceMonthlyStatementHandler,
   getFinanceAnnualStatementHandler,
   getFinanceCategoryAnalysisHandler,
-  exportFinanceReportHandler
+  exportFinanceReportHandler,
+  uploadMediaHandler
 } from './controllers/apiControllers';
 import { FinanceService } from './services/financeService';
 import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from './data/mockDb';
@@ -1931,6 +1932,119 @@ async function runTests() {
     assert(csvData.content.includes("TOTAL INCOME"), 'CSV content includes total income');
     assert(csvData.content.includes("TOTAL EXPENSES"), 'CSV content includes total expenses');
 
+    // =========================================================================
+    // PART 19: VERCEL SERVERLESS STORAGE INITIALIZATION & REGRESSION TESTS
+    // =========================================================================
+    console.log('\n--- 19. Vercel Serverless Storage Initialization & Safety Tests ---');
+
+    // TEST 161: StorageService.getUploadsDir in Vercel environment resolves to /tmp (never /var/task)
+    const prevVercel = process.env.VERCEL;
+    const prevNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.VERCEL = '1';
+      const vercelUploadsDir = StorageService.getUploadsDir();
+      assert(!vercelUploadsDir.includes('/var/task'), 'Vercel uploads directory does not target /var/task');
+      assert(vercelUploadsDir.includes('fpm-uploads'), 'Vercel uploads directory targets ephemeral temp path');
+
+      // TEST 162: getUploadsDir without ensureExists does not create directories
+      const dirWithoutEnsure = StorageService.getUploadsDir({ ensureExists: false });
+      assert(typeof dirWithoutEnsure === 'string' && dirWithoutEnsure.length > 0, 'getUploadsDir returns valid path string without eager mkdir');
+
+      // TEST 163: saveToLocalDisk is strictly forbidden in production / Vercel
+      process.env.NODE_ENV = 'production';
+      let localDiskSaveBlocked = false;
+      try {
+        StorageService.saveToLocalDisk('test.jpg', Buffer.from([1, 2, 3]));
+      } catch (err: any) {
+        localDiskSaveBlocked = err.message.includes('Local filesystem storage is disabled in production') ||
+                               err.message.includes('Local disk storage is disabled');
+      }
+      assert(localDiskSaveBlocked, 'saveToLocalDisk strictly throws error in production rather than attempting disk write');
+
+      // TEST 164: uploadImage in production fails safely when Supabase is unconfigured without crashing process
+      let productionUploadErrorCaught = false;
+      try {
+        await StorageService.uploadImage({
+          buffer: Buffer.from([0xFF, 0xD8, 0xFF]),
+          originalName: 'test.jpg',
+          mimeType: 'image/jpeg',
+          size: 3,
+          entityType: 'event',
+          userId: IDS.USER_ADMIN,
+          userFullName: 'Admin',
+          userRole: 'SUPER_ADMIN',
+          adminLevel: 'super_admin'
+        });
+      } catch (err: any) {
+        productionUploadErrorCaught = err.message.includes('Supabase Storage') || err.message.includes('Production');
+      }
+      assert(productionUploadErrorCaught, 'Production media upload without live credentials throws descriptive error instead of attempting /var/task write');
+
+      // TEST 165: uploadMediaHandler safely returns HTTP 400 when storage fails (does not crash process)
+      const mockReq = {
+        file: {
+          buffer: Buffer.from([0xFF, 0xD8, 0xFF]),
+          originalname: 'flyer.jpg',
+          mimetype: 'image/jpeg',
+          size: 3
+        },
+        body: { entityType: 'event' },
+        user: {
+          userId: IDS.USER_ADMIN,
+          fullName: 'Admin',
+          roleName: 'SUPER_ADMIN',
+          adminLevel: 'super_admin'
+        },
+        get: () => 'localhost:5000',
+        protocol: 'http'
+      };
+      let handlerStatusCode = 200;
+      let handlerResponse: any = null;
+      const mockRes = {
+        status: (code: number) => {
+          handlerStatusCode = code;
+          return mockRes;
+        },
+        json: (data: any) => {
+          handlerResponse = data;
+          return mockRes;
+        }
+      };
+      await uploadMediaHandler(mockReq as any, mockRes as any);
+      assert(handlerStatusCode === 400, 'uploadMediaHandler returns HTTP 400 on storage failure');
+      assert(handlerResponse?.success === false, 'uploadMediaHandler response contains success: false');
+
+      // TEST 166: Unauthorized member upload for official church event is blocked
+      process.env.NODE_ENV = 'development';
+      delete process.env.VERCEL;
+      let unauthorizedMemberUploadBlocked = false;
+      try {
+        StorageService.validateUploadAuthorization({
+          buffer: Buffer.from([1]),
+          originalName: 'event.jpg',
+          mimeType: 'image/jpeg',
+          size: 1,
+          entityType: 'event',
+          userId: IDS.USER_GRACE,
+          userFullName: 'Sister Grace',
+          userRole: 'MEMBER',
+          adminLevel: 'none',
+          isAdmin: false
+        });
+      } catch (err: any) {
+        unauthorizedMemberUploadBlocked = err.message.includes('Unauthorized');
+      }
+      assert(unauthorizedMemberUploadBlocked, 'Unauthorized member upload for official event is strictly blocked with 403 authorization error');
+
+      // TEST 167: Local development storage functions as intended when not on Vercel
+      const localDir = StorageService.getUploadsDir({ ensureExists: false });
+      assert(!localDir.includes('/var/task'), 'Local uploads directory does not target /var/task');
+
+    } finally {
+      process.env.VERCEL = prevVercel;
+      process.env.NODE_ENV = prevNodeEnv;
+      if (!prevVercel) delete process.env.VERCEL;
+    }
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);

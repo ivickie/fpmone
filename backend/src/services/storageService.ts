@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { db } from '../data/mockDb';
 import { MediaItem, MediaType } from '../types';
 import { AuditService } from './auditService';
@@ -44,17 +45,44 @@ export class StorageService {
     return this.supabase;
   }
 
-  public static getUploadsDir(): string {
-    const defaultDir = path.resolve(__dirname, process.env.NODE_ENV === 'production' ? '../uploads' : '../../uploads');
-    const uploadsDir = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : defaultDir;
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+  public static getUploadsDir(options?: { ensureExists?: boolean }): string {
+    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    let uploadsDir: string;
+
+    if (process.env.UPLOADS_DIR) {
+      uploadsDir = path.resolve(process.env.UPLOADS_DIR);
+    } else if (isVercel) {
+      // In serverless environment, use /tmp (never /var/task)
+      uploadsDir = path.join(os.tmpdir(), 'fpm-uploads');
+    } else {
+      // In local development, use project uploads directory
+      uploadsDir = path.resolve(__dirname, process.env.NODE_ENV === 'production' ? '../uploads' : '../../uploads');
     }
+
+    if (options?.ensureExists && !isVercel) {
+      try {
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+      } catch (err: any) {
+        console.warn('[STORAGE] Could not create uploads directory:', err.message);
+      }
+    }
+
     return uploadsDir;
   }
 
   public static saveToLocalDisk(storagePath: string, buffer: Buffer, baseUrl?: string): string {
-    const uploadsDir = this.getUploadsDir();
+    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isVercel || isProduction) {
+      throw new Error(
+        'Local filesystem storage is disabled in production environments. FPM Global requires Supabase Storage (fpm-media bucket).'
+      );
+    }
+
+    const uploadsDir = this.getUploadsDir({ ensureExists: true });
     const relativePath = path.join(this.bucketName, storagePath);
     const filePath = path.join(uploadsDir, relativePath);
     const dir = path.dirname(filePath);
@@ -177,6 +205,8 @@ export class StorageService {
 
     let publicUrl = '';
     const client = this.getClient();
+    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const isProduction = process.env.NODE_ENV === 'production';
 
     if (client) {
       try {
@@ -188,6 +218,10 @@ export class StorageService {
           });
 
         if (uploadError) {
+          if (isVercel || isProduction) {
+            console.error('[STORAGE] Supabase Storage upload failed in production:', uploadError.message);
+            throw new Error(`Production media upload failed: Supabase Storage error: ${uploadError.message}`);
+          }
           console.warn('[STORAGE] Supabase upload failed, falling back to local file storage:', uploadError.message);
           publicUrl = this.saveToLocalDisk(storagePath, options.buffer, options.baseUrl);
         } else {
@@ -195,11 +229,19 @@ export class StorageService {
           publicUrl = data.publicUrl;
         }
       } catch (err: any) {
+        if (isVercel || isProduction) {
+          throw err;
+        }
         console.warn('[STORAGE] Supabase upload error, falling back to local disk:', err.message);
         publicUrl = this.saveToLocalDisk(storagePath, options.buffer, options.baseUrl);
       }
     } else {
-      // Local disk file storage
+      if (isVercel || isProduction) {
+        throw new Error(
+          'Supabase Storage is not configured in production. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
+        );
+      }
+      // Local disk file storage in development
       publicUrl = this.saveToLocalDisk(storagePath, options.buffer, options.baseUrl);
     }
 
@@ -273,18 +315,25 @@ export class StorageService {
     if (client) {
       try {
         await client.storage.from(this.bucketName).remove([media.storagePath]);
-      } catch (err) {
-        console.warn('[STORAGE] Storage object removal warning:', err);
+      } catch (err: any) {
+        console.warn('[STORAGE] Storage object removal warning:', err.message || err);
       }
     }
 
-    try {
-      const p1 = path.join(this.getUploadsDir(), this.bucketName, media.storagePath);
-      const p2 = path.join(this.getUploadsDir(), media.storagePath);
-      if (fs.existsSync(p1)) fs.unlinkSync(p1);
-      else if (fs.existsSync(p2)) fs.unlinkSync(p2);
-    } catch (err: any) {
-      console.warn('[STORAGE] Local file removal notice:', err.message);
+    const isVercelEnv = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const isProdEnv = process.env.NODE_ENV === 'production';
+    if (!isVercelEnv && !isProdEnv) {
+      try {
+        const uploadsDir = this.getUploadsDir({ ensureExists: false });
+        if (fs.existsSync(uploadsDir)) {
+          const p1 = path.join(uploadsDir, this.bucketName, media.storagePath);
+          const p2 = path.join(uploadsDir, media.storagePath);
+          if (fs.existsSync(p1)) fs.unlinkSync(p1);
+          else if (fs.existsSync(p2)) fs.unlinkSync(p2);
+        }
+      } catch (err: any) {
+        console.warn('[STORAGE] Local file removal notice:', err.message);
+      }
     }
 
     // Audit log

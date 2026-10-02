@@ -139,9 +139,21 @@ app.get('/health', async (req, res) => {
 // Static assets (logos, church media)
 app.use('/assets', express.static(path.join(__dirname, '../public')));
 
-// Static uploads (user uploaded media, event flyers, post photos, badges)
-const uploadsDir = StorageService.getUploadsDir();
-app.use('/uploads', express.static(uploadsDir));
+// Static uploads (local development media fallback; production uses Supabase Storage)
+if (!process.env.VERCEL) {
+  const uploadsDir = StorageService.getUploadsDir({ ensureExists: true });
+  if (uploadsDir && fs.existsSync(uploadsDir)) {
+    app.use('/uploads', express.static(uploadsDir));
+  }
+} else {
+  // On Vercel, persistent media is served by Supabase Storage. Handle legacy /uploads requests gracefully
+  app.use('/uploads', (_req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      error: 'Local filesystem storage is not available in production. All media assets are stored in Supabase Storage.'
+    });
+  });
+}
 
 // Mount modular API router
 app.use('/api', apiRoutes);
