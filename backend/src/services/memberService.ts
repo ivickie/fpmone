@@ -99,6 +99,11 @@ export class MemberService {
 
     // Branch isolation enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
+      const role = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
+      const isTargetAdmin = user.adminLevel === 'super_admin' || role?.code === 'SUPER_ADMIN' || role?.name === 'Administrator' || role?.id === IDS.ROLE_SUPER_ADMIN;
+      if (isTargetAdmin) {
+        throw new Error('Privilege violation: Only an Administrator can approve an Administrator account.');
+      }
       if (member.primaryBranchId !== adminScope.branchId) {
         throw new Error('Branch isolation violation: You can only approve members belonging to your assigned branch.');
       }
@@ -197,8 +202,13 @@ export class MemberService {
 
     const member = db.members.find(m => m.userId === userId);
 
-    // Branch isolation enforcement
+    // Branch isolation and admin protection enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
+      const role = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
+      const isTargetAdmin = user.adminLevel === 'super_admin' || role?.code === 'SUPER_ADMIN' || role?.name === 'Administrator' || role?.id === IDS.ROLE_SUPER_ADMIN;
+      if (isTargetAdmin) {
+        throw new Error('Privilege violation: Only an Administrator can reject an Administrator account.');
+      }
       if (member && member.primaryBranchId !== adminScope.branchId) {
         throw new Error('Branch isolation violation: You can only reject registrations belonging to your assigned branch.');
       }
@@ -255,8 +265,13 @@ export class MemberService {
 
     const member = db.members.find(m => m.userId === userId);
 
-    // Branch isolation enforcement
+    // Branch isolation and admin protection enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
+      const role = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
+      const isTargetAdmin = user.adminLevel === 'super_admin' || role?.code === 'SUPER_ADMIN' || role?.name === 'Administrator' || role?.id === IDS.ROLE_SUPER_ADMIN;
+      if (isTargetAdmin) {
+        throw new Error('Privilege violation: Only an Administrator can request changes on an Administrator account.');
+      }
       if (member && member.primaryBranchId !== adminScope.branchId) {
         throw new Error('Branch isolation violation: You can only request changes for members belonging to your assigned branch.');
       }
@@ -392,6 +407,21 @@ export class MemberService {
     if (!user) throw new Error('User not found.');
 
     const member = db.members.find(m => m.userId === userId);
+    const memberRole = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
+    const isTargetAdmin = user.adminLevel === 'super_admin' || memberRole?.code === 'SUPER_ADMIN' || memberRole?.name === 'Administrator' || memberRole?.id === IDS.ROLE_SUPER_ADMIN;
+
+    // Only Administrator can alter status of an Administrator
+    if (isTargetAdmin && (!adminScope || adminScope.adminLevel !== 'super_admin')) {
+      throw new Error('Privilege violation: Only an Administrator has the privilege to alter the account status of an Administrator.');
+    }
+
+    if (isTargetAdmin && (newStatus === 'suspended' || newStatus === 'archived' || newStatus === 'rejected')) {
+      const otherActiveAdmins = db.users.filter(u => u.adminLevel === 'super_admin' && u.accountStatus === 'active' && u.id !== userId);
+      if (otherActiveAdmins.length === 0) {
+        throw new Error('Operation blocked: Cannot suspend or archive the sole active Administrator of the organization.');
+      }
+    }
+
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
       if (member && member.primaryBranchId !== adminScope.branchId) {
         throw new Error('Branch isolation violation: You can only update member status within your assigned branch.');
@@ -430,6 +460,15 @@ export class MemberService {
     const member = db.members.find(m => m.id === memberId);
     if (!member) throw new Error('Member not found.');
 
+    const currentRole = db.ministryRoles.find(r => r.id === member.primaryRoleId);
+    const targetUser = db.users.find(u => u.id === member.userId);
+    const isTargetAdmin = targetUser?.adminLevel === 'super_admin' || currentRole?.code === 'SUPER_ADMIN' || currentRole?.name === 'Administrator' || currentRole?.id === IDS.ROLE_SUPER_ADMIN;
+
+    // Nobody else should be able to edit an Administrator
+    if (isTargetAdmin && (!adminScope || adminScope.adminLevel !== 'super_admin')) {
+      throw new Error('Privilege violation: Only an Administrator has the privilege to edit an Administrator.');
+    }
+
     // Branch isolation and privilege escalation enforcement
     if (adminScope && adminScope.adminLevel !== 'super_admin') {
       if (member.primaryBranchId !== adminScope.branchId) {
@@ -440,8 +479,18 @@ export class MemberService {
       }
       if (data.roleId) {
         const targetRole = db.ministryRoles.find(r => r.id === data.roleId);
-        if (targetRole && (targetRole.code === 'SUPER_ADMIN' || targetRole.code === 'BRANCH_PASTOR' || targetRole.hierarchyLevel <= 2)) {
-          throw new Error('Privilege escalation violation: Branch administrators cannot assign Super Admin or Branch Pastor roles.');
+        if (targetRole && (targetRole.code === 'SUPER_ADMIN' || targetRole.name === 'Administrator' || targetRole.id === IDS.ROLE_SUPER_ADMIN || targetRole.code === 'BRANCH_PASTOR' || targetRole.hierarchyLevel <= 2)) {
+          throw new Error('Privilege escalation violation: Only an Administrator can assign the Administrator role.');
+        }
+      }
+    }
+
+    // Explicit check: Only Administrator can assign Administrator role
+    if (data.roleId) {
+      const targetNewRole = db.ministryRoles.find(r => r.id === data.roleId);
+      if (targetNewRole && (targetNewRole.code === 'SUPER_ADMIN' || targetNewRole.name === 'Administrator' || targetNewRole.id === IDS.ROLE_SUPER_ADMIN)) {
+        if (!adminScope || adminScope.adminLevel !== 'super_admin') {
+          throw new Error('Privilege escalation violation: Only an Administrator has the privilege to assign the Administrator role.');
         }
       }
     }
@@ -515,6 +564,23 @@ export class MemberService {
             });
           }
         }
+      }
+    }
+
+    if (data.roleId && targetUser) {
+      const targetNewRole = db.ministryRoles.find(r => r.id === data.roleId);
+      if (targetNewRole && (targetNewRole.code === 'SUPER_ADMIN' || targetNewRole.id === IDS.ROLE_SUPER_ADMIN)) {
+        targetUser.isAdmin = true;
+        targetUser.adminLevel = 'super_admin';
+        persistUser(targetUser).catch(() => {});
+      } else if (targetNewRole && (targetNewRole.code === 'BRANCH_ADMIN' || targetNewRole.id === IDS.ROLE_BRANCH_ADMIN)) {
+        targetUser.isAdmin = true;
+        targetUser.adminLevel = 'branch_admin';
+        persistUser(targetUser).catch(() => {});
+      } else if (isTargetAdmin) {
+        targetUser.isAdmin = false;
+        targetUser.adminLevel = 'none';
+        persistUser(targetUser).catch(() => {});
       }
     }
 
@@ -602,12 +668,27 @@ export class MemberService {
     const defaultRole = db.ministryRoles.find(r => r.code === 'MEMBER') || db.ministryRoles[0];
     const roleId = data.primaryRoleId || defaultRole.id;
     const role = db.ministryRoles.find(r => r.id === roleId) || defaultRole;
+
+    const isTargetSuperAdminRole = role.code === 'SUPER_ADMIN' || role.name === 'Administrator' || role.id === IDS.ROLE_SUPER_ADMIN;
+    if (isTargetSuperAdminRole && (!adminScope || adminScope.adminLevel !== 'super_admin')) {
+      throw new Error('Privilege violation: Only an Administrator has the privilege to add or assign an Administrator.');
+    }
+
+    if (adminScope && adminScope.adminLevel !== 'super_admin') {
+      if (role.code === 'BRANCH_ADMIN' || role.code === 'BRANCH_PASTOR' || role.hierarchyLevel <= 2) {
+        throw new Error('Privilege escalation violation: Branch administrators cannot assign administrative or pastoral roles.');
+      }
+    }
+
     const isWorker = data.isWorker !== undefined ? data.isWorker : (role.code !== 'MEMBER');
 
     const now = new Date().toISOString();
     const userId = uuidv4();
     const memberId = uuidv4();
     const accountStatus: AccountStatus = data.status || 'active';
+
+    const isAdminRole = isTargetSuperAdminRole;
+    const isBranchAdminRole = role.code === 'BRANCH_ADMIN' || role.id === IDS.ROLE_BRANCH_ADMIN;
 
     // 1. Create User
     const newUser: User = {
@@ -616,8 +697,8 @@ export class MemberService {
       phone: data.phone.trim(),
       passwordHash: bcrypt.hashSync(data.password || 'Password123!', 10),
       accountStatus,
-      isAdmin: false,
-      adminLevel: 'none',
+      isAdmin: isAdminRole || isBranchAdminRole,
+      adminLevel: isAdminRole ? 'super_admin' : (isBranchAdminRole ? 'branch_admin' : 'none'),
       createdAt: now,
       updatedAt: now
     };

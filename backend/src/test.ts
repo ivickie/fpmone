@@ -2805,6 +2805,158 @@ async function runTests() {
       });
       assert(crossBranchUpdateRes.status === 403, 'Branch Admin modifying department outside branch blocked with HTTP 403');
 
+      // -----------------------------------------------------------------------
+      // Administrator vs Branch Administrator Privilege & Protection Tests
+      // -----------------------------------------------------------------------
+      console.log('\n--- Administrator vs Branch Administrator Privilege Tests ---');
+
+      // Find the primary Super Administrator member record
+      const superAdminMember = db.members.find(m => m.userId === IDS.USER_ADMIN);
+      assert(superAdminMember !== undefined, 'Primary Super Admin member record exists');
+
+      // Test A1: Branch Admin CANNOT add a new member as an Administrator
+      const branchAdminAddAdminRes = await fetch(`${baseTestUrl}/api/members`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          firstName: 'Rogue',
+          lastName: 'Admin',
+          email: 'rogue.admin@fpmglobal.online',
+          phone: '+234 811 000 9991',
+          primaryBranchId: IDS.BRANCH_ILORIN,
+          primaryRoleId: IDS.ROLE_SUPER_ADMIN
+        })
+      });
+      assert(branchAdminAddAdminRes.status === 400 || branchAdminAddAdminRes.status === 403, 'Branch Admin adding an Administrator is rejected (HTTP 400/403)');
+      const rogueAddAdminJson: any = await branchAdminAddAdminRes.json();
+      assert(rogueAddAdminJson.error && rogueAddAdminJson.error.toLowerCase().includes('administrator'), 'Rejection explains Administrator privilege requirement');
+
+      // Test A2: Super Admin CAN add a new member as an Administrator
+      const superAdminAddAdminRes = await fetch(`${baseTestUrl}/api/members`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          firstName: 'Second',
+          lastName: 'Administrator',
+          email: 'second.admin@faithpreachers.org',
+          phone: '+234 811 000 9992',
+          primaryBranchId: IDS.BRANCH_HQ,
+          primaryRoleId: IDS.ROLE_SUPER_ADMIN
+        })
+      });
+      assert(superAdminAddAdminRes.status === 201, 'Super Admin adding a new Administrator succeeds with HTTP 201');
+      const secondAdminJson: any = await superAdminAddAdminRes.json();
+      const secondAdminMember = secondAdminJson.member;
+      assert(secondAdminMember.roleName === 'Administrator', 'New user is designated as Administrator');
+      const secondAdminUser = db.users.find(u => u.id === secondAdminMember.userId);
+      assert(secondAdminUser?.adminLevel === 'super_admin' && secondAdminUser?.isAdmin === true, 'New user receives super_admin access level and isAdmin flag');
+
+      // Test A3: Branch Admin CANNOT edit the Administrator profile
+      const branchAdminEditAdminRes = await fetch(`${baseTestUrl}/api/members/${superAdminMember!.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          firstName: 'Hacked',
+          lastName: 'Admin'
+        })
+      });
+      assert(branchAdminEditAdminRes.status === 403, 'Branch Admin editing an Administrator profile is blocked with HTTP 403');
+      const branchAdminEditJson: any = await branchAdminEditAdminRes.json();
+      assert(branchAdminEditJson.error.includes('Only an Administrator has the privilege to edit an Administrator'), 'Rejection explains only Administrator can edit Administrator');
+
+      // Test A4: Branch Admin CANNOT reassign the Administrator role/branch
+      const branchAdminReassignAdminRes = await fetch(`${baseTestUrl}/api/members/${superAdminMember!.id}/assignment`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          roleId: IDS.ROLE_MEMBER
+        })
+      });
+      assert(branchAdminReassignAdminRes.status === 400 || branchAdminReassignAdminRes.status === 403, 'Branch Admin demoting an Administrator is rejected');
+
+      // Test A5: Branch Admin CANNOT assign the Administrator role to another member
+      const workerSarah = db.members.find(m => m.id === IDS.MEMBER_SARAH);
+      const branchAdminPromoteSarahRes = await fetch(`${baseTestUrl}/api/members/${workerSarah!.id}/assignment`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          roleId: IDS.ROLE_SUPER_ADMIN
+        })
+      });
+      assert(branchAdminPromoteSarahRes.status === 400 || branchAdminPromoteSarahRes.status === 403, 'Branch Admin promoting member to Administrator is blocked');
+
+      // Test A6: Branch Admin CANNOT suspend or archive the Administrator
+      const branchAdminSuspendAdminRes = await fetch(`${baseTestUrl}/api/members/${superAdminMember!.userId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'suspended'
+        })
+      });
+      assert(branchAdminSuspendAdminRes.status === 400 || branchAdminSuspendAdminRes.status === 403, 'Branch Admin suspending Administrator is blocked');
+
+      // Test A7: Branch Admin CANNOT delete the Administrator
+      const branchAdminDeleteAdminRes = await fetch(`${baseTestUrl}/api/members/${superAdminMember!.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`
+        }
+      });
+      assert(branchAdminDeleteAdminRes.status === 403, 'Branch Admin deleting Administrator is blocked with HTTP 403');
+      const branchAdminDeleteJson: any = await branchAdminDeleteAdminRes.json();
+      assert(branchAdminDeleteJson.error.includes('Only an Administrator has the privilege to delete an Administrator'), 'Rejection explains only Administrator can delete Administrator');
+
+      // Test A8: Super Admin CANNOT delete their own Administrator account
+      const selfDeleteAdminRes = await fetch(`${baseTestUrl}/api/members/${superAdminMember!.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
+      assert(selfDeleteAdminRes.status === 400, 'Super Admin cannot delete own account (HTTP 400)');
+
+      // Test A9: Super Admin CAN edit another Administrator
+      const superAdminEditSecondAdminRes = await fetch(`${baseTestUrl}/api/members/${secondAdminMember.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          firstName: 'Updated',
+          lastName: 'Administrator'
+        })
+      });
+      assert(superAdminEditSecondAdminRes.status === 200, 'Super Admin can edit another Administrator (HTTP 200)');
+
+      // Test A10: Super Admin CAN delete secondary Administrator
+      const superAdminDeleteSecondAdminRes = await fetch(`${baseTestUrl}/api/members/${secondAdminMember.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
+      assert(superAdminDeleteSecondAdminRes.status === 200, 'Super Admin can delete secondary Administrator (HTTP 200)');
+      assert(db.members.find(m => m.id === secondAdminMember.id) === undefined, 'Secondary Administrator removed from database');
+
     } finally {
       testServer.close();
     }

@@ -8,7 +8,7 @@ import {
   getDepartmentPositionsHandler, createPositionHandler, deletePositionHandler,
   getRolesHandler, createRoleHandler, updateRoleHandler, deleteRoleHandler,
   getPendingApprovalsHandler, approveMemberHandler, rejectMemberHandler, requestChangesHandler,
-  listMembersHandler, getMemberByIdHandler, createMemberHandler, updateMemberHandler, updateMemberStatusHandler, updateMemberAssignmentHandler,
+  listMembersHandler, getMemberByIdHandler, createMemberHandler, updateMemberHandler, deleteMemberHandler, updateMemberStatusHandler, updateMemberAssignmentHandler,
   listWorkersHandler, getWorkerByIdHandler, updateWorkerHandler,
   clockInHandler, clockOutHandler, triggerAutoClockOutHandler, markAbsencesHandler, excuseAbsenceHandler,
   getAttendanceDashboardHandler, getAttendanceMatrixHandler, exportAttendanceCsvHandler, getMyAttendanceHistoryHandler,
@@ -88,6 +88,7 @@ router.get('/members', requireAuth, requireAdmin, listMembersHandler);
 router.post('/members', requireAuth, requireAdmin, createMemberHandler);
 router.get('/members/:id', requireAuth, requireAdmin, getMemberByIdHandler);
 router.put('/members/:id', requireAuth, requireAdmin, updateMemberHandler);
+router.delete('/members/:id', requireAuth, requireAdmin, deleteMemberHandler);
 router.put('/members/:id/status', requireAuth, requireAdmin, updateMemberStatusHandler);
 router.put('/members/:id/assignment', requireAuth, requireAdmin, updateMemberAssignmentHandler);
 

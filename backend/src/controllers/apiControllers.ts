@@ -1190,6 +1190,15 @@ export const updateMemberHandler = (req: Request, res: Response) => {
     const member = db.members.find(m => m.id === req.params.id);
     if (!member) return res.status(404).json({ success: false, error: 'Member not found.' });
 
+    const user = db.users.find(u => u.id === member.userId);
+    const role = db.ministryRoles.find(r => r.id === member.primaryRoleId);
+    const isTargetAdmin = user?.adminLevel === 'super_admin' || role?.code === 'SUPER_ADMIN' || role?.name === 'Administrator' || role?.id === IDS.ROLE_SUPER_ADMIN;
+
+    // Only Administrator can edit an Administrator
+    if (isTargetAdmin && req.user?.adminLevel !== 'super_admin') {
+      return res.status(403).json({ success: false, error: 'Access denied: Only an Administrator has the privilege to edit an Administrator account.' });
+    }
+
     // Branch isolation
     if (req.user?.adminLevel !== 'super_admin' && req.user?.branchId !== member.primaryBranchId) {
       return res.status(403).json({ success: false, error: 'Branch isolation violation: Cannot modify members of other branches.' });
@@ -1213,7 +1222,6 @@ export const updateMemberHandler = (req: Request, res: Response) => {
     member.updatedAt = new Date().toISOString();
     persistMember(member).catch(() => {});
 
-    const user = db.users.find(u => u.id === member.userId);
     if (user) {
       if (email) user.email = email;
       if (phone) user.phone = phone;
@@ -1233,6 +1241,85 @@ export const updateMemberHandler = (req: Request, res: Response) => {
     );
 
     return res.json({ success: true, member });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const deleteMemberHandler = (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    let member = db.members.find(m => m.id === id);
+    const memberUserId = member?.userId;
+    let user = memberUserId ? db.users.find(u => u.id === memberUserId) : db.users.find(u => u.id === id);
+    if (!member && user) {
+      member = db.members.find(m => m.userId === user.id);
+    }
+
+    if (!member && !user) {
+      return res.status(404).json({ success: false, error: 'Member not found.' });
+    }
+
+    const role = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : null;
+    const isTargetAdmin = user?.adminLevel === 'super_admin' || role?.code === 'SUPER_ADMIN' || role?.name === 'Administrator' || role?.id === IDS.ROLE_SUPER_ADMIN;
+
+    // Only Administrator can delete an Administrator
+    if (isTargetAdmin) {
+      if (req.user?.adminLevel !== 'super_admin') {
+        return res.status(403).json({ success: false, error: 'Access denied: Only an Administrator has the privilege to delete an Administrator.' });
+      }
+      if (user?.id === req.user?.userId) {
+        return res.status(400).json({ success: false, error: 'Cannot delete your own Administrator account.' });
+      }
+      const otherActiveAdmins = db.users.filter(u => u.adminLevel === 'super_admin' && u.accountStatus === 'active' && u.id !== user?.id);
+      if (otherActiveAdmins.length === 0) {
+        return res.status(400).json({ success: false, error: 'Operation blocked: Cannot delete the sole active Administrator of the organization.' });
+      }
+    }
+
+    // Branch isolation check for branch admins
+    if (req.user?.adminLevel !== 'super_admin' && member && req.user?.branchId !== member.primaryBranchId) {
+      return res.status(403).json({ success: false, error: 'Branch isolation violation: Cannot delete members of other branches.' });
+    }
+
+    // Delete associated worker record
+    if (member) {
+      const workerIdx = db.workers.findIndex(w => w.memberId === member.id);
+      if (workerIdx !== -1) {
+        const worker = db.workers[workerIdx];
+        db.workers.splice(workerIdx, 1);
+        persistDelete('workers', worker.id).catch(() => {});
+      }
+
+      // Delete member record
+      const memberIdx = db.members.findIndex(m => m.id === member.id);
+      if (memberIdx !== -1) {
+        db.members.splice(memberIdx, 1);
+        persistDelete('members', member.id).catch(() => {});
+      }
+    }
+
+    // Delete user record
+    if (user) {
+      const userIdx = db.users.findIndex(u => u.id === user.id);
+      if (userIdx !== -1) {
+        db.users.splice(userIdx, 1);
+        persistDelete('users', user.id).catch(() => {});
+      }
+    }
+
+    AuditService.log(
+      req.user?.fullName || 'Admin',
+      req.user?.roleName || 'admin',
+      'MEMBER_DELETED',
+      'member',
+      member?.id || user?.id || id,
+      req.user?.userId,
+      null,
+      { memberName: member ? `${member.firstName} ${member.lastName}` : 'User', email: user?.email }
+    );
+
+    return res.json({ success: true, message: 'Member deleted successfully.' });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

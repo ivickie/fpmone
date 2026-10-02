@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, UserCheck, Shield, Building2, Eye,
-  Edit2, Ban, CheckCircle, Archive, QrCode, Phone, Mail, MapPin, AlertCircle, X, Users, User, UserPlus, Plus
+  Edit2, Ban, CheckCircle, Archive, QrCode, Phone, Mail, MapPin, AlertCircle, X, Users, User, UserPlus, Plus, Lock, Trash2
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -225,9 +225,41 @@ export const MembersPage: React.FC = () => {
     setEditWorkerOpen(true);
   };
 
-  const promptStatusChange = (userId: string, status: string, name: string) => {
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; isTargetAdmin: boolean } | null>(null);
+
+  const promptStatusChange = (userId: string, status: string, name: string, isTargetAdmin?: boolean) => {
+    if (isTargetAdmin && user?.adminLevel !== 'super_admin') {
+      toast.error('Only an Administrator has the privilege to modify an Administrator account.');
+      return;
+    }
     setStatusTarget({ userId, status, name });
     setConfirmStatusOpen(true);
+  };
+
+  const promptDeleteMember = (m: any) => {
+    const isTargetAdmin = m.roleCode === 'SUPER_ADMIN' || m.roleName === 'Administrator';
+    if (isTargetAdmin && user?.adminLevel !== 'super_admin') {
+      toast.error('Only an Administrator has the privilege to delete an Administrator.');
+      return;
+    }
+    setDeleteTarget({ id: m.id, name: m.fullName, isTargetAdmin });
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setActionLoading(true);
+    try {
+      await api.deleteMember(deleteTarget.id);
+      setConfirmDeleteOpen(false);
+      toast.success(`Member record for '${deleteTarget.name}' has been deleted.`);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete member record');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleConfirmStatusChange = async () => {
@@ -502,53 +534,88 @@ export const MembersPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end space-x-1">
-                          <button
-                            onClick={() => openViewDetails(m)}
-                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-blue-600 rounded-lg transition"
-                            title="View Full Details"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => openEditProfile(m)}
-                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 rounded-lg transition"
-                            title="Edit Personal Information"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => openEditAssignment(m)}
-                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg transition"
-                            title="Edit Role & Assignment"
-                          >
-                            <Shield className="w-3.5 h-3.5" />
-                          </button>
-                          {m.accountStatus === 'active' ? (
-                            <button
-                              onClick={() => promptStatusChange(m.userId, 'suspended', m.fullName)}
-                              className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                              title="Suspend Account"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => promptStatusChange(m.userId, 'active', m.fullName)}
-                              className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg transition"
-                              title="Activate Account"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => promptStatusChange(m.userId, 'archived', m.fullName)}
-                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg transition"
-                            title="Archive Account"
-                          >
-                            <Archive className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        {(() => {
+                          const isTargetAdmin = m.roleCode === 'SUPER_ADMIN' || m.roleName === 'Administrator';
+                          const canModify = user?.adminLevel === 'super_admin' || !isTargetAdmin;
+
+                          if (!canModify) {
+                            return (
+                              <div className="flex items-center justify-end space-x-1.5">
+                                <button
+                                  onClick={() => openViewDetails(m)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-blue-600 rounded-lg transition"
+                                  title="View Full Details"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-slate-500 bg-slate-100 rounded-md border border-slate-200"
+                                  title="Protected Account: Only an Administrator can add, edit, or delete an Administrator."
+                                >
+                                  <Lock className="w-3 h-3 text-slate-400" />
+                                  Admin Protected
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex items-center justify-end space-x-1">
+                              <button
+                                onClick={() => openViewDetails(m)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-blue-600 rounded-lg transition"
+                                title="View Full Details"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => openEditProfile(m)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 rounded-lg transition"
+                                title="Edit Personal Information"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => openEditAssignment(m)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg transition"
+                                title="Edit Role & Assignment"
+                              >
+                                <Shield className="w-3.5 h-3.5" />
+                              </button>
+                              {m.accountStatus === 'active' ? (
+                                <button
+                                  onClick={() => promptStatusChange(m.userId, 'suspended', m.fullName, isTargetAdmin)}
+                                  className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                                  title="Suspend Account"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => promptStatusChange(m.userId, 'active', m.fullName, isTargetAdmin)}
+                                  className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg transition"
+                                  title="Activate Account"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => promptStatusChange(m.userId, 'archived', m.fullName, isTargetAdmin)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg transition"
+                                title="Archive Account"
+                              >
+                                <Archive className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => promptDeleteMember(m)}
+                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                                title="Delete Member Record"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))
@@ -903,9 +970,11 @@ export const MembersPage: React.FC = () => {
                   onChange={e => setAssignmentForm({ ...assignmentForm, roleId: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                 >
-                  {roles.map(r => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
+                  {roles
+                    .filter(r => user?.adminLevel === 'super_admin' || (r.code !== 'SUPER_ADMIN' && r.name !== 'Administrator'))
+                    .map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
                 </select>
               </div>
 
@@ -1190,9 +1259,11 @@ export const MembersPage: React.FC = () => {
                       }}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
                     >
-                      {roles.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
+                      {roles
+                        .filter(r => user?.adminLevel === 'super_admin' || (r.code !== 'SUPER_ADMIN' && r.name !== 'Administrator'))
+                        .map(r => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
                     </select>
                   </div>
                 </div>
@@ -1335,6 +1406,18 @@ export const MembersPage: React.FC = () => {
         isLoading={actionLoading}
         onConfirm={handleConfirmStatusChange}
         onClose={() => setConfirmStatusOpen(false)}
+      />
+
+      {/* Confirm Delete Member Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        title={`Permanently Delete Member: ${deleteTarget?.name}`}
+        message={`Are you sure you want to permanently delete the member record for '${deleteTarget?.name}'? This action cannot be undone.`}
+        confirmText="Delete Record"
+        variant="danger"
+        isLoading={actionLoading}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setConfirmDeleteOpen(false)}
       />
     </div>
   );

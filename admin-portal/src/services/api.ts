@@ -128,6 +128,8 @@ export const api = {
     apiRequest(`/members/${userId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   updateMemberAssignment: (memberId: string, data: any) =>
     apiRequest(`/members/${memberId}/assignment`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteMember: (memberId: string) =>
+    apiRequest(`/members/${memberId}`, { method: 'DELETE' }),
 
   getWorkers: (params: { search?: string; branchId?: string; departmentId?: string; status?: string } = {}) => {
     const searchParams = new URLSearchParams();
