@@ -1884,6 +1884,50 @@ async function runTests() {
     const lekkiStmt = FinanceService.getMonthlyStatement(IDS.BRANCH_LEKKI, 2026, 2, branchPastorUser as any);
     assert(lekkiStmt.totalIncome === 0, 'Voided transaction successfully excluded from financial statement');
 
+    // TEST 156b: Branch Pastor Branch Scoping Isolation (Cannot see entire church records)
+    const bpGlobalTxReq = mockReqRes({
+      query: { branchId: 'all' },
+      user: branchPastorUser
+    });
+    getFinanceTransactionsHandler(bpGlobalTxReq.req, bpGlobalTxReq.res);
+    assert(bpGlobalTxReq.getStatus() === 200, 'Branch Pastor getTransactions returns 200');
+    const bpTxs = bpGlobalTxReq.getData()?.transactions || [];
+    const hasNonLekkiTx = bpTxs.some((t: any) => t.branchId !== IDS.BRANCH_LEKKI);
+    assert(!hasNonLekkiTx, 'Branch Pastor querying "all" is hard-locked to their branch; cannot see other branch transactions');
+
+    // TEST 156c: Branch Pastor cannot see Super Admin multi-branch comparison
+    const bpGlobalDashReq = mockReqRes({
+      query: { branchId: 'all', year: 2026, month: 2 },
+      user: branchPastorUser
+    });
+    getFinanceDashboardHandler(bpGlobalDashReq.req, bpGlobalDashReq.res);
+    assert(bpGlobalDashReq.getStatus() === 200, 'Branch Pastor dashboard returns 200');
+    const bpDashData = bpGlobalDashReq.getData();
+    assert(bpDashData.branchComparison === undefined, 'Branch Pastor receives NO multi-branch comparison (Only Super Admin can view entire church)');
+    assert(bpDashData.branchId === IDS.BRANCH_LEKKI, 'Branch Pastor dashboard is hard-locked to assigned branch');
+
+    // TEST 156d: Branch Pastor cannot view individual transaction from another branch (HQ)
+    const hqTx = db.financeTransactions.find(t => t.branchId === IDS.BRANCH_HQ);
+    if (hqTx) {
+      const bpCrossBranchTxReq = mockReqRes({
+        params: { id: hqTx.id },
+        user: branchPastorUser
+      });
+      getFinanceTransactionByIdHandler(bpCrossBranchTxReq.req, bpCrossBranchTxReq.res);
+      assert(bpCrossBranchTxReq.getStatus() === 403, 'Branch Pastor viewing HQ transaction rejected with HTTP 403 Forbidden');
+    }
+
+    // TEST 156e: Branch Admin cannot view other branch records (Spoofing another branch query)
+    const baCrossBranchReq = mockReqRes({
+      query: { branchId: IDS.BRANCH_LEKKI },
+      user: churchAdminUser // churchAdminUser is assigned to HQ
+    });
+    getFinanceTransactionsHandler(baCrossBranchReq.req, baCrossBranchReq.res);
+    assert(baCrossBranchReq.getStatus() === 200, 'Branch Admin query returns 200');
+    const baTxs = baCrossBranchReq.getData()?.transactions || [];
+    const hasLekkiForHqAdmin = baTxs.some((t: any) => t.branchId === IDS.BRANCH_LEKKI);
+    assert(!hasLekkiForHqAdmin, 'Branch Admin querying another branch is forced to their assigned branch only');
+
     // TEST 157: Annual Statement Reconciliation
     // Annual Opening == Month 1 Opening
     // Sequential continuity: Month N+1 opening == Month N closing
