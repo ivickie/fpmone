@@ -16,6 +16,8 @@ export interface ClockInParams {
 }
 
 export class AttendanceService {
+  public static lastAutoClockOutRunAt: string | null = null;
+
   /**
    * Authoritative Server-Side Clock In
    */
@@ -214,6 +216,7 @@ export class AttendanceService {
    */
   public static autoClockOutExpiredSessions(currentTime?: Date): number {
     const serverNow = currentTime || new Date();
+    AttendanceService.lastAutoClockOutRunAt = serverNow.toISOString();
     let count = 0;
 
     for (const record of db.attendanceRecords) {

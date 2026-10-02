@@ -82,7 +82,7 @@ const AppContent: React.FC = () => {
     finance: { title: 'Finance, Treasury & General Ledger', subtitle: 'Authoritative financial ledger, income & expenses, monthly/annual statements, and audit analytics' },
     notifications: { title: 'Push Notification Dispatcher', subtitle: 'Broadcast targeted mobile push messages and urgent alerts' },
     audit: { title: 'Administrative Audit Trail', subtitle: 'Immutable security log of all sensitive actions and approvals' },
-    settings: { title: 'System Policies & Configuration', subtitle: 'Configure attendance rules, auto clock-out limits, and grace periods' }
+    settings: { title: 'General Settings', subtitle: 'Global ministry configuration, operational policies, branding, regional rules & system health' }
   };
 
   const currentInfo = tabTitles[currentTab];

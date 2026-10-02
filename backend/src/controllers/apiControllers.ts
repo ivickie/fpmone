@@ -7,6 +7,7 @@ import { AttendanceService } from '../services/attendanceService';
 import { AuditService } from '../services/auditService';
 import { StorageService } from '../services/storageService';
 import { FinanceService } from '../services/financeService';
+import { SettingsService } from '../services/settingsService';
 import {
   Branch, Department, DepartmentPosition, EventItem, PostItem,
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
@@ -1937,6 +1938,11 @@ export const getTestimoniesQueueHandler = (req: Request, res: Response) => {
 
 export const submitTestimonyHandler = (req: Request, res: Response) => {
   try {
+    const generalSettings = SettingsService.getSettings();
+    if (!generalSettings.registration.allowTestimonies || !generalSettings.media.allowMemberTestimonies) {
+      return res.status(403).json({ error: 'Testimony submissions are currently paused by administration.' });
+    }
+
     const { title, content, category, photoUrl, videoUrl, allowPublish } = req.body;
     if (!title || !content) return res.status(400).json({ error: 'Title and content are required.' });
 
@@ -2164,55 +2170,40 @@ export const getAuditLogsHandler = (req: Request, res: Response) => {
 // SETTINGS CONTROLLER
 // =============================================================================
 export const getSettingsHandler = (req: Request, res: Response) => {
-  return res.json(db.attendanceSettings);
+  const branchId = (req.query.branchId as string) || req.user?.branchId;
+  const settings = SettingsService.getSettingsForBranch(branchId);
+  return res.json({
+    ...settings.attendance,
+    ...settings
+  });
 };
 
 export const updateSettingsHandler = (req: Request, res: Response) => {
-  const isSuperAdmin = req.user?.adminLevel === 'super_admin';
-  const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
 
-  if (!isSuperAdmin && !isBranchAdmin) {
-    return res.status(403).json({
+    const updated = SettingsService.updateSettings(req.body, user);
+    return res.json({
+      ...updated.attendance,
+      ...updated
+    });
+  } catch (err: any) {
+    const isForbidden = err.message?.includes('privileges required') || err.message?.includes('Only Super Administrators');
+    return res.status(isForbidden ? 403 : 400).json({
       success: false,
-      error: 'Branch Administrator or Super Administrator privileges required to edit System & Ministry Configuration. Heads of Department cannot modify system settings.'
+      error: err.message || 'Failed to update settings.'
     });
   }
+};
 
-  // Whitelist allowable settings properties to prevent mass assignment
-  const {
-    defaultGracePeriodMinutes,
-    autoClockOutHours,
-    manualClockOutEnabled,
-    earliestClockInMinutes,
-    allowBiometricClockIn,
-    allowQrClockIn,
-    allowPinClockIn
-  } = req.body;
-
-  if (defaultGracePeriodMinutes !== undefined && !isNaN(Number(defaultGracePeriodMinutes))) {
-    db.attendanceSettings.defaultGracePeriodMinutes = Math.max(0, Number(defaultGracePeriodMinutes));
+export const getSystemHealthHandler = async (req: Request, res: Response) => {
+  try {
+    const health = await SettingsService.getSystemHealth();
+    return res.json({ success: true, ...health });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: 'Failed to retrieve system health metrics.' });
   }
-  if (autoClockOutHours !== undefined && !isNaN(Number(autoClockOutHours))) {
-    db.attendanceSettings.autoClockOutHours = Math.max(0.5, Number(autoClockOutHours));
-  }
-  if (manualClockOutEnabled !== undefined) {
-    db.attendanceSettings.manualClockOutEnabled = Boolean(manualClockOutEnabled);
-  }
-  if (earliestClockInMinutes !== undefined && !isNaN(Number(earliestClockInMinutes))) {
-    db.attendanceSettings.earliestClockInMinutes = Math.max(0, Number(earliestClockInMinutes));
-  }
-  if (allowBiometricClockIn !== undefined) {
-    db.attendanceSettings.allowBiometricClockIn = Boolean(allowBiometricClockIn);
-  }
-  if (allowQrClockIn !== undefined) {
-    db.attendanceSettings.allowQrClockIn = Boolean(allowQrClockIn);
-  }
-  if (allowPinClockIn !== undefined) {
-    db.attendanceSettings.allowPinClockIn = Boolean(allowPinClockIn);
-  }
-
-  db.attendanceSettings.updatedAt = new Date().toISOString();
-  return res.json(db.attendanceSettings);
 };
 
 // =============================================================================
@@ -2228,6 +2219,17 @@ export const uploadMediaHandler = async (req: Request, res: Response) => {
     const { entityType, entityId, branchId } = req.body;
     if (!entityType) {
       return res.status(400).json({ success: false, error: 'entityType is required.' });
+    }
+
+    const mediaSettings = SettingsService.getSettings().media;
+    if (file.size > mediaSettings.maxUploadSizeMb * 1024 * 1024) {
+      return res.status(400).json({ success: false, error: `File size exceeds the maximum permitted limit of ${mediaSettings.maxUploadSizeMb} MB.` });
+    }
+    if (mediaSettings.allowedImageFormats.length > 0 && !mediaSettings.allowedImageFormats.includes(file.mimetype) && !file.mimetype.startsWith('video/')) {
+      return res.status(400).json({ success: false, error: `File type ${file.mimetype} is not permitted. Allowed formats: ${mediaSettings.allowedImageFormats.join(', ')}.` });
+    }
+    if (entityType === 'sunday_moment' && !mediaSettings.allowMemberMomentsUpload && !req.user?.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Member image uploads for Sunday Moments are currently disabled.' });
     }
 
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;

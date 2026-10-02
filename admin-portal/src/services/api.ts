@@ -234,6 +234,7 @@ export const api = {
   // Settings
   getSettings: () => apiRequest('/settings'),
   updateSettings: (data: any) => apiRequest('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  getSystemHealth: () => apiRequest('/settings/health'),
 
   // Department Reports
   getDepartmentReports: (params: { branchId?: string; departmentId?: string; reportType?: string; status?: string; startDate?: string; endDate?: string } = {}) => {

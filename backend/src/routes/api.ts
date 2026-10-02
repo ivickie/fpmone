@@ -18,7 +18,7 @@ import {
   getHighlightsHandler, createHighlightHandler, updateHighlightHandler, deleteHighlightHandler,
   getApprovedTestimoniesHandler, getTestimoniesQueueHandler, submitTestimonyHandler, reviewTestimonyHandler, deleteTestimonyHandler,
   getNotificationsHandler, broadcastNotificationHandler, markNotificationReadHandler, deleteNotificationHandler,
-  getAuditLogsHandler, getSettingsHandler, updateSettingsHandler,
+  getAuditLogsHandler, getSettingsHandler, updateSettingsHandler, getSystemHealthHandler,
   uploadMediaHandler, uploadAvatarHandler, deleteMediaHandler, listMediaHandler,
   getDbStatusHandler,
   getDepartmentReportsHandler, getDepartmentReportByIdHandler,
@@ -158,6 +158,7 @@ router.get('/audit-logs', requireAuth, requireAdmin, getAuditLogsHandler);
 // --- SETTINGS ---
 router.get('/settings', requireAuth, requireAdmin, getSettingsHandler);
 router.put('/settings', requireAuth, requireAdmin, updateSettingsHandler);
+router.get('/settings/health', requireAuth, requireAdmin, getSystemHealthHandler);
 
 // --- DATABASE HEALTH & STATUS ---
 router.get('/db/status', getDbStatusHandler);

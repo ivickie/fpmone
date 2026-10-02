@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, IDS } from '../data/mockDb';
 import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem } from '../types';
 import { AuditService } from './auditService';
+import { SettingsService } from './settingsService';
 import { persistUser, persistMember, persistNotification } from '../db/sync';
 import { checkAccountLoginThrottle, recordFailedLogin, clearLoginAttempts } from '../middleware/rateLimitMiddleware';
 
@@ -110,6 +111,12 @@ export class AuthService {
   }
 
   public static async register(data: RegistrationRequestDto): Promise<{ success: boolean; message: string; userId?: string }> {
+    // 0. Enforce Registration Settings
+    const regSettings = SettingsService.getSettings().registration;
+    if (!regSettings.allowRegistrations) {
+      throw new Error(regSettings.registrationPausedMessage || 'New member registration is temporarily paused. Please contact church administration.');
+    }
+
     // 1. Validate duplicates
     const cleanEmail = data.email.trim().toLowerCase();
     const cleanPhone = data.phone.trim();
@@ -135,13 +142,13 @@ export class AuthService {
       assignedRoleId = data.isWorker ? IDS.ROLE_WORKER : IDS.ROLE_MEMBER;
     }
 
-    // 3. Create user in pending state
+    // 3. Create user in pending state (or active if requireApproval is false)
     const newUser: User = {
       id: userId,
       email: cleanEmail,
       phone: cleanPhone,
       passwordHash,
-      accountStatus: 'pending',
+      accountStatus: regSettings.requireApproval ? 'pending' : 'active',
       isAdmin: false,
       adminLevel: 'none',
       createdAt: now,

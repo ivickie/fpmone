@@ -76,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'notifications' as NavTab, label: 'Notifications', icon: Bell },
         { id: 'audit' as NavTab, label: 'Audit Logs', icon: History },
-        { id: 'settings' as NavTab, label: 'Settings', icon: Settings }
+        { id: 'settings' as NavTab, label: 'General Settings', icon: Settings }
       ]
     }
   ];
