@@ -32,6 +32,7 @@ DECLARE
     v_dept_prayer UUID := 'd5555555-5555-5555-5555-555555555555';
     v_dept_welfare UUID := 'd6666666-6666-6666-6666-666666666666';
     v_dept_children UUID := 'd7777777-7777-7777-7777-777777777777';
+    v_dept_pastoral UUID := 'd8888888-8888-8888-8888-888888888888';
 
     -- Position IDs
     v_pos_choir_dir UUID := gen_random_uuid();
@@ -111,16 +112,58 @@ BEGIN
     (v_role_worker, 'Worker', 'WORKER', 'Dedicated ministry worker serving in departments and services', 6, FALSE),
     (v_role_member, 'Member', 'MEMBER', 'Valued member of Faith Preachers Ministries Int''l church family', 7, FALSE);
 
-    -- 4. Insert Departments
+    -- 4. Insert Departments for All Branches
     INSERT INTO departments (id, branch_id, name, code, description, hod_name, status)
     VALUES
+    -- Headquarters (Ilorin)
     (v_dept_choir, v_branch_hq, 'Choir (Voices of Faith)', 'CHOIR', 'Ministering praises, worship, and choral orchestration in services', 'Sister Rachel Adams', 'active'),
     (v_dept_media, v_branch_hq, 'Media & Technology', 'MEDIA', 'Audio/visual broadcast, live streaming, digital screens, photography', 'Brother John Mensah', 'active'),
     (v_dept_ushering, v_branch_hq, 'Ushering & Protocol', 'USHER', 'Sanctuary seating coordination, hospitality, VIP protocol', 'Deacon Paul Eke', 'active'),
     (v_dept_security, v_branch_hq, 'Security & Logistics', 'SEC', 'Premises safety, traffic management, emergency response', 'Brother James Obi', 'active'),
     (v_dept_prayer, v_branch_hq, 'Prayer & Intercession', 'PRAYER', 'Intercessory prayer tower, prayer vigils, counseling support', 'Pastor Deborah Mark', 'active'),
     (v_dept_welfare, v_branch_hq, 'Welfare & Hospitality', 'WELFARE', 'Caring for the needy, benevolence, refreshments, guest reception', 'Sister Ruth Adeleke', 'active'),
-    (v_dept_children, v_branch_hq, 'Children & Teens Church', 'CHILDREN', 'Nurturing the younger generation with age-appropriate biblical teaching', 'Sister Mary Johnson', 'active');
+    (v_dept_children, v_branch_hq, 'Children & Teens Church', 'CHILDREN', 'Nurturing the younger generation with age-appropriate biblical teaching', 'Sister Mary Johnson', 'active'),
+    (v_dept_pastoral, v_branch_hq, 'Pastoral Care Unit', 'PCU', 'Pastoral counseling, new convert integration, member visitation and compassionate oversight', 'Pastor Tosin Jaiyeola', 'active'),
+
+    -- Lagos Branch
+    ('d1111111-2222-2222-2222-000000000001', v_branch_lagos, 'Choir (Voices of Faith)', 'CHOIR', 'Ministering praises, worship, and choral orchestration in services', NULL, 'active'),
+    ('d2222222-2222-2222-2222-000000000002', v_branch_lagos, 'Media & Technology', 'MEDIA', 'Audio/visual broadcast, live streaming, digital screens, photography', NULL, 'active'),
+    ('d3333333-2222-2222-2222-000000000003', v_branch_lagos, 'Ushering & Protocol', 'USHER', 'Sanctuary seating coordination, hospitality, VIP protocol', NULL, 'active'),
+    ('d4444444-2222-2222-2222-000000000004', v_branch_lagos, 'Security & Logistics', 'SEC', 'Premises safety, traffic management, emergency response', NULL, 'active'),
+    ('d5555555-2222-2222-2222-000000000005', v_branch_lagos, 'Prayer & Intercession', 'PRAYER', 'Intercessory prayer tower, prayer vigils, counseling support', NULL, 'active'),
+    ('d6666666-2222-2222-2222-000000000006', v_branch_lagos, 'Welfare & Hospitality', 'WELFARE', 'Caring for the needy, benevolence, refreshments, guest reception', NULL, 'active'),
+    ('d7777777-2222-2222-2222-000000000007', v_branch_lagos, 'Children & Teens Church', 'CHILDREN', 'Nurturing the younger generation with age-appropriate biblical teaching', NULL, 'active'),
+    ('d8888888-2222-2222-2222-000000000008', v_branch_lagos, 'Pastoral Care Unit', 'PCU', 'Pastoral counseling, new convert integration, member visitation and compassionate oversight', NULL, 'active'),
+
+    -- Abuja Branch
+    ('d1111111-4444-4444-4444-000000000001', v_branch_abuja, 'Choir (Voices of Faith)', 'CHOIR', 'Ministering praises, worship, and choral orchestration in services', NULL, 'active'),
+    ('d2222222-4444-4444-4444-000000000002', v_branch_abuja, 'Media & Technology', 'MEDIA', 'Audio/visual broadcast, live streaming, digital screens, photography', NULL, 'active'),
+    ('d3333333-4444-4444-4444-000000000003', v_branch_abuja, 'Ushering & Protocol', 'USHER', 'Sanctuary seating coordination, hospitality, VIP protocol', NULL, 'active'),
+    ('d4444444-4444-4444-4444-000000000004', v_branch_abuja, 'Security & Logistics', 'SEC', 'Premises safety, traffic management, emergency response', NULL, 'active'),
+    ('d5555555-4444-4444-4444-000000000005', v_branch_abuja, 'Prayer & Intercession', 'PRAYER', 'Intercessory prayer tower, prayer vigils, counseling support', NULL, 'active'),
+    ('d6666666-4444-4444-4444-000000000006', v_branch_abuja, 'Welfare & Hospitality', 'WELFARE', 'Caring for the needy, benevolence, refreshments, guest reception', NULL, 'active'),
+    ('d7777777-4444-4444-4444-000000000007', v_branch_abuja, 'Children & Teens Church', 'CHILDREN', 'Nurturing the younger generation with age-appropriate biblical teaching', NULL, 'active'),
+    ('d8888888-4444-4444-4444-000000000008', v_branch_abuja, 'Pastoral Care Unit', 'PCU', 'Pastoral counseling, new convert integration, member visitation and compassionate oversight', NULL, 'active'),
+
+    -- UK Branch
+    ('d1111111-3333-3333-3333-000000000001', v_branch_uk, 'Choir (Voices of Faith)', 'CHOIR', 'Ministering praises, worship, and choral orchestration in services', NULL, 'active'),
+    ('d2222222-3333-3333-3333-000000000002', v_branch_uk, 'Media & Technology', 'MEDIA', 'Audio/visual broadcast, live streaming, digital screens, photography', NULL, 'active'),
+    ('d3333333-3333-3333-3333-000000000003', v_branch_uk, 'Ushering & Protocol', 'USHER', 'Sanctuary seating coordination, hospitality, VIP protocol', NULL, 'active'),
+    ('d4444444-3333-3333-3333-000000000004', v_branch_uk, 'Security & Logistics', 'SEC', 'Premises safety, traffic management, emergency response', NULL, 'active'),
+    ('d5555555-3333-3333-3333-000000000005', v_branch_uk, 'Prayer & Intercession', 'PRAYER', 'Intercessory prayer tower, prayer vigils, counseling support', NULL, 'active'),
+    ('d6666666-3333-3333-3333-000000000006', v_branch_uk, 'Welfare & Hospitality', 'WELFARE', 'Caring for the needy, benevolence, refreshments, guest reception', NULL, 'active'),
+    ('d7777777-3333-3333-3333-000000000007', v_branch_uk, 'Children & Teens Church', 'CHILDREN', 'Nurturing the younger generation with age-appropriate biblical teaching', NULL, 'active'),
+    ('d8888888-3333-3333-3333-000000000008', v_branch_uk, 'Pastoral Care Unit', 'PCU', 'Pastoral counseling, new convert integration, member visitation and compassionate oversight', NULL, 'active'),
+
+    -- Canada Branch
+    ('d1111111-5555-5555-5555-000000000001', v_branch_can, 'Choir (Voices of Faith)', 'CHOIR', 'Ministering praises, worship, and choral orchestration in services', NULL, 'active'),
+    ('d2222222-5555-5555-5555-000000000002', v_branch_can, 'Media & Technology', 'MEDIA', 'Audio/visual broadcast, live streaming, digital screens, photography', NULL, 'active'),
+    ('d3333333-5555-5555-5555-000000000003', v_branch_can, 'Ushering & Protocol', 'USHER', 'Sanctuary seating coordination, hospitality, VIP protocol', NULL, 'active'),
+    ('d4444444-5555-5555-5555-000000000004', v_branch_can, 'Security & Logistics', 'SEC', 'Premises safety, traffic management, emergency response', NULL, 'active'),
+    ('d5555555-5555-5555-5555-000000000005', v_branch_can, 'Prayer & Intercession', 'PRAYER', 'Intercessory prayer tower, prayer vigils, counseling support', NULL, 'active'),
+    ('d6666666-5555-5555-5555-000000000006', v_branch_can, 'Welfare & Hospitality', 'WELFARE', 'Caring for the needy, benevolence, refreshments, guest reception', NULL, 'active'),
+    ('d7777777-5555-5555-5555-000000000007', v_branch_can, 'Children & Teens Church', 'CHILDREN', 'Nurturing the younger generation with age-appropriate biblical teaching', NULL, 'active'),
+    ('d8888888-5555-5555-5555-000000000008', v_branch_can, 'Pastoral Care Unit', 'PCU', 'Pastoral counseling, new convert integration, member visitation and compassionate oversight', NULL, 'active');
 
     -- 5. Insert Department Positions
     INSERT INTO department_positions (id, department_id, name, description)

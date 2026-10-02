@@ -54,6 +54,7 @@ import { FinanceService } from './services/financeService';
 import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from './data/mockDb';
 import http from 'http';
 import { AddressInfo } from 'net';
+import { persistBranch } from './db/sync';
 import app, { isOriginAllowed, isAllowedCustomDomain, isAllowedVercelDomain, isAllowedDevHost, getExplicitAllowedOrigins } from './server';
 
 async function runTests() {
@@ -2209,6 +2210,7 @@ async function runTests() {
     const testBranch = db.branches[0];
     const originalHq = testBranch.isHeadquarters;
     const originalBranchId = testBranch.id;
+    const originalBranchName = testBranch.name;
 
     // Non-super-admin attempting to elevate isHeadquarters or rewrite id
     let branchUpdateRes: any = null;
@@ -2234,6 +2236,8 @@ async function runTests() {
     assert(testBranch.id === originalBranchId, 'Branch ID cannot be overwritten via mass assignment (SEC-06)');
     assert(testBranch.isHeadquarters === originalHq, 'Branch Admin cannot modify isHeadquarters via mass assignment (SEC-06)');
     assert(testBranch.name === 'Updated Branch Name', 'Whitelisted field name was updated cleanly');
+    testBranch.name = originalBranchName;
+    persistBranch(testBranch).catch(() => {});
 
     // Mass assignment prevention in Settings
     const originalSettingsId = db.attendanceSettings.id;

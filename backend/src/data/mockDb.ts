@@ -70,6 +70,7 @@ export const IDS = {
   DEPT_PRAYER: 'd5555555-5555-5555-5555-555555555555',
   DEPT_WELFARE: 'd6666666-6666-6666-6666-666666666666',
   DEPT_CHILDREN: 'd7777777-7777-7777-7777-777777777777',
+  DEPT_PASTORAL_CARE: 'd8888888-8888-8888-8888-888888888888',
 
   USER_ADMIN: 'c1111111-1111-1111-1111-111111111111',
   USER_PASTOR: 'c2222222-2222-2222-2222-222222222222',
@@ -291,6 +292,9 @@ export class DatabaseStore {
   ];
 
   public departments: Department[] = [
+    // -------------------------------------------------------------------------
+    // 1. Headquarters (Ilorin Branch)
+    // -------------------------------------------------------------------------
     {
       id: IDS.DEPT_CHOIR,
       branchId: IDS.BRANCH_HQ,
@@ -369,6 +373,353 @@ export class DatabaseStore {
       status: 'active',
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
+    },
+    {
+      id: IDS.DEPT_PASTORAL_CARE,
+      branchId: IDS.BRANCH_HQ,
+      name: 'Pastoral Care Unit',
+      code: 'PCU',
+      description: 'Pastoral counseling, new convert integration, member visitation and compassionate oversight',
+      hodName: 'Pastor Tosin Jaiyeola',
+      status: 'active',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    },
+
+    // -------------------------------------------------------------------------
+    // 2. Lagos Branch
+    // -------------------------------------------------------------------------
+    {
+      id: 'd1111111-2222-2222-2222-000000000001',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Choir (Voices of Faith)',
+      code: 'CHOIR',
+      description: 'Leading praise, worship and sacred choral orchestration',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd2222222-2222-2222-2222-000000000002',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Media & Technology',
+      code: 'MEDIA',
+      description: 'Multi-camera broadcast, audio engineering, live streaming, visuals',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd3333333-2222-2222-2222-000000000003',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Ushering & Protocol',
+      code: 'USHER',
+      description: 'Sanctuary seating coordination, orderliness, guest hospitality',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd4444444-2222-2222-2222-000000000004',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Security & Logistics',
+      code: 'SEC',
+      description: 'Sanctuary security, traffic coordination, emergency response',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd5555555-2222-2222-2222-000000000005',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Prayer & Intercession',
+      code: 'PRAYER',
+      description: 'Intercessory prayer tower, prayer chains, spiritual support',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd6666666-2222-2222-2222-000000000006',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Welfare & Hospitality',
+      code: 'WELFARE',
+      description: 'Benevolence, community food distribution, visitor welcome, member care',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd7777777-2222-2222-2222-000000000007',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Children & Teens Church',
+      code: 'CHILDREN',
+      description: 'Sunday school curriculum, youth discipleship, biblical foundational classes',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+    {
+      id: 'd8888888-2222-2222-2222-000000000008',
+      branchId: IDS.BRANCH_LAGOS,
+      name: 'Pastoral Care Unit',
+      code: 'PCU',
+      description: 'Pastoral counseling, new convert integration, member visitation and compassionate oversight',
+      status: 'active',
+      createdAt: '2024-02-01T00:00:00Z',
+      updatedAt: '2024-02-01T00:00:00Z'
+    },
+
+    // -------------------------------------------------------------------------
+    // 3. Abuja Branch
+    // -------------------------------------------------------------------------
+    {
+      id: 'd1111111-4444-4444-4444-000000000001',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Choir (Voices of Faith)',
+      code: 'CHOIR',
+      description: 'Leading praise, worship and sacred choral orchestration',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd2222222-4444-4444-4444-000000000002',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Media & Technology',
+      code: 'MEDIA',
+      description: 'Multi-camera broadcast, audio engineering, live streaming, visuals',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd3333333-4444-4444-4444-000000000003',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Ushering & Protocol',
+      code: 'USHER',
+      description: 'Sanctuary seating coordination, orderliness, guest hospitality',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd4444444-4444-4444-4444-000000000004',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Security & Logistics',
+      code: 'SEC',
+      description: 'Sanctuary security, traffic coordination, emergency response',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd5555555-4444-4444-4444-000000000005',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Prayer & Intercession',
+      code: 'PRAYER',
+      description: 'Intercessory prayer tower, prayer chains, spiritual support',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd6666666-4444-4444-4444-000000000006',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Welfare & Hospitality',
+      code: 'WELFARE',
+      description: 'Benevolence, community food distribution, visitor welcome, member care',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd7777777-4444-4444-4444-000000000007',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Children & Teens Church',
+      code: 'CHILDREN',
+      description: 'Sunday school curriculum, youth discipleship, biblical foundational classes',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+    {
+      id: 'd8888888-4444-4444-4444-000000000008',
+      branchId: IDS.BRANCH_ABUJA,
+      name: 'Pastoral Care Unit',
+      code: 'PCU',
+      description: 'Pastoral counseling, new convert integration, member visitation and compassionate oversight',
+      status: 'active',
+      createdAt: '2024-03-01T00:00:00Z',
+      updatedAt: '2024-03-01T00:00:00Z'
+    },
+
+    // -------------------------------------------------------------------------
+    // 4. UK Branch
+    // -------------------------------------------------------------------------
+    {
+      id: 'd1111111-3333-3333-3333-000000000001',
+      branchId: IDS.BRANCH_UK,
+      name: 'Choir (Voices of Faith)',
+      code: 'CHOIR',
+      description: 'Leading praise, worship and sacred choral orchestration',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd2222222-3333-3333-3333-000000000002',
+      branchId: IDS.BRANCH_UK,
+      name: 'Media & Technology',
+      code: 'MEDIA',
+      description: 'Multi-camera broadcast, audio engineering, live streaming, visuals',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd3333333-3333-3333-3333-000000000003',
+      branchId: IDS.BRANCH_UK,
+      name: 'Ushering & Protocol',
+      code: 'USHER',
+      description: 'Sanctuary seating coordination, orderliness, guest hospitality',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd4444444-3333-3333-3333-000000000004',
+      branchId: IDS.BRANCH_UK,
+      name: 'Security & Logistics',
+      code: 'SEC',
+      description: 'Sanctuary security, traffic coordination, emergency response',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd5555555-3333-3333-3333-000000000005',
+      branchId: IDS.BRANCH_UK,
+      name: 'Prayer & Intercession',
+      code: 'PRAYER',
+      description: 'Intercessory prayer tower, prayer chains, spiritual support',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd6666666-3333-3333-3333-000000000006',
+      branchId: IDS.BRANCH_UK,
+      name: 'Welfare & Hospitality',
+      code: 'WELFARE',
+      description: 'Benevolence, community food distribution, visitor welcome, member care',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd7777777-3333-3333-3333-000000000007',
+      branchId: IDS.BRANCH_UK,
+      name: 'Children & Teens Church',
+      code: 'CHILDREN',
+      description: 'Sunday school curriculum, youth discipleship, biblical foundational classes',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+    {
+      id: 'd8888888-3333-3333-3333-000000000008',
+      branchId: IDS.BRANCH_UK,
+      name: 'Pastoral Care Unit',
+      code: 'PCU',
+      description: 'Pastoral counseling, new convert integration, member visitation and compassionate oversight',
+      status: 'active',
+      createdAt: '2024-04-01T00:00:00Z',
+      updatedAt: '2024-04-01T00:00:00Z'
+    },
+
+    // -------------------------------------------------------------------------
+    // 5. Canada Branch
+    // -------------------------------------------------------------------------
+    {
+      id: 'd1111111-5555-5555-5555-000000000001',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Choir (Voices of Faith)',
+      code: 'CHOIR',
+      description: 'Leading praise, worship and sacred choral orchestration',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd2222222-5555-5555-5555-000000000002',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Media & Technology',
+      code: 'MEDIA',
+      description: 'Multi-camera broadcast, audio engineering, live streaming, visuals',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd3333333-5555-5555-5555-000000000003',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Ushering & Protocol',
+      code: 'USHER',
+      description: 'Sanctuary seating coordination, orderliness, guest hospitality',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd4444444-5555-5555-5555-000000000004',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Security & Logistics',
+      code: 'SEC',
+      description: 'Sanctuary security, traffic coordination, emergency response',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd5555555-5555-5555-5555-000000000005',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Prayer & Intercession',
+      code: 'PRAYER',
+      description: 'Intercessory prayer tower, prayer chains, spiritual support',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd6666666-5555-5555-5555-000000000006',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Welfare & Hospitality',
+      code: 'WELFARE',
+      description: 'Benevolence, community food distribution, visitor welcome, member care',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd7777777-5555-5555-5555-000000000007',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Children & Teens Church',
+      code: 'CHILDREN',
+      description: 'Sunday school curriculum, youth discipleship, biblical foundational classes',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
+    },
+    {
+      id: 'd8888888-5555-5555-5555-000000000008',
+      branchId: IDS.BRANCH_CAN,
+      name: 'Pastoral Care Unit',
+      code: 'PCU',
+      description: 'Pastoral counseling, new convert integration, member visitation and compassionate oversight',
+      status: 'active',
+      createdAt: '2024-05-01T00:00:00Z',
+      updatedAt: '2024-05-01T00:00:00Z'
     }
   ];
 
@@ -380,7 +731,8 @@ export class DatabaseStore {
     { id: 'dp5', departmentId: IDS.DEPT_MEDIA, name: 'Camera Operator', description: 'Robotic and pedestal camera control', createdAt: '2024-01-01T00:00:00Z' },
     { id: 'dp6', departmentId: IDS.DEPT_USHERING, name: 'Head Usher', description: 'Floor coordination and seating', createdAt: '2024-01-01T00:00:00Z' },
     { id: 'dp7', departmentId: IDS.DEPT_WELFARE, name: 'Welfare Coordinator', description: 'Benevolence registry and distribution', createdAt: '2024-01-01T00:00:00Z' },
-    { id: 'dp8', departmentId: IDS.DEPT_CHILDREN, name: 'Teens Teacher', description: 'Discipleship teaching and youth mentoring', createdAt: '2024-01-01T00:00:00Z' }
+    { id: 'dp8', departmentId: IDS.DEPT_CHILDREN, name: 'Teens Teacher', description: 'Discipleship teaching and youth mentoring', createdAt: '2024-01-01T00:00:00Z' },
+    { id: 'dp9', departmentId: IDS.DEPT_PASTORAL_CARE, name: 'Pastoral Care Minister', description: 'Pastoral follow-up, counseling, and spiritual care', createdAt: '2024-01-01T00:00:00Z' }
   ];
 
   public users: User[] = [
