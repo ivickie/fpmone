@@ -36,6 +36,18 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
   next();
 };
 
+export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const session = AuthService.getSessionByToken(token);
+    if (session) {
+      req.user = session;
+    }
+  }
+  next();
+};
+
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user || !req.user.isAdmin) {
     return res.status(403).json({ success: false, error: 'Administrative privileges required.' });

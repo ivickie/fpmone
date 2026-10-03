@@ -235,4 +235,150 @@ export class AuthService {
       return null;
     }
   }
+
+  public static async changePassword(params: {
+    emailOrPhone?: string;
+    currentPassword?: string;
+    newPassword: string;
+    userId?: string;
+  }): Promise<{ success: boolean; message: string; error?: string }> {
+    const { emailOrPhone, currentPassword, newPassword, userId } = params;
+
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters long.', message: '' };
+    }
+
+    let user: User | undefined;
+    if (userId) {
+      user = db.users.find(u => u.id === userId);
+    } else if (emailOrPhone) {
+      const cleanIdentifier = emailOrPhone.trim().toLowerCase();
+      user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+    }
+
+    if (!user) {
+      return { success: false, error: 'User account not found.', message: '' };
+    }
+
+    if (!currentPassword) {
+      return { success: false, error: 'Current password is required.', message: '' };
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return { success: false, error: 'Current password does not match.', message: '' };
+    }
+
+    if (currentPassword === newPassword) {
+      return { success: false, error: 'New password must be different from current password.', message: '' };
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = newHash;
+    user.updatedAt = new Date().toISOString();
+
+    try {
+      await persistUser(user);
+    } catch (e: any) {
+      console.warn('[AUTH PASSWORD CHANGE DB PERSISTENCE ERROR]', e.message);
+    }
+
+    AuditService.log(
+      user.email,
+      user.adminLevel || 'member',
+      'PASSWORD_CHANGED',
+      'user',
+      user.id,
+      user.id,
+      null,
+      { email: user.email }
+    );
+
+    return {
+      success: true,
+      message: 'Password updated successfully. You can now log in with your new password.'
+    };
+  }
+
+  public static async lookupMemberProfile(params: {
+    emailOrPhone?: string;
+    password?: string;
+    userId?: string;
+  }): Promise<{ success: boolean; user?: any; member?: any; error?: string }> {
+    const { emailOrPhone, password, userId } = params;
+
+    let user: User | undefined;
+    if (userId) {
+      user = db.users.find(u => u.id === userId);
+    } else if (emailOrPhone) {
+      const cleanIdentifier = emailOrPhone.trim().toLowerCase();
+      user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+    }
+
+    if (!user) {
+      return { success: false, error: 'Account not found for the provided email or phone.' };
+    }
+
+    if (!userId) {
+      if (!password) {
+        return { success: false, error: 'Password is required to verify identity.' };
+      }
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        return { success: false, error: 'Invalid password. Verification failed.' };
+      }
+    }
+
+    const member = db.members.find(m => m.userId === user?.id);
+    if (!member) {
+      return { success: false, error: 'Member record not found for this account.' };
+    }
+
+    const branch = db.branches.find(b => b.id === member.primaryBranchId);
+    const role = db.ministryRoles.find(r => r.id === member.primaryRoleId);
+    const worker = member.isWorker ? db.workers.find(w => w.memberId === member.id) : undefined;
+    const department = worker ? db.departments.find(d => d.id === worker.departmentId) : undefined;
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        accountStatus: user.accountStatus,
+        isAdmin: user.isAdmin,
+        adminLevel: user.adminLevel,
+        createdAt: user.createdAt
+      },
+      member: {
+        id: member.id,
+        firstName: member.firstName,
+        middleName: member.middleName,
+        lastName: member.lastName,
+        fullName: `${member.firstName} ${member.lastName}`,
+        gender: member.gender,
+        dateOfBirth: member.dateOfBirth,
+        residentialAddress: member.residentialAddress,
+        profilePictureUrl: member.profilePictureUrl,
+        emergencyContactName: member.emergencyContactName,
+        emergencyContactPhone: member.emergencyContactPhone,
+        branchId: member.primaryBranchId,
+        branchName: branch ? branch.name : 'Faith Cathedral HQ',
+        roleId: member.primaryRoleId,
+        roleName: role ? role.name : 'Member',
+        roleCode: role ? role.code : 'MEMBER',
+        isWorker: member.isWorker,
+        workerDetails: worker ? {
+          workerId: worker.id,
+          workerCode: worker.workerIdCode,
+          departmentId: department?.id,
+          departmentName: department?.name || 'Department Member',
+          positionName: worker.positionName,
+          dateStartedServing: worker.dateStartedServing,
+          workerStatus: worker.workerStatus,
+          biometricEnabled: worker.biometricEnabled
+        } : undefined
+      }
+    };
+  }
 }

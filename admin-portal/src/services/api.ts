@@ -58,6 +58,10 @@ export const api = {
   login: (emailOrPhone: string, password: string) =>
     apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ emailOrPhone, password }) }),
   getProfile: () => apiRequest('/auth/profile'),
+  changePassword: (data: { emailOrPhone?: string; currentPassword?: string; newPassword: string }) =>
+    apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
+  lookupMemberProfile: (data: { emailOrPhone?: string; password?: string }) =>
+    apiRequest('/auth/member-profile', { method: 'POST', body: JSON.stringify(data) }),
 
   // Approvals
   getApprovals: (branchId?: string) =>

@@ -269,7 +269,7 @@ let dbHydrationPromise: Promise<boolean> | null = null;
 let lastHydratedAt = 0;
 
 export const ensureDbHydrated = (force: boolean = false): Promise<boolean> => {
-  if (process.env.HYDRATE_DB === 'false' || !process.env.DATABASE_URL) {
+  if (process.env.HYDRATE_DB === 'false' || !process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') {
     return Promise.resolve(false);
   }
 

@@ -14,6 +14,7 @@ export interface UserSession {
   roleCode: string;
   isAdmin: boolean;
   adminLevel: 'none' | 'branch_admin' | 'church_admin' | 'super_admin';
+  accountStatus?: string;
   isWorker?: boolean;
   workerDetails?: {
     workerId: string;

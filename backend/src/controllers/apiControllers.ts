@@ -82,6 +82,61 @@ export const updateProfileHandler = (req: Request, res: Response) => {
   }
 };
 
+export const changePasswordHandler = async (req: Request, res: Response) => {
+  try {
+    const { emailOrPhone, currentPassword, newPassword } = req.body;
+    const userId = req.user?.userId;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    }
+
+    if (!userId && !emailOrPhone) {
+      return res.status(400).json({ error: 'Email or phone number is required.' });
+    }
+
+    const result = await AuthService.changePassword({
+      emailOrPhone,
+      currentPassword,
+      newPassword,
+      userId
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json({ success: true, message: result.message });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update password.' });
+  }
+};
+
+export const lookupMemberProfileHandler = async (req: Request, res: Response) => {
+  try {
+    const { emailOrPhone, password } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId && !emailOrPhone) {
+      return res.status(400).json({ error: 'Email or phone number is required.' });
+    }
+
+    const result = await AuthService.lookupMemberProfile({
+      emailOrPhone,
+      password,
+      userId
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to retrieve profile.' });
+  }
+};
+
 // =============================================================================
 // BRANCHES CONTROLLER
 // =============================================================================

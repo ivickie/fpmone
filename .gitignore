@@ -3,6 +3,8 @@
 .env.*
 *.env
 !.env.example
+fpm_credentials.json
+FPM_Global_User_Credentials.*
 
 # Node / JavaScript / TypeScript
 node_modules/

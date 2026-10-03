@@ -2972,6 +2972,125 @@ async function runTests() {
       assert(superAdminDeleteSecondAdminRes.status === 200, 'Super Admin can delete secondary Administrator (HTTP 200)');
       assert(db.members.find(m => m.id === secondAdminMember.id) === undefined, 'Secondary Administrator removed from database');
 
+      // ====================================================
+      // PASSWORD HASHING, CHANGE PASSWORD & VIEW PROFILE TESTS
+      // ====================================================
+      console.log('\n--- Password Hashing & Self-Service Account Endpoints ---');
+
+      // Test P1: Look up member profile with valid email & password
+      const profileLookupRes = await fetch(`${baseTestUrl}/api/auth/member-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'worker.sarah@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(profileLookupRes.status === 200, 'Member profile lookup with valid credentials returns HTTP 200');
+      const profileLookupData: any = await profileLookupRes.json();
+      assert(profileLookupData.success === true, 'Member profile lookup returns success: true');
+      assert(profileLookupData.member.fullName === 'Sarah Williams', 'Member profile includes correct full name');
+      assert(profileLookupData.member.isWorker === true, 'Member profile reflects worker status');
+      assert(profileLookupData.member.workerDetails?.workerCode === 'FPM-0001', 'Member profile includes worker code');
+
+      // Test P2: Look up member profile with incorrect password fails
+      const profileBadPassRes = await fetch(`${baseTestUrl}/api/auth/member-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'worker.sarah@fpmchurch.org',
+          password: 'WrongPassword999!'
+        })
+      });
+      assert(profileBadPassRes.status === 400, 'Profile lookup with incorrect password returns HTTP 400');
+      const profileBadPassData: any = await profileBadPassRes.json();
+      assert(profileBadPassData.error?.includes('Invalid password'), 'Error explains invalid credentials');
+
+      // Test P3: Look up member profile with non-existent user fails
+      const profileNotFoundRes = await fetch(`${baseTestUrl}/api/auth/member-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'nonexistent.user@fpmchurch.org',
+          password: 'Password123!'
+        })
+      });
+      assert(profileNotFoundRes.status === 400, 'Profile lookup for non-existent account returns HTTP 400');
+
+      // Test P4: Authenticated member profile lookup using Bearer token
+      const profileAuthRes = await fetch(`${baseTestUrl}/api/auth/member-profile`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+      assert(profileAuthRes.status === 200, 'Authenticated profile lookup via Bearer token returns HTTP 200');
+      const profileAuthData: any = await profileAuthRes.json();
+      assert(profileAuthData.user.adminLevel === 'super_admin', 'Authenticated profile identifies Super Admin');
+
+      // Test P5: Change password fails when current password does not match
+      const changePassBadOldRes = await fetch(`${baseTestUrl}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'worker.john@fpmchurch.org',
+          currentPassword: 'WrongOldPassword!',
+          newPassword: 'BrandNewPassword123!'
+        })
+      });
+      assert(changePassBadOldRes.status === 400, 'Change password with incorrect current password returns HTTP 400');
+      const changePassBadOldData: any = await changePassBadOldRes.json();
+      assert(changePassBadOldData.error?.includes('Current password does not match'), 'Rejection explains current password mismatch');
+
+      // Test P6: Change password fails when new password is too short (< 6 chars)
+      const changePassShortRes = await fetch(`${baseTestUrl}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'worker.john@fpmchurch.org',
+          currentPassword: 'Password123!',
+          newPassword: '123'
+        })
+      });
+      assert(changePassShortRes.status === 400, 'Change password with short password returns HTTP 400');
+
+      // Test P7: Change password fails when new password matches old password
+      const changePassSameRes = await fetch(`${baseTestUrl}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'worker.john@fpmchurch.org',
+          currentPassword: 'Password123!',
+          newPassword: 'Password123!'
+        })
+      });
+      assert(changePassSameRes.status === 400, 'Change password with identical new password returns HTTP 400');
+
+      // Test P8: Change password succeeds with valid parameters and bcrypt hashing
+      const changePassSuccessRes = await fetch(`${baseTestUrl}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailOrPhone: 'worker.john@fpmchurch.org',
+          currentPassword: 'Password123!',
+          newPassword: 'NewSecurePassword2026!'
+        })
+      });
+      assert(changePassSuccessRes.status === 200, 'Change password succeeds with HTTP 200');
+      const changePassSuccessData: any = await changePassSuccessRes.json();
+      assert(changePassSuccessData.success === true, 'Change password response contains success: true');
+
+      // Test P9: Login with old password fails
+      const loginOldPassRes = await AuthService.login('worker.john@fpmchurch.org', 'Password123!');
+      assert(loginOldPassRes.error?.includes('Invalid') === true, 'Login with old password now fails');
+
+      // Test P10: Login with newly updated hashed password succeeds
+      const loginNewPassRes = await AuthService.login('worker.john@fpmchurch.org', 'NewSecurePassword2026!');
+      assert(!!loginNewPassRes.token, 'Login with new password succeeds and returns JWT');
+      assert(loginNewPassRes.user?.email === 'worker.john@fpmchurch.org', 'Login user session is valid');
+
     } finally {
       testServer.close();
     }

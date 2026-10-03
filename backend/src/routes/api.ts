@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import {
   loginHandler, registerHandler, getProfileHandler, updateProfileHandler,
+  changePasswordHandler, lookupMemberProfileHandler,
   getBranchesHandler, createBranchHandler, updateBranchHandler, deleteBranchHandler,
   getDepartmentsHandler, createDepartmentHandler, updateDepartmentHandler, deleteDepartmentHandler,
   lookupHodHandler, getEligibleHodsHandler,
@@ -31,7 +32,7 @@ import {
   getFinanceMonthlyStatementHandler, getFinanceAnnualStatementHandler, getFinanceCategoryAnalysisHandler,
   exportFinanceReportHandler
 } from '../controllers/apiControllers';
-import { requireAuth, requireAdmin, requireCronAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
 import {
   loginRateLimiter,
   registrationRateLimiter,
@@ -55,6 +56,8 @@ router.post('/auth/login', loginRateLimiter, loginHandler);
 router.post('/auth/register', registrationRateLimiter, registerHandler);
 router.get('/auth/profile', requireAuth, getProfileHandler);
 router.put('/auth/profile', requireAuth, updateProfileHandler);
+router.post('/auth/change-password', optionalAuth, changePasswordHandler);
+router.post('/auth/member-profile', optionalAuth, lookupMemberProfileHandler);
 
 // --- BRANCHES ---
 router.get('/branches', getBranchesHandler);
