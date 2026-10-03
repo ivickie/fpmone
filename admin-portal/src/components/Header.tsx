@@ -8,9 +8,10 @@ interface HeaderProps {
   subtitle?: string;
   actions?: React.ReactNode;
   onToggleMobileMenu?: () => void;
+  onOpenProfile?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ branches, title, subtitle, actions, onToggleMobileMenu }) => {
+export const Header: React.FC<HeaderProps> = ({ branches, title, subtitle, actions, onToggleMobileMenu, onOpenProfile }) => {
   const { user, selectedBranchId, setSelectedBranchId } = useAuth();
   const isSuperAdmin = user?.adminLevel === 'super_admin';
 
@@ -58,6 +59,23 @@ export const Header: React.FC<HeaderProps> = ({ branches, title, subtitle, actio
           </div>
 
           {actions}
+
+          {/* Quick Profile Access */}
+          {onOpenProfile && (
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              title={`Logged in as ${user?.fullName || 'User'} (${user?.roleName || 'Admin'}) — Click to view profile & password`}
+              className="flex items-center space-x-2 p-1 pl-1.5 pr-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer shrink-0 group focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <div className="w-6 h-6 rounded-full bg-blue-700 text-white font-bold text-xs flex items-center justify-center group-hover:ring-2 group-hover:ring-amber-400/50 transition shrink-0">
+                {user?.firstName?.charAt(0) || 'A'}
+              </div>
+              <span className="text-xs font-semibold text-slate-700 max-w-[100px] truncate hidden md:inline">
+                {user?.firstName || 'Profile'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </header>

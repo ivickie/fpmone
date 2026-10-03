@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { Header } from './components/Header';
+import { ProfileModal } from './components/ProfileModal';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
@@ -30,6 +31,13 @@ const AppContent: React.FC = () => {
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [pendingTestimoniesCount, setPendingTestimoniesCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'password'>('profile');
+
+  const handleOpenProfile = (initialTab: 'profile' | 'password' = 'profile') => {
+    setProfileInitialTab(initialTab);
+    setProfileModalOpen(true);
+  };
 
   useEffect(() => {
     if (user) {
@@ -101,6 +109,7 @@ const AppContent: React.FC = () => {
         pendingTestimoniesCount={pendingTestimoniesCount}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
+        onOpenProfile={() => handleOpenProfile('profile')}
       />
 
       {/* Main Content Area */}
@@ -110,6 +119,7 @@ const AppContent: React.FC = () => {
           title={currentInfo.title}
           subtitle={currentInfo.subtitle}
           onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
+          onOpenProfile={() => handleOpenProfile('profile')}
         />
 
         <main className="flex-1 overflow-y-auto pb-12">
@@ -132,6 +142,13 @@ const AppContent: React.FC = () => {
           {currentTab === 'settings' && <SettingsPage />}
         </main>
       </div>
+
+      {/* Global Profile & Security Modal */}
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        initialTab={profileInitialTab}
+      />
     </div>
   );
 };
