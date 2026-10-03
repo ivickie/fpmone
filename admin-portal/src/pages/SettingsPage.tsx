@@ -346,11 +346,11 @@ export const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
       {/* Page Title & Status */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center space-x-2.5">
+          <h2 className="text-xl font-black text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
             <span>General Settings</span>
             {isSuperAdmin && (
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
@@ -369,9 +369,9 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           {isDirty && (
-            <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-bold animate-pulse">
+            <div className="flex items-center space-x-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-bold animate-pulse">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span>Unsaved Changes</span>
             </div>
@@ -382,7 +382,7 @@ export const SettingsPage: React.FC = () => {
               type="button"
               onClick={handleReset}
               disabled={saving}
-              className="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
+              className="flex-1 sm:flex-initial px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset</span>
@@ -394,7 +394,7 @@ export const SettingsPage: React.FC = () => {
               type="button"
               onClick={() => handleSave()}
               disabled={saving}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center space-x-2 transition cursor-pointer disabled:opacity-50"
+              className="flex-1 sm:flex-initial px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center justify-center space-x-2 transition cursor-pointer disabled:opacity-50"
             >
               {saving ? (
                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -418,7 +418,7 @@ export const SettingsPage: React.FC = () => {
       )}
 
       {/* Navigation Tabs Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-1.5 flex flex-wrap gap-1">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-1.5 flex items-center overflow-x-auto gap-1 -mx-3.5 px-3.5 sm:mx-0 sm:px-1.5 scrollbar-none flex-nowrap sm:flex-wrap">
         {navItems.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -426,7 +426,7 @@ export const SettingsPage: React.FC = () => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer shrink-0 ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
@@ -443,7 +443,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 1: ORGANIZATION SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'organization' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <Building2 className="w-4 h-4 text-blue-600" />
@@ -596,7 +596,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 2: REGIONAL SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'regional' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <Globe className="w-4 h-4 text-blue-600" />
@@ -710,7 +710,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 3: REGISTRATION & MEMBER SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'registration' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <UserPlus className="w-4 h-4 text-blue-600" />
@@ -855,7 +855,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 4: ATTENDANCE SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'attendance' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <Clock className="w-4 h-4 text-blue-600" />
@@ -977,7 +977,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 5: FINANCE SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'finance' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <Wallet className="w-4 h-4 text-blue-600" />
@@ -1086,7 +1086,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 6: NOTIFICATIONS SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'notifications' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <Bell className="w-4 h-4 text-blue-600" />
@@ -1150,7 +1150,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 7: MEDIA & CONTENT SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'media' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <ImageIcon className="w-4 h-4 text-blue-600" />
@@ -1226,7 +1226,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 8: SECURITY SETTINGS */}
       {/* ===================================================================== */}
       {activeTab === 'security' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
@@ -1317,7 +1317,7 @@ export const SettingsPage: React.FC = () => {
       {/* SECTION 9: SYSTEM HEALTH (READ-ONLY) */}
       {/* ===================================================================== */}
       {activeTab === 'health' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2">
@@ -1436,8 +1436,8 @@ export const SettingsPage: React.FC = () => {
 
       {/* Confirmation Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-4 sm:p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center space-x-3 text-amber-600">
               <AlertTriangle className="w-6 h-6 shrink-0" />
               <h3 className="font-extrabold text-slate-900 text-base">{confirmModal.title}</h3>
@@ -1445,18 +1445,18 @@ export const SettingsPage: React.FC = () => {
             <p className="text-xs text-slate-600 leading-relaxed">
               {confirmModal.message}
             </p>
-            <div className="pt-2 flex items-center justify-end space-x-3">
+            <div className="pt-2 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setConfirmModal(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer text-center"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmModal.onConfirm}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer text-center"
               >
                 {confirmModal.actionLabel}
               </button>

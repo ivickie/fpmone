@@ -240,9 +240,9 @@ export const ReportsPage: React.FC = () => {
   const acknowledgedCount = reports.filter(r => r.status === 'acknowledged').length;
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header & Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
@@ -250,7 +250,7 @@ export const ReportsPage: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400 font-semibold">• FPM Global</span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
             Reports & Ministry Analytics
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -259,19 +259,19 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-full lg:w-auto">
           <button
             onClick={() => setActiveTab('department_reports')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer ${
+            className={`flex-1 lg:flex-none justify-center px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer ${
               activeTab === 'department_reports'
                 ? 'bg-white text-blue-600 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <FileText className="w-4 h-4" />
-            <span>Department Reports</span>
+            <FileText className="w-4 h-4 shrink-0" />
+            <span className="truncate">Department Reports</span>
             {pendingReviewCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center shrink-0">
                 {pendingReviewCount}
               </span>
             )}
@@ -279,14 +279,14 @@ export const ReportsPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('attendance_matrix')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer ${
+            className={`flex-1 lg:flex-none justify-center px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer ${
               activeTab === 'attendance_matrix'
                 ? 'bg-white text-blue-600 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Attendance Matrix</span>
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+            <span className="truncate">Attendance Matrix</span>
           </button>
         </div>
       </div>
@@ -297,43 +297,43 @@ export const ReportsPage: React.FC = () => {
       {activeTab === 'department_reports' && (
         <div className="space-y-6">
           {/* Top KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Reports</span>
-              <p className="text-2xl font-black text-slate-900 mt-1">{totalReportsCount}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Reports</span>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalReportsCount}</p>
               <span className="text-[10px] text-slate-500">All submitted reports</span>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-amber-200/80 bg-amber-50/20 shadow-2xs">
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-amber-200/80 bg-amber-50/20 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">Pending Review</span>
-                <Clock className="w-4 h-4 text-amber-500" />
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-600">Pending Review</span>
+                <Clock className="w-4 h-4 text-amber-500 shrink-0" />
               </div>
-              <p className="text-2xl font-black text-amber-700 mt-1">{pendingReviewCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-700 mt-1">{pendingReviewCount}</p>
               <span className="text-[10px] text-amber-600 font-medium">Awaiting Pastoral notes</span>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Pastoral Reviewed</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600">Pastoral Reviewed</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               </div>
-              <p className="text-2xl font-black text-emerald-700 mt-1">{reviewedCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{reviewedCount}</p>
               <span className="text-[10px] text-emerald-600 font-medium">Guidance provided</span>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-blue-200/80 bg-blue-50/20 shadow-2xs">
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-blue-200/80 bg-blue-50/20 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Acknowledged</span>
-                <ShieldCheck className="w-4 h-4 text-blue-500" />
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600">Acknowledged</span>
+                <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0" />
               </div>
-              <p className="text-2xl font-black text-blue-700 mt-1">{acknowledgedCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-blue-700 mt-1">{acknowledgedCount}</p>
               <span className="text-[10px] text-blue-600 font-medium">Confirmed by Leadership</span>
             </div>
           </div>
 
           {/* Action & Filter Toolbar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
             {/* Search & Select Filters */}
-            <div className="flex flex-wrap items-center gap-3 flex-1">
-              <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 flex-1">
+              <div className="relative flex-1 min-w-[180px] sm:min-w-[200px]">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
@@ -348,7 +348,7 @@ export const ReportsPage: React.FC = () => {
               <select
                 value={selectedDeptFilter}
                 onChange={e => setSelectedDeptFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full sm:w-auto px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="">All Departments</option>
                 {departments.map(d => (
@@ -360,7 +360,7 @@ export const ReportsPage: React.FC = () => {
               <select
                 value={selectedTypeFilter}
                 onChange={e => setSelectedTypeFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full sm:w-auto px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="">All Report Types</option>
                 <option value="weekly">Weekly Report</option>
@@ -373,7 +373,7 @@ export const ReportsPage: React.FC = () => {
               <select
                 value={selectedStatusFilter}
                 onChange={e => setSelectedStatusFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full sm:w-auto px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="">All Statuses</option>
                 <option value="submitted">Pending Review</option>
@@ -385,7 +385,7 @@ export const ReportsPage: React.FC = () => {
             {/* Create Report Button */}
             <button
               onClick={() => setIsSubmitModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center space-x-2 transition cursor-pointer shrink-0"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center space-x-2 transition cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Write Department Report</span>
@@ -457,7 +457,7 @@ export const ReportsPage: React.FC = () => {
                     </div>
 
                     {/* Status Pill & Action Buttons */}
-                    <div className="flex items-center space-x-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       {report.status === 'submitted' && (
                         <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 flex items-center space-x-1">
                           <Clock className="w-3 h-3" />
@@ -477,40 +477,42 @@ export const ReportsPage: React.FC = () => {
                         </span>
                       )}
 
-                      {/* View Details */}
-                      <button
-                        onClick={() => setViewingReport(report)}
-                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition cursor-pointer"
-                        title="View Full Report"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-
-                      {/* Pastoral Review Action */}
-                      {isBranchPastor && (
+                      <div className="flex items-center gap-1">
+                        {/* View Details */}
                         <button
-                          onClick={() => {
-                            setReviewingReport(report);
-                            setReviewNotes(report.reviewNotes || '');
-                            setReviewStatus(report.status === 'acknowledged' ? 'acknowledged' : 'reviewed');
-                          }}
-                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded-xl border border-amber-200 flex items-center space-x-1 transition cursor-pointer"
+                          onClick={() => setViewingReport(report)}
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition cursor-pointer"
+                          title="View Full Report"
                         >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>{report.status === 'submitted' ? 'Review & Advise' : 'Edit Review'}</span>
+                          <Eye className="w-4 h-4" />
                         </button>
-                      )}
 
-                      {/* Delete Action */}
-                      {(isSuperAdmin || (report.submittedBy === user?.userId && report.status === 'submitted')) && (
-                        <button
-                          onClick={() => handleDeleteReport(report.id, report.title)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-                          title="Delete Report"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                        {/* Pastoral Review Action */}
+                        {isBranchPastor && (
+                          <button
+                            onClick={() => {
+                              setReviewingReport(report);
+                              setReviewNotes(report.reviewNotes || '');
+                              setReviewStatus(report.status === 'acknowledged' ? 'acknowledged' : 'reviewed');
+                            }}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded-xl border border-amber-200 flex items-center space-x-1 transition cursor-pointer"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{report.status === 'submitted' ? 'Review & Advise' : 'Edit Review'}</span>
+                          </button>
+                        )}
+
+                        {/* Delete Action */}
+                        {(isSuperAdmin || (report.submittedBy === user?.userId && report.status === 'submitted')) && (
+                          <button
+                            onClick={() => handleDeleteReport(report.id, report.title)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                            title="Delete Report"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -555,20 +557,20 @@ export const ReportsPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
               <div className="flex items-center space-x-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs shadow-2xs">
-                <Calendar className="w-4 h-4 text-blue-600" />
+                <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                 <input
                   type="month"
                   value={month}
                   onChange={e => setMonth(e.target.value)}
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
                 />
               </div>
 
               <button
                 onClick={handleExportCsv}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center space-x-2 transition cursor-pointer"
+                className="w-full sm:w-auto justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center space-x-2 transition cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Export CSV</span>
@@ -577,8 +579,8 @@ export const ReportsPage: React.FC = () => {
           </div>
 
           {/* Legend Card */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-4 text-xs">
-            <div className="flex flex-wrap items-center gap-4">
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3 sm:gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <span className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Matrix Legend:</span>
               <div className="flex items-center space-x-1.5">
                 <span className="w-5 h-5 rounded bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[11px]">✓</span>
@@ -604,7 +606,7 @@ export const ReportsPage: React.FC = () => {
           {/* Matrix Table */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4 sticky left-0 bg-slate-50 z-10">Worker</th>
@@ -695,8 +697,8 @@ export const ReportsPage: React.FC = () => {
       {/* MODAL 1: SUBMIT NEW DEPARTMENT REPORT */}
       {/* ========================================================================= */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl my-8">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl my-4 sm:my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 tracking-tight">Write Department Report</h3>
@@ -711,7 +713,7 @@ export const ReportsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateReport} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Department *</label>
                   <select
@@ -742,7 +744,7 @@ export const ReportsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Report Date *</label>
                   <input
@@ -791,7 +793,7 @@ export const ReportsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Key Achievements & Highlights</label>
                   <textarea
@@ -815,7 +817,7 @@ export const ReportsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Prayer Requests</label>
                   <textarea
@@ -839,18 +841,18 @@ export const ReportsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsSubmitModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-bold transition cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-bold transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer text-center"
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Report'}
                 </button>
@@ -864,8 +866,8 @@ export const ReportsPage: React.FC = () => {
       {/* MODAL 2: VIEW FULL REPORT DETAILS */}
       {/* ========================================================================= */}
       {viewingReport && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl my-8">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-2xl my-4 sm:my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
@@ -890,7 +892,7 @@ export const ReportsPage: React.FC = () => {
 
             <div className="space-y-4 text-xs">
               {/* Meta Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 bg-slate-50 p-3 sm:p-3.5 rounded-2xl border border-slate-100">
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase">Submitted By</span>
                   <p className="font-bold text-slate-800 mt-0.5">{viewingReport.submittedByName}</p>
@@ -918,7 +920,7 @@ export const ReportsPage: React.FC = () => {
               </div>
 
               {/* Achievements & Challenges */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {viewingReport.achievements && (
                   <div>
                     <h4 className="font-black text-emerald-800 mb-1 uppercase tracking-wider text-[11px]">Key Achievements</h4>
@@ -939,7 +941,7 @@ export const ReportsPage: React.FC = () => {
               </div>
 
               {/* Prayer Requests & Budget */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {viewingReport.prayerRequests && (
                   <div>
                     <h4 className="font-black text-purple-800 mb-1 uppercase tracking-wider text-[11px]">Prayer Requests</h4>
@@ -974,7 +976,7 @@ export const ReportsPage: React.FC = () => {
             <div className="flex items-center justify-end border-t border-slate-100 pt-4">
               <button
                 onClick={() => setViewingReport(null)}
-                className="px-5 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition cursor-pointer text-center"
               >
                 Close
               </button>
@@ -987,8 +989,8 @@ export const ReportsPage: React.FC = () => {
       {/* MODAL 3: PASTORAL REVIEW */}
       {/* ========================================================================= */}
       {reviewingReport && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 tracking-tight">Pastoral Review</h3>
@@ -1054,18 +1056,18 @@ export const ReportsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setReviewingReport(null)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-bold transition cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-bold transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingReview}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer text-center"
                 >
                   {isSubmittingReview ? 'Saving...' : 'Submit Pastoral Review'}
                 </button>

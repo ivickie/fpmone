@@ -18,13 +18,17 @@ interface SidebarProps {
   onSelectTab: (tab: NavTab) => void;
   pendingApprovalsCount?: number;
   pendingTestimoniesCount?: number;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
   pendingApprovalsCount = 0,
-  pendingTestimoniesCount = 0
+  pendingTestimoniesCount = 0,
+  mobileOpen = false,
+  onMobileClose
 }) => {
   const { user, logout } = useAuth();
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -134,55 +138,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-[#0A192F] text-slate-300 flex flex-col shrink-0 border-r border-slate-800 h-screen sticky top-0">
-      {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800 flex items-center space-x-3">
-        <img
-          src="/church-logo.png"
-          alt="Faith Preachers Ministries Int'l"
-          className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10 shrink-0 bg-white"
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs lg:hidden animate-in fade-in duration-200"
+          onClick={onMobileClose}
+          aria-hidden="true"
         />
-        <div>
-          <h1 className="font-extrabold text-white tracking-wide text-base leading-tight">FPM Global</h1>
-          <p className="text-[11px] font-medium text-amber-400 uppercase tracking-wider">Faith Preachers Ministries Int'l</p>
-        </div>
-      </div>
+      )}
 
-      {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {navGroups.map((group, idx) => (
-          <div key={idx} className="space-y-1">
-            <h2 className="text-[10px] font-bold text-slate-400 px-3 tracking-wider mb-2">
-              {group.title}
-            </h2>
-            {group.items.map(item => {
-              const Icon = item.icon;
-              const isActive = currentTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onSelectTab(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>{item.label}</span>
-                  </div>
-                  {!!item.badge && item.badge > 0 && (
-                    <span className="bg-amber-500 text-slate-950 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+      {/* Sidebar: Drawer on mobile/tablet, Sticky on desktop */}
+      <aside
+        className={`bg-[#0A192F] text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out
+          fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] h-full
+          lg:static lg:w-64 lg:h-screen lg:sticky lg:top-0 lg:translate-x-0 lg:shrink-0
+          ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        {/* Brand Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <img
+              src="/church-logo.png"
+              alt="Faith Preachers Ministries Int'l"
+              className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10 shrink-0 bg-white"
+            />
+            <div>
+              <h1 className="font-extrabold text-white tracking-wide text-base leading-tight">FPM Global</h1>
+              <p className="text-[11px] font-medium text-amber-400 uppercase tracking-wider">Faith Preachers Ministries Int'l</p>
+            </div>
           </div>
-        ))}
-      </div>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition cursor-pointer lg:hidden"
+            aria-label="Close navigation menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Navigation Links */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          {navGroups.map((group, idx) => (
+            <div key={idx} className="space-y-1">
+              <h2 className="text-[10px] font-bold text-slate-400 px-3 tracking-wider mb-2">
+                {group.title}
+              </h2>
+              {group.items.map(item => {
+                const Icon = item.icon;
+                const isActive = currentTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      onSelectTab(item.id);
+                      onMobileClose?.();
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/30'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span>{item.label}</span>
+                    </div>
+                    {!!item.badge && item.badge > 0 && (
+                      <span className="bg-amber-500 text-slate-950 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
 
       {/* Footer Profile & Logout */}
       <div className="p-3.5 border-t border-slate-800 bg-[#071224] flex items-center justify-between">
@@ -206,8 +240,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </p>
             <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
               <span>{user?.roleName || 'Admin'}</span>
-              <span className="text-slate-600">•</span>
-              <span className="text-[#C59B27] group-hover:underline">Security</span>
             </p>
           </div>
         </button>
@@ -222,8 +254,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Profile & Security Modal for Logged-In User */}
       {showProfileModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-[#0B1528] text-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-800 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-[#0B1528] text-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-800 relative max-h-[90vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setShowProfileModal(false)}
@@ -424,5 +456,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
     </aside>
+    </>
   );
 };

@@ -145,7 +145,7 @@ export const FeedPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Church Feed & Announcements</h2>
@@ -155,7 +155,7 @@ export const FeedPage: React.FC = () => {
         </div>
         <button
           onClick={openCreateModal}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+          className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center space-x-2 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>New Post / Announcement</span>
@@ -167,10 +167,10 @@ export const FeedPage: React.FC = () => {
       ) : (
         <div className="space-y-5">
           {posts.map(p => (
-            <div key={p.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4 hover:shadow-md transition">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-sm">
+            <div key={p.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4 hover:shadow-md transition">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center space-x-2.5 sm:space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-sm shrink-0">
                     {p.authorName?.charAt(0) || 'P'}
                   </div>
                   <div>
@@ -181,7 +181,7 @@ export const FeedPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
                   {p.isPinned && (
                     <span className="flex items-center space-x-1 bg-amber-50 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
                       <Pin className="w-3 h-3" />
@@ -210,8 +210,8 @@ export const FeedPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <div className="flex items-center space-x-3">
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                   <span className="flex items-center space-x-1.5 font-semibold text-slate-700">
                     <ThumbsUp className="w-4 h-4 text-blue-600" />
                     <span>{p.likesCount} {p.postType === 'announcement' ? 'Amen' : 'Reactions'}</span>
@@ -236,7 +236,7 @@ export const FeedPage: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1 ml-auto">
                   <button
                     onClick={() => openEditModal(p)}
                     className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-blue-600 rounded-lg transition"
@@ -260,8 +260,8 @@ export const FeedPage: React.FC = () => {
 
       {/* New Post Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Publish Church Post or Announcement</h3>
             <form onSubmit={handleCreatePost} className="space-y-4 text-xs">
               <ImageUpload
@@ -283,7 +283,7 @@ export const FeedPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Type</label>
                   <select
@@ -356,18 +356,18 @@ export const FeedPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl cursor-pointer text-center"
                 >
                   {actionLoading ? 'Publishing...' : 'Publish Now'}
                 </button>
@@ -379,8 +379,8 @@ export const FeedPage: React.FC = () => {
 
       {/* Edit Post Modal */}
       {editModalOpen && selectedPost && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Edit Post</h3>
             <form onSubmit={handleUpdatePost} className="space-y-4 text-xs">
               <ImageUpload
@@ -458,18 +458,18 @@ export const FeedPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl cursor-pointer text-center"
                 >
                   {actionLoading ? 'Saving...' : 'Save Changes'}
                 </button>

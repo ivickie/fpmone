@@ -186,7 +186,7 @@ export const ServicesPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Recurring Service Schedules</h2>
@@ -197,7 +197,7 @@ export const ServicesPage: React.FC = () => {
         {canManageServices && (
           <button
             onClick={openCreateModal}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+            className="w-full sm:w-auto justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Service Schedule</span>
@@ -208,15 +208,15 @@ export const ServicesPage: React.FC = () => {
       {loading ? (
         <div className="p-8 text-center text-slate-400">Loading services...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {services.map(s => {
             const branch = branches.find(b => b.id === s.branchId);
             return (
-              <div key={s.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4 hover:shadow-md transition flex flex-col justify-between">
+              <div key={s.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4 hover:shadow-md transition flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3.5">
-                      <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100">
+                      <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100 shrink-0">
                         <Clock className="w-6 h-6" />
                       </div>
                       <div>
@@ -226,7 +226,7 @@ export const ServicesPage: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase ${
+                    <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase shrink-0 ${
                       s.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
                       s.status === 'archived' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
                     }`}>
@@ -234,7 +234,7 @@ export const ServicesPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 text-xs">
                     <div className="p-3 bg-slate-50 rounded-xl">
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">Grace Period</span>
                       <span className="font-extrabold text-slate-800 text-sm">{s.gracePeriodMinutes} Minutes</span>
@@ -308,8 +308,8 @@ export const ServicesPage: React.FC = () => {
 
       {/* Create Service Modal */}
       {createModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Add Service Schedule</h3>
             <form onSubmit={handleCreate} className="space-y-4 text-xs">
               <ImageUpload
@@ -346,7 +346,7 @@ export const ServicesPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Day of Week</label>
                   <select
@@ -385,7 +385,7 @@ export const ServicesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Grace Period (Minutes)
@@ -431,18 +431,18 @@ export const ServicesPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   {actionLoading ? 'Creating...' : 'Create Schedule'}
                 </button>
@@ -454,8 +454,8 @@ export const ServicesPage: React.FC = () => {
 
       {/* Edit Service Modal */}
       {editModalOpen && selectedService && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Edit Service Schedule</h3>
             <form onSubmit={handleUpdate} className="space-y-4 text-xs">
               <ImageUpload
@@ -478,7 +478,7 @@ export const ServicesPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Day of Week</label>
                   <select
@@ -509,7 +509,7 @@ export const ServicesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Start Time</label>
                   <input
@@ -532,7 +532,7 @@ export const ServicesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Grace Period (Minutes)
@@ -578,18 +578,18 @@ export const ServicesPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   {actionLoading ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -613,8 +613,8 @@ export const ServicesPage: React.FC = () => {
 
       {/* Service Attendance QR Code Modal */}
       {qrModalOpen && qrService && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-slate-100 text-center relative">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-5 border border-slate-100 text-center relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setQrModalOpen(false)}
               className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
@@ -624,12 +624,12 @@ export const ServicesPage: React.FC = () => {
 
             {/* Header with Church Logo */}
             <div className="flex flex-col items-center space-y-2 pt-2">
-              <img src="/church-logo.png" alt="FPM Logo" className="w-16 h-16 object-contain drop-shadow-xs" />
+              <img src="/church-logo.png" alt="FPM Logo" className="w-14 h-14 sm:w-16 sm:h-16 object-contain drop-shadow-xs" />
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
                   Service Attendance QR Badge
                 </span>
-                <h2 className="text-xl font-black text-slate-900 mt-2">{qrService.name}</h2>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 mt-2">{qrService.name}</h2>
                 <p className="text-xs font-semibold text-blue-600">
                   {qrService.dayOfWeek}s • {qrService.startTime?.substring(0, 5)} - {qrService.expectedEndTime?.substring(0, 5)} (Grace: {qrService.gracePeriodMinutes}m)
                 </p>
@@ -637,11 +637,11 @@ export const ServicesPage: React.FC = () => {
             </div>
 
             {/* Large QR Display */}
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 inline-block shadow-inner">
+            <div className="bg-slate-50 p-3 sm:p-5 rounded-2xl border border-slate-200/80 inline-block shadow-inner max-w-full">
               {qrDataUrl ? (
-                <img src={qrDataUrl} alt="Service Attendance QR Code" className="w-56 h-56 mx-auto rounded-xl shadow-xs" />
+                <img src={qrDataUrl} alt="Service Attendance QR Code" className="w-48 h-48 sm:w-56 sm:h-56 mx-auto rounded-xl shadow-xs object-contain" />
               ) : (
-                <div className="w-56 h-56 flex items-center justify-center text-xs text-slate-400">
+                <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center text-xs text-slate-400">
                   Generating QR Code...
                 </div>
               )}
@@ -655,10 +655,10 @@ export const ServicesPage: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 pt-2">
               <button
                 onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Badge</span>
@@ -667,7 +667,7 @@ export const ServicesPage: React.FC = () => {
                 <a
                   href={qrDataUrl}
                   download={`FPM_Attendance_QR_${(qrService.name || 'Service').replace(/\s+/g, '_')}.png`}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-xs cursor-pointer"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-xs cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download PNG</span>

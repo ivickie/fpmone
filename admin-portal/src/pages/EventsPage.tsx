@@ -181,7 +181,7 @@ export const EventsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Church Events & Conventions</h2>
@@ -191,7 +191,7 @@ export const EventsPage: React.FC = () => {
         </div>
         <button
           onClick={openCreateModal}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+          className="w-full sm:w-auto justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Publish New Event</span>
@@ -201,7 +201,7 @@ export const EventsPage: React.FC = () => {
       {loading ? (
         <div className="p-8 text-center text-slate-400">Loading events...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {events.map(ev => (
             <div key={ev.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md transition">
               <div>
@@ -224,7 +224,7 @@ export const EventsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-5 space-y-3">
+                <div className="p-4 sm:p-5 space-y-3">
                   <h3 className="text-base font-extrabold text-slate-900 leading-snug">{ev.title}</h3>
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{ev.description}</p>
 
@@ -248,10 +248,10 @@ export const EventsPage: React.FC = () => {
               </div>
 
               <div>
-                <div className="px-5 py-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs">
+                <div className="px-4 sm:px-5 py-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs">
                   <button
                     onClick={() => openRegistrationsModal(ev)}
-                    className="text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-1"
+                    className="text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-1 cursor-pointer"
                   >
                     <Users className="w-3.5 h-3.5" />
                     <span>{ev.currentRegistrationsCount || 0} Registered</span>
@@ -262,17 +262,17 @@ export const EventsPage: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="px-5 py-2.5 bg-white border-t border-slate-100 flex items-center justify-end gap-2">
+                <div className="px-4 sm:px-5 py-2.5 bg-white border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
                     onClick={() => openEditModal(ev)}
-                    className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded-lg transition"
+                    className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded-lg transition cursor-pointer"
                     title="Edit Event"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => openArchiveDialog(ev)}
-                    className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition"
+                    className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
                     title="Archive Event"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -286,8 +286,8 @@ export const EventsPage: React.FC = () => {
 
       {/* Create Event Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Publish Church Event</h3>
             <form onSubmit={handleCreate} className="space-y-4 text-xs">
               <ImageUpload
@@ -322,7 +322,7 @@ export const EventsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Start Date & Time</label>
                   <input
@@ -345,7 +345,7 @@ export const EventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Location / Venue</label>
                   <input
@@ -369,7 +369,7 @@ export const EventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Category</label>
                   <select
@@ -397,18 +397,18 @@ export const EventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   {actionLoading ? 'Publishing...' : 'Publish Event'}
                 </button>
@@ -420,8 +420,8 @@ export const EventsPage: React.FC = () => {
 
       {/* Edit Event Modal */}
       {editModalOpen && selectedEvent && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Edit Event</h3>
             <form onSubmit={handleUpdate} className="space-y-4 text-xs">
               <ImageUpload
@@ -455,7 +455,7 @@ export const EventsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Start Date & Time</label>
                   <input
@@ -478,7 +478,7 @@ export const EventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Location / Venue</label>
                   <input
@@ -500,7 +500,7 @@ export const EventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Category</label>
                   <select
@@ -539,18 +539,18 @@ export const EventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   {actionLoading ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -562,8 +562,8 @@ export const EventsPage: React.FC = () => {
 
       {/* View Event Registrations Modal */}
       {registrationsModalOpen && selectedEvent && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Registrations: {selectedEvent.title}</h3>
@@ -573,7 +573,7 @@ export const EventsPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setRegistrationsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -586,12 +586,12 @@ export const EventsPage: React.FC = () => {
             ) : (
               <div className="divide-y divide-slate-100 text-xs">
                 {registrations.map(r => (
-                  <div key={r.id} className="py-2.5 flex items-center justify-between">
+                  <div key={r.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
                     <div>
                       <div className="font-bold text-slate-900">{r.fullName}</div>
                       <div className="text-slate-500 text-[11px]">{r.email} • {r.phone}</div>
                     </div>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-slate-400 shrink-0">
                       {new Date(r.registeredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -603,7 +603,7 @@ export const EventsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setRegistrationsModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg"
+                className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer text-center"
               >
                 Close
               </button>

@@ -303,10 +303,10 @@ export const DepartmentsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Church Departments & Ministries</h2>
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Church Departments & Ministries</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Configure service departments, assign Heads of Department (HODs), positions, and active status.
           </p>
@@ -314,7 +314,7 @@ export const DepartmentsPage: React.FC = () => {
         {canAddDepartment && (
           <button
             onClick={openCreateModal}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+            className="w-full sm:w-auto justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Department</span>
@@ -332,7 +332,7 @@ export const DepartmentsPage: React.FC = () => {
             const canDeleteDept = isBranchAdmin;
 
             return (
-              <div key={d.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4 hover:shadow-md transition flex flex-col justify-between">
+              <div key={d.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4 hover:shadow-md transition flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
@@ -407,8 +407,8 @@ export const DepartmentsPage: React.FC = () => {
 
       {/* Create Department Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Create Church Department</h3>
             <form onSubmit={handleCreate} className="space-y-4 text-xs">
               <div>
@@ -593,8 +593,8 @@ export const DepartmentsPage: React.FC = () => {
 
       {/* Edit Department Modal */}
       {editModalOpen && selectedDept && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div>
               <h3 className="text-base font-bold text-slate-900">Edit Department: {selectedDept.name}</h3>
               <p className="text-[11px] text-slate-400">
@@ -625,7 +625,7 @@ export const DepartmentsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Code</label>
                   <input
@@ -827,8 +827,8 @@ export const DepartmentsPage: React.FC = () => {
 
       {/* Positions Manager Modal */}
       {positionsModalOpen && selectedDept && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Positions in {selectedDept.name}</h3>

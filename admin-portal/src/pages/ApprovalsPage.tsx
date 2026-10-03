@@ -89,18 +89,18 @@ export const ApprovalsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[400px]">
+      <div className="p-4 sm:p-8 flex items-center justify-center min-h-[400px]">
         <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header and counter */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight flex items-center flex-wrap gap-2">
             <span>Member Registrations Awaiting Approval</span>
             <span className="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-bold">
               {approvals.length} Pending
@@ -112,7 +112,7 @@ export const ApprovalsPage: React.FC = () => {
         </div>
         <button
           onClick={fetchApprovals}
-          className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-600 transition cursor-pointer"
+          className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-600 transition cursor-pointer self-start sm:self-auto shrink-0"
           title="Refresh Queue"
         >
           <RefreshCw className="w-4 h-4" />
@@ -120,7 +120,7 @@ export const ApprovalsPage: React.FC = () => {
       </div>
 
       {approvals.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/80 shadow-sm max-w-lg mx-auto">
+        <div className="bg-white rounded-2xl p-8 sm:p-12 text-center border border-slate-200/80 shadow-sm max-w-lg mx-auto">
           <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8" />
           </div>
@@ -132,8 +132,8 @@ export const ApprovalsPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Applications List */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col h-[650px]">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col h-[380px] lg:h-[650px]">
+            <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/50">
               <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                 Pending Applicants ({approvals.length})
               </h3>
@@ -186,12 +186,12 @@ export const ApprovalsPage: React.FC = () => {
 
           {/* Right Column: Detailed Review Card */}
           {selectedApplicant && (
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6 flex flex-col justify-between">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-6 flex flex-col justify-between">
               <div className="space-y-6 overflow-y-auto">
                 {/* Header with Photo & Actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
                   <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden border-2 border-slate-200 shadow-sm shrink-0">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 overflow-hidden border-2 border-slate-200 shadow-sm shrink-0">
                       {selectedApplicant.profilePictureUrl ? (
                         <img
                           src={selectedApplicant.profilePictureUrl}
@@ -205,7 +205,7 @@ export const ApprovalsPage: React.FC = () => {
                       )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-black text-slate-900">{selectedApplicant.fullName}</h3>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900">{selectedApplicant.fullName}</h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                         <span className="font-semibold text-blue-600">{selectedApplicant.branchName}</span>
                         <span className="text-slate-300">•</span>
@@ -219,7 +219,7 @@ export const ApprovalsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleApprove(selectedApplicant.userId)}
                       disabled={actionLoading}
@@ -231,7 +231,8 @@ export const ApprovalsPage: React.FC = () => {
                     <button
                       onClick={() => setRejectModalOpen(true)}
                       disabled={actionLoading}
-                      className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
+                      className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
+                      title="Reject"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -325,7 +326,7 @@ export const ApprovalsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between">
+              <div className="pt-4 border-t border-slate-100 text-[11px] sm:text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span>Application Reference ID: {selectedApplicant.userId}</span>
                 <span>Submitted: {new Date(selectedApplicant.registrationDate).toLocaleString()}</span>
               </div>
@@ -336,8 +337,8 @@ export const ApprovalsPage: React.FC = () => {
 
       {/* Reject Modal */}
       {rejectModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Reject Application</h3>
             <p className="text-xs text-slate-500">
               Please enter the official reason for rejecting this member's registration. This will be recorded in the audit logs.
@@ -355,7 +356,7 @@ export const ApprovalsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setRejectModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -374,8 +375,8 @@ export const ApprovalsPage: React.FC = () => {
 
       {/* Request Changes Modal */}
       {changesModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Request Information Changes</h3>
             <p className="text-xs text-slate-500">
               Enter specific notes explaining what details the applicant needs to update before their account can be approved.
@@ -393,7 +394,7 @@ export const ApprovalsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setChangesModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>

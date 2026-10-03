@@ -539,9 +539,9 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
   };
 
   return (
-    <div className="space-y-6 px-6 py-6 max-w-7xl mx-auto">
+    <div className="space-y-6 p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Top Header Card */}
-      <div className="bg-[#0A192F] rounded-2xl p-6 text-white border border-slate-800 shadow-xl relative overflow-hidden">
+      <div className="bg-[#0A192F] rounded-2xl p-4 sm:p-6 text-white border border-slate-800 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
@@ -553,14 +553,14 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               </span>
               <span className="text-xs text-slate-400 font-medium">Faith Preachers Ministries Int'l</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">Financial Treasury & Accounts</h1>
-            <p className="text-sm text-slate-300 mt-1 max-w-2xl">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">Financial Treasury & Accounts</h1>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
               Authoritative multi-branch general ledger, income and expense accounts in Nigerian Naira (₦), dynamic monthly balance roll-forward, and statutory statements.
             </p>
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
               onClick={() => {
                 setNewTxType('income');
@@ -572,7 +572,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 }));
                 setIsNewTxModalOpen(true);
               }}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center space-x-2"
+              className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center space-x-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Record Income</span>
@@ -589,7 +589,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 }));
                 setIsNewTxModalOpen(true);
               }}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center space-x-2"
+              className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center space-x-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Record Expense</span>
@@ -604,21 +604,21 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 }));
                 setIsBaselineModalOpen(true);
               }}
-              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 transition flex items-center space-x-2"
+              className="w-full sm:w-auto justify-center px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium rounded-xl border border-slate-700 transition flex items-center space-x-2 cursor-pointer"
               title="Establish Initial Opening Balance Baseline"
             >
               <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Set Baseline</span>
+              <span>Set Baseline</span>
             </button>
           </div>
         </div>
 
         {/* Global Finance Filter Bar */}
         <div className="mt-6 pt-5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             {/* Branch Selector */}
             <div className="flex items-center space-x-2 bg-[#070E1B] px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
+              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="text-slate-400 font-medium">Branch Scope:</span>
               {isSuperAdmin ? (
                 <select
@@ -649,7 +649,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
 
             {/* Year Selector */}
             <div className="flex items-center space-x-2 bg-[#070E1B] px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="text-slate-400 font-medium">Year:</span>
               <select
                 value={selectedYear}
@@ -664,7 +664,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
 
             {/* Month Selector */}
             <div className="flex items-center space-x-2 bg-[#070E1B] px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="text-slate-400 font-medium">Month:</span>
               <select
                 value={selectedMonth}
@@ -688,7 +688,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               else if (activeTab === 'income_analysis') loadCategoryAnalysis('income');
               else if (activeTab === 'expense_analysis') loadCategoryAnalysis('expense');
             }}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition cursor-pointer"
             title="Refresh Finance Data"
           >
             <RefreshCw className="w-4 h-4" />
@@ -697,7 +697,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
       </div>
 
       {/* Modern Navigation Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 overflow-x-auto pb-2 scrollbar-none">
+      <div className="flex items-center space-x-2 border-b border-slate-200 overflow-x-auto pb-2 scrollbar-none -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
         {[
           { id: 'dashboard', label: 'Overview & KPIs', icon: BarChart3 },
           { id: 'income', label: 'Income Ledger', icon: TrendingUp },
@@ -714,13 +714,13 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`flex items-center space-x-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-4 h-4 shrink-0" />
               <span>{tab.label}</span>
             </button>
           );
@@ -921,7 +921,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full text-left text-xs min-w-[700px]">
                       <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
                         <tr>
                           <th className="px-5 py-3">Branch Name</th>
@@ -1036,10 +1036,10 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
       {(activeTab === 'income' || activeTab === 'expenses') && (
         <div className="space-y-4">
           {/* Filters Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 flex-1">
               {/* Search */}
-              <div className="relative min-w-[240px]">
+              <div className="relative flex-1 min-w-[200px] sm:min-w-[240px]">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -1055,7 +1055,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               <select
                 value={txCategoryFilter}
                 onChange={e => setTxCategoryFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="all">All Categories</option>
                 {(activeTab === 'income' ? incomeCategories : expenseCategories).map(cat => (
@@ -1067,7 +1067,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               <select
                 value={txPaymentMethodFilter}
                 onChange={e => setTxPaymentMethodFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="all">All Payment Methods</option>
                 {paymentMethods.map(pm => (
@@ -1079,7 +1079,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               <select
                 value={txStatusFilter}
                 onChange={e => setTxStatusFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="all">All Statuses</option>
                 <option value="active">Active Only</option>
@@ -1088,14 +1088,14 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
 
               <button
                 onClick={() => loadTransactions(1)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition"
+                className="w-full sm:w-auto px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition cursor-pointer text-center"
               >
                 Apply Filters
               </button>
             </div>
 
             {/* Summary Totals Indicator */}
-            <div className="text-right">
+            <div className="text-left md:text-right pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
               <span className="text-[10px] text-slate-400 uppercase font-semibold">
                 Total {activeTab === 'income' ? 'Income' : 'Expenses'}
               </span>
@@ -1118,7 +1118,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[760px]">
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
                     <tr>
                       <th className="px-4 py-3">Date</th>
@@ -1255,7 +1255,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               <p className="text-xs font-medium">Compiling statement...</p>
             </div>
           ) : monthlyStatement ? (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-8 max-w-4xl mx-auto space-y-8 print:border-none print:shadow-none print:p-0">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-4 sm:p-8 max-w-4xl mx-auto space-y-6 sm:space-y-8 print:border-none print:shadow-none print:p-0">
               {/* Official Header */}
               <div className="text-center border-b border-slate-200 pb-6 space-y-1">
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-wide uppercase">
@@ -1273,7 +1273,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               </div>
 
               {/* 1. Opening Balance Box */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Opening Balance Baseline</span>
                   <p className="text-[11px] text-slate-400">Position as of 1st {monthlyStatement.monthName} {monthlyStatement.year}</p>
@@ -1283,7 +1283,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
 
               {/* 2. Income Section */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-2 gap-1">
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center space-x-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                     <span>Church Inflows & Income</span>
@@ -1291,39 +1291,41 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   <span className="text-xs font-bold text-emerald-600">Total: {formatNaira(monthlyStatement.totalIncome)}</span>
                 </div>
 
-                <table className="w-full text-left text-xs">
-                  <thead className="text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                    <tr>
-                      <th className="py-2">Income Category</th>
-                      <th className="py-2 text-center">Transactions</th>
-                      <th className="py-2 text-right">Amount (NGN)</th>
-                      <th className="py-2 text-right">Percentage</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {monthlyStatement.incomeCategories.map(item => (
-                      <tr key={item.category}>
-                        <td className="py-2.5 font-semibold text-slate-800">{item.category}</td>
-                        <td className="py-2.5 text-center text-slate-500">{item.count}</td>
-                        <td className="py-2.5 text-right font-bold text-slate-900">{formatNaira(item.amount)}</td>
-                        <td className="py-2.5 text-right text-slate-500 font-mono">{item.percentage}%</td>
+                <div className="overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0">
+                  <table className="w-full text-left text-xs min-w-[440px]">
+                    <thead className="text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                      <tr>
+                        <th className="py-2">Income Category</th>
+                        <th className="py-2 text-center">Transactions</th>
+                        <th className="py-2 text-right">Amount (NGN)</th>
+                        <th className="py-2 text-right">Percentage</th>
                       </tr>
-                    ))}
-                    <tr className="font-extrabold bg-emerald-50/40 text-emerald-800">
-                      <td className="py-3 px-2">TOTAL INCOME</td>
-                      <td className="py-3 text-center">
-                        {monthlyStatement.incomeCategories.reduce((acc, curr) => acc + curr.count, 0)}
-                      </td>
-                      <td className="py-3 text-right">{formatNaira(monthlyStatement.totalIncome)}</td>
-                      <td className="py-3 text-right font-mono">100.0%</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {monthlyStatement.incomeCategories.map(item => (
+                        <tr key={item.category}>
+                          <td className="py-2.5 font-semibold text-slate-800">{item.category}</td>
+                          <td className="py-2.5 text-center text-slate-500">{item.count}</td>
+                          <td className="py-2.5 text-right font-bold text-slate-900">{formatNaira(item.amount)}</td>
+                          <td className="py-2.5 text-right text-slate-500 font-mono">{item.percentage}%</td>
+                        </tr>
+                      ))}
+                      <tr className="font-extrabold bg-emerald-50/40 text-emerald-800">
+                        <td className="py-3 px-2">TOTAL INCOME</td>
+                        <td className="py-3 text-center">
+                          {monthlyStatement.incomeCategories.reduce((acc, curr) => acc + curr.count, 0)}
+                        </td>
+                        <td className="py-3 text-right">{formatNaira(monthlyStatement.totalIncome)}</td>
+                        <td className="py-3 text-right font-mono">100.0%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* 3. Expense Section */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-2 gap-1">
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center space-x-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                     <span>Ministry Expenditures & Expenses</span>
@@ -1331,39 +1333,41 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   <span className="text-xs font-bold text-rose-600">Total: {formatNaira(monthlyStatement.totalExpenses)}</span>
                 </div>
 
-                <table className="w-full text-left text-xs">
-                  <thead className="text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                    <tr>
-                      <th className="py-2">Expense Category</th>
-                      <th className="py-2 text-center">Transactions</th>
-                      <th className="py-2 text-right">Amount (NGN)</th>
-                      <th className="py-2 text-right">Percentage</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {monthlyStatement.expenseCategories.map(item => (
-                      <tr key={item.category}>
-                        <td className="py-2.5 font-semibold text-slate-800">{item.category}</td>
-                        <td className="py-2.5 text-center text-slate-500">{item.count}</td>
-                        <td className="py-2.5 text-right font-bold text-slate-900">{formatNaira(item.amount)}</td>
-                        <td className="py-2.5 text-right text-slate-500 font-mono">{item.percentage}%</td>
+                <div className="overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0">
+                  <table className="w-full text-left text-xs min-w-[440px]">
+                    <thead className="text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                      <tr>
+                        <th className="py-2">Expense Category</th>
+                        <th className="py-2 text-center">Transactions</th>
+                        <th className="py-2 text-right">Amount (NGN)</th>
+                        <th className="py-2 text-right">Percentage</th>
                       </tr>
-                    ))}
-                    <tr className="font-extrabold bg-rose-50/40 text-rose-800">
-                      <td className="py-3 px-2">TOTAL EXPENSES</td>
-                      <td className="py-3 text-center">
-                        {monthlyStatement.expenseCategories.reduce((acc, curr) => acc + curr.count, 0)}
-                      </td>
-                      <td className="py-3 text-right">{formatNaira(monthlyStatement.totalExpenses)}</td>
-                      <td className="py-3 text-right font-mono">100.0%</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {monthlyStatement.expenseCategories.map(item => (
+                        <tr key={item.category}>
+                          <td className="py-2.5 font-semibold text-slate-800">{item.category}</td>
+                          <td className="py-2.5 text-center text-slate-500">{item.count}</td>
+                          <td className="py-2.5 text-right font-bold text-slate-900">{formatNaira(item.amount)}</td>
+                          <td className="py-2.5 text-right text-slate-500 font-mono">{item.percentage}%</td>
+                        </tr>
+                      ))}
+                      <tr className="font-extrabold bg-rose-50/40 text-rose-800">
+                        <td className="py-3 px-2">TOTAL EXPENSES</td>
+                        <td className="py-3 text-center">
+                          {monthlyStatement.expenseCategories.reduce((acc, curr) => acc + curr.count, 0)}
+                        </td>
+                        <td className="py-3 text-right">{formatNaira(monthlyStatement.totalExpenses)}</td>
+                        <td className="py-3 text-right font-mono">100.0%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* 4. Final Executive Reconciliation Box */}
-              <div className="bg-[#0A192F] text-white p-6 rounded-2xl border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="bg-[#0A192F] text-white p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-1">
                   <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">MONTHLY SUMMARY & RECONCILIATION</span>
                   <span className="text-xs font-mono text-slate-400">Strict Balance Continuity</span>
                 </div>
@@ -1387,7 +1391,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                       {formatNaira(monthlyStatement.netChange)}
                     </span>
                   </div>
-                  <div className="pt-3 border-t border-slate-700/80 flex justify-between items-center text-sm">
+                  <div className="pt-3 border-t border-slate-700/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 text-sm">
                     <span className="font-black text-amber-300 uppercase tracking-wider">CLOSING BALANCE:</span>
                     <span className="text-xl font-black text-amber-400">{formatNaira(monthlyStatement.closingBalance)}</span>
                   </div>
@@ -1395,7 +1399,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               </div>
 
               {/* Signatures Row */}
-              <div className="pt-12 grid grid-cols-3 gap-8 text-center text-xs text-slate-600 print:pt-8">
+              <div className="pt-8 sm:pt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 text-center text-xs text-slate-600 print:pt-8 print:grid-cols-3">
                 <div className="border-t border-slate-300 pt-2">
                   <p className="font-bold text-slate-900">Church Administrator</p>
                   <p className="text-[10px] text-slate-400">Prepared By</p>
@@ -1419,12 +1423,12 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           ===================================================================== */}
       {activeTab === 'statements_annual' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900">{selectedYear} Annual Financial Reconciliation</h2>
-              <p className="text-xs text-slate-500">12-month sequential ledger reconciliation ($Opening_{'{'}M+1{'}'} = Closing_{'{'}M{'}'}$)</p>
+              <p className="text-xs text-slate-500">12-month sequential ledger reconciliation</p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => window.print()}
                 className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5"
@@ -1450,29 +1454,29 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           ) : annualStatement ? (
             <div className="space-y-6">
               {/* Annual Summary Highlights */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Annual Opening (Jan)</span>
-                  <p className="text-xl font-bold text-slate-900 mt-2">{formatNaira(annualStatement.annualOpeningBalance)}</p>
+                  <p className="text-lg sm:text-xl font-bold text-slate-900 mt-2">{formatNaira(annualStatement.annualOpeningBalance)}</p>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Annual Income</span>
-                  <p className="text-xl font-bold text-emerald-600 mt-2">{formatNaira(annualStatement.totalAnnualIncome)}</p>
+                  <p className="text-lg sm:text-xl font-bold text-emerald-600 mt-2">{formatNaira(annualStatement.totalAnnualIncome)}</p>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Annual Expenses</span>
-                  <p className="text-xl font-bold text-rose-600 mt-2">{formatNaira(annualStatement.totalAnnualExpenses)}</p>
+                  <p className="text-lg sm:text-xl font-bold text-rose-600 mt-2">{formatNaira(annualStatement.totalAnnualExpenses)}</p>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-amber-300 shadow-sm bg-gradient-to-br from-amber-500/10 to-transparent">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-300 shadow-sm bg-gradient-to-br from-amber-500/10 to-transparent">
                   <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">Annual Closing (Dec)</span>
-                  <p className="text-xl font-black text-amber-900 mt-2">{formatNaira(annualStatement.annualClosingBalance)}</p>
+                  <p className="text-lg sm:text-xl font-black text-amber-900 mt-2">{formatNaira(annualStatement.annualClosingBalance)}</p>
                 </div>
               </div>
 
               {/* 12-Month Table */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
                       <tr>
                         <th className="px-5 py-3">Month</th>
@@ -1692,8 +1696,8 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           MODAL: RECORD NEW TRANSACTION (INCOME OR EXPENSE)
           ===================================================================== */}
       {isNewTxModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white ${
@@ -1849,18 +1853,18 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               </div>
 
               {/* Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+              <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setIsNewTxModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAction}
-                  className={`px-5 py-2 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                  className={`w-full sm:w-auto px-5 py-2.5 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${
                     newTxForm.transactionType === 'income' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
                   }`}
                 >
@@ -1877,8 +1881,8 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           MODAL: EDIT TRANSACTION (REQUIRES AUDIT REASON)
           ===================================================================== */}
       {editingTx && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
@@ -1988,18 +1992,18 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               </div>
 
               {/* Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+              <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setEditingTx(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAction}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5"
                 >
                   {submittingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Save Changes</span>
@@ -2014,8 +2018,8 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           MODAL: VOID TRANSACTION
           ===================================================================== */}
       {voidingTx && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center space-x-3 text-rose-600 mb-3">
               <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center">
                 <Trash2 className="w-5 h-5" />
@@ -2046,18 +2050,18 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end space-x-2">
+              <div className="pt-2 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setVoidingTx(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAction}
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5"
                 >
                   {submittingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Confirm Void</span>
@@ -2072,8 +2076,8 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           MODAL: ESTABLISH OPENING BALANCE BASELINE
           ===================================================================== */}
       {isBaselineModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
@@ -2112,7 +2116,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
               )}
 
               {/* Year & Month */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Year *</label>
                   <select
@@ -2167,18 +2171,18 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end space-x-2">
+              <div className="pt-2 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setIsBaselineModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAction}
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5"
                 >
                   {submittingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Save Baseline</span>
@@ -2193,8 +2197,8 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
           MODAL: VIEW TRANSACTION DETAILS
           ===================================================================== */}
       {viewingTx && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white ${
@@ -2232,7 +2236,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-2.5 bg-slate-50/60 rounded-xl border border-slate-100">
                   <span className="text-slate-400 font-medium">Category:</span>
                   <p className="font-bold text-slate-900 mt-0.5">{viewingTx.category}</p>
@@ -2269,7 +2273,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex justify-between">
+              <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>Recorded By: <span className="font-semibold text-slate-600">{viewingTx.createdByName}</span></span>
                 <span>{new Date(viewingTx.createdAt).toLocaleString()}</span>
               </div>
@@ -2278,7 +2282,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
             <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
               <button
                 onClick={() => setViewingTx(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition text-center"
               >
                 Close
               </button>

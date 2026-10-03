@@ -211,7 +211,7 @@ export const LoginPage: React.FC = () => {
       {/* RIGHT PANEL: Authentication Form on Warm Ivory Canvas    */}
       {/* Full width on mobile, 7/12 on tablet, 50% on desktop     */}
       {/* ======================================================== */}
-      <div className="w-full md:w-7/12 lg:w-1/2 min-h-screen bg-[#FAF8F5] flex flex-col justify-between items-center p-6 sm:p-10 lg:p-12 overflow-y-auto">
+      <div className="w-full md:w-7/12 lg:w-1/2 min-h-screen bg-[#FAF8F5] flex flex-col justify-between items-center p-4 sm:p-8 lg:p-12 overflow-y-auto">
         <div className="w-full flex justify-end">
           {/* Subtle Security Badge */}
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-slate-100/90 border border-slate-200/70 text-[11px] font-medium text-slate-600 shadow-2xs">
@@ -221,8 +221,8 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Authentication Form Card */}
-        <div className="w-full max-w-[420px] my-auto py-6">
-          <div className="bg-white rounded-2xl p-7 sm:p-9 shadow-sm border border-slate-200/70 transition-all duration-200">
+        <div className="w-full max-w-[420px] my-auto py-4 sm:py-6">
+          <div className="bg-white rounded-2xl p-5 sm:p-8 shadow-sm border border-slate-200/70 transition-all duration-200">
             {/* Church Emblem Container */}
             <div className="w-14 h-14 rounded-2xl bg-[#FAF8F5] border border-amber-200/60 shadow-inner flex items-center justify-center mx-auto mb-4 p-1 ring-2 ring-amber-400/20">
               <img
@@ -352,7 +352,7 @@ export const LoginPage: React.FC = () => {
                   Member & Account Services
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Change Password Card Button */}
                 <button
                   type="button"
@@ -413,8 +413,8 @@ export const LoginPage: React.FC = () => {
       {/* MODAL 1: CHANGE PASSWORD MODAL                            */}
       {/* ======================================================== */}
       {showChangePassModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
             {/* Close button */}
             <button
               type="button"
@@ -586,8 +586,8 @@ export const LoginPage: React.FC = () => {
       {/* MODAL 2: VIEW PROFILE MODAL                               */}
       {/* ======================================================== */}
       {showProfileModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
             {/* Close button */}
             <button
               type="button"

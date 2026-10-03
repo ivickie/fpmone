@@ -64,7 +64,7 @@ export const TestimoniesPage: React.FC = () => {
   const filteredList = testimonies.filter(t => filter === 'all' || t.status === filter);
 
   return (
-    <div className="p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Testimonies Moderation Queue</h2>
@@ -74,28 +74,28 @@ export const TestimoniesPage: React.FC = () => {
         </div>
 
         {/* Status Filter Tabs */}
-        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold overflow-x-auto max-w-full -mx-1 px-1 sm:mx-0 sm:px-1 scrollbar-none">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${filter === 'all' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 ${filter === 'all' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600'}`}
           >
             All ({testimonies.length})
           </button>
           <button
             onClick={() => setFilter('pending_review')}
-            className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${filter === 'pending_review' ? 'bg-amber-500 text-slate-950 font-bold shadow-xs' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 ${filter === 'pending_review' ? 'bg-amber-500 text-slate-950 font-bold shadow-xs' : 'text-slate-600'}`}
           >
             Pending ({testimonies.filter(t => t.status === 'pending_review').length})
           </button>
           <button
             onClick={() => setFilter('approved')}
-            className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${filter === 'approved' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 ${filter === 'approved' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600'}`}
           >
             Approved ({testimonies.filter(t => t.status === 'approved').length})
           </button>
           <button
             onClick={() => setFilter('rejected')}
-            className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${filter === 'rejected' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 ${filter === 'rejected' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600'}`}
           >
             Rejected ({testimonies.filter(t => t.status === 'rejected').length})
           </button>
@@ -105,7 +105,7 @@ export const TestimoniesPage: React.FC = () => {
       {loading ? (
         <div className="p-8 text-center text-slate-400">Loading testimonies...</div>
       ) : filteredList.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/80 shadow-xs">
+        <div className="bg-white rounded-2xl p-8 sm:p-12 text-center border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500">No testimonies found in this category.</p>
         </div>
       ) : (
@@ -114,10 +114,10 @@ export const TestimoniesPage: React.FC = () => {
             const canDelete = isSuperAdmin || (user?.branchId === t.branchId);
 
             return (
-              <div key={t.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4 hover:shadow-md transition">
-                <div className="flex items-start justify-between gap-4">
+              <div key={t.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4 hover:shadow-md transition">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                   <div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <span className="bg-amber-50 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase">
                         {t.category}
                       </span>
@@ -136,7 +136,7 @@ export const TestimoniesPage: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 self-start sm:self-auto shrink-0">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                       t.status === 'approved'
                         ? 'bg-emerald-100 text-emerald-800'
@@ -178,16 +178,16 @@ export const TestimoniesPage: React.FC = () => {
 
                 <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div className="flex items-center space-x-2 text-slate-500">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>Member Publication Consent: <strong className="text-slate-900">{t.allowPublish ? 'Granted (Yes)' : 'Declined (No)'}</strong></span>
                   </div>
 
                   {t.status === 'pending_review' && (
-                    <div className="flex items-center space-x-2 self-end sm:self-auto">
+                    <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
                       <button
                         onClick={() => handleReview(t.id, 'approved', true)}
                         disabled={actionLoading}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg flex items-center space-x-1 shadow transition cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg flex items-center justify-center space-x-1 shadow transition cursor-pointer disabled:opacity-50 text-xs grow sm:grow-0"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>Approve & Feature</span>
@@ -195,7 +195,7 @@ export const TestimoniesPage: React.FC = () => {
                       <button
                         onClick={() => handleReview(t.id, 'approved', false)}
                         disabled={actionLoading}
-                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center space-x-1 shadow transition cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center justify-center space-x-1 shadow transition cursor-pointer disabled:opacity-50 text-xs grow sm:grow-0"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>Approve</span>
@@ -203,7 +203,7 @@ export const TestimoniesPage: React.FC = () => {
                       <button
                         onClick={() => handleReview(t.id, 'rejected')}
                         disabled={actionLoading}
-                        className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg flex items-center space-x-1 transition cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg flex items-center justify-center space-x-1 transition cursor-pointer disabled:opacity-50 text-xs grow sm:grow-0"
                       >
                         <X className="w-3.5 h-3.5" />
                         <span>Reject</span>

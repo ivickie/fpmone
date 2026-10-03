@@ -104,37 +104,37 @@ export const AttendancePage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
             <span>Live Worker Attendance & Clock-In Console</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Strict server-side authoritative timestamps, grace periods, and automated 4-hour clock-outs.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setClockInModalOpen(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-1.5 transition cursor-pointer"
+            className="flex-1 sm:flex-none justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-1.5 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Record Clock-In</span>
           </button>
           <button
             onClick={handleTriggerAutoClockOut}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+            className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer text-center"
             title="Run background auto clock-out"
           >
             Run Auto-Timeout
           </button>
           <button
             onClick={fetchAttendance}
-            className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-slate-600 transition"
+            className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-slate-600 transition shrink-0 cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -142,42 +142,42 @@ export const AttendancePage: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-2xs text-center">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Expected</span>
-          <p className="text-2xl font-black text-slate-900 mt-1">{data?.totalExpected || 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{data?.totalExpected || 0}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-2xs text-center">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-emerald-100 shadow-2xs text-center">
           <span className="text-[10px] font-bold text-emerald-600 uppercase flex items-center justify-center space-x-1">
             <CheckCircle2 className="w-3 h-3" />
             <span>Present</span>
           </span>
-          <p className="text-2xl font-black text-emerald-700 mt-1">{data?.present || 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{data?.present || 0}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-amber-100 shadow-2xs text-center">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-amber-100 shadow-2xs text-center">
           <span className="text-[10px] font-bold text-amber-600 uppercase flex items-center justify-center space-x-1">
             <Clock className="w-3 h-3" />
             <span>Late</span>
           </span>
-          <p className="text-2xl font-black text-amber-700 mt-1">{data?.late || 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-1">{data?.late || 0}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs text-center">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-rose-100 shadow-2xs text-center">
           <span className="text-[10px] font-bold text-rose-600 uppercase flex items-center justify-center space-x-1">
             <XCircle className="w-3 h-3" />
             <span>Absent</span>
           </span>
-          <p className="text-2xl font-black text-rose-700 mt-1">{data?.absent || 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">{data?.absent || 0}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-2xs text-center">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-blue-100 shadow-2xs text-center">
           <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center justify-center space-x-1">
             <AlertTriangle className="w-3 h-3" />
             <span>Excused</span>
           </span>
-          <p className="text-2xl font-black text-blue-700 mt-1">{data?.excused || 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-blue-700 mt-1">{data?.excused || 0}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs text-center bg-gradient-to-tr from-blue-50 to-white">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs text-center bg-gradient-to-tr from-blue-50 to-white">
           <span className="text-[10px] font-bold text-blue-600 uppercase">Live Clocked In</span>
-          <p className="text-2xl font-black text-blue-700 mt-1">{data?.currentlyClockedIn || 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-blue-700 mt-1">{data?.currentlyClockedIn || 0}</p>
         </div>
       </div>
 
@@ -193,7 +193,7 @@ export const AttendancePage: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[760px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
               <tr>
                 <th className="py-3 px-4">Worker ID & Name</th>
@@ -296,8 +296,8 @@ export const AttendancePage: React.FC = () => {
 
       {/* Record Clock-In Modal */}
       {clockInModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Record Worker Clock-In</h3>
             <p className="text-xs text-slate-500">
               Timestamps are generated strictly on the server database. Punctuality is evaluated automatically based on service start time and grace period.
@@ -345,8 +345,8 @@ export const AttendancePage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setMethod('pin')}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center space-y-1 ${
-                      method === 'pin' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600'
+                    className={`p-2 rounded-xl border flex flex-col items-center justify-center space-y-1 cursor-pointer transition ${
+                      method === 'pin' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <Key className="w-4 h-4" />
@@ -355,8 +355,8 @@ export const AttendancePage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setMethod('qr')}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center space-y-1 ${
-                      method === 'qr' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600'
+                    className={`p-2 rounded-xl border flex flex-col items-center justify-center space-y-1 cursor-pointer transition ${
+                      method === 'qr' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <QrCode className="w-4 h-4" />
@@ -365,8 +365,8 @@ export const AttendancePage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setMethod('biometric')}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center space-y-1 ${
-                      method === 'biometric' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600'
+                    className={`p-2 rounded-xl border flex flex-col items-center justify-center space-y-1 cursor-pointer transition ${
+                      method === 'biometric' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <Fingerprint className="w-4 h-4" />
@@ -389,17 +389,17 @@ export const AttendancePage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setClockInModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-center"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   Authoritative Clock-In
                 </button>
@@ -411,8 +411,8 @@ export const AttendancePage: React.FC = () => {
 
       {/* Excuse Absence Modal */}
       {excuseModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Mark Absence as Excused</h3>
             <p className="text-xs text-slate-500">
               Provide pastoral or medical excuse notes. The original attendance record is preserved in the audit trail.
@@ -429,17 +429,17 @@ export const AttendancePage: React.FC = () => {
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                 />
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setExcuseModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   Confirm Excuse
                 </button>

@@ -217,11 +217,11 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             </div>
           )}
           {!isUploading && (
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+            <div className="absolute inset-0 bg-black/40 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 bg-white text-slate-800 text-xs font-medium rounded shadow hover:bg-slate-100 transition-colors"
+                className="px-3 py-1.5 bg-white text-slate-800 text-xs font-medium rounded shadow hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Change
               </button>
@@ -232,7 +232,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
                   setLocalPreview(null);
                   setImageError(false);
                 }}
-                className="p-1.5 bg-red-600 text-white rounded shadow hover:bg-red-700 transition-colors"
+                className="p-1.5 bg-red-600 text-white rounded shadow hover:bg-red-700 transition-colors cursor-pointer"
                 title="Remove image"
               >
                 <X className="w-4 h-4" />

@@ -61,7 +61,7 @@ export const NotificationsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Push Notifications Dispatcher</h2>
@@ -73,7 +73,7 @@ export const NotificationsPage: React.FC = () => {
         {canBroadcast && (
           <button
             onClick={() => setModalOpen(true)}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center space-x-2 transition cursor-pointer"
           >
             <Send className="w-4 h-4" />
             <span>Broadcast Notification</span>
@@ -86,19 +86,19 @@ export const NotificationsPage: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {notifications.map(n => (
-            <div key={n.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-5 flex items-start space-x-4">
+            <div key={n.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-5 flex items-start space-x-3 sm:space-x-4">
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
                 <Bell className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <h4 className="text-sm font-extrabold text-slate-900 truncate">{n.title}</h4>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[10px] text-slate-400 shrink-0">
                     {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">{n.body}</p>
-                <div className="flex items-center space-x-2 mt-2 text-[10px]">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 text-[10px]">
                   <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded uppercase">
                     Target: {n.targetScope.replace('_', ' ')}
                   </span>
@@ -114,8 +114,8 @@ export const NotificationsPage: React.FC = () => {
 
       {/* Broadcast Modal */}
       {canBroadcast && modalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">Broadcast Push Notification</h3>
             <form onSubmit={handleBroadcast} className="space-y-4 text-xs">
               <div>
@@ -169,17 +169,17 @@ export const NotificationsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="w-full sm:w-auto px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl cursor-pointer text-center"
                 >
                   Send Broadcast
                 </button>

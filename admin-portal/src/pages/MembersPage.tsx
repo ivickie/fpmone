@@ -326,20 +326,20 @@ export const MembersPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header with Tab switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Church Registry & Directory</h2>
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Church Registry & Directory</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Administer church members, ordained ministers, department workers, badges, and account lifecycles.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl w-full sm:w-auto justify-between sm:justify-start">
             <button
               onClick={() => setActiveTab('members')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer text-center ${
                 activeTab === 'members'
                   ? 'bg-white text-blue-600 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -349,7 +349,7 @@ export const MembersPage: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('workers')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer text-center ${
                 activeTab === 'workers'
                   ? 'bg-white text-blue-600 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -361,7 +361,7 @@ export const MembersPage: React.FC = () => {
 
           <button
             onClick={openAddMember}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            className="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>Add Member</span>
@@ -370,8 +370,8 @@ export const MembersPage: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-2.5 sm:gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
@@ -387,7 +387,7 @@ export const MembersPage: React.FC = () => {
             <select
               value={branchFilter}
               onChange={e => setBranchFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
+              className="flex-1 sm:flex-initial min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
             >
               <option value="">All Branches</option>
               {branches.map(b => (
@@ -398,7 +398,7 @@ export const MembersPage: React.FC = () => {
               <select
                 value={roleFilter}
                 onChange={e => setRoleFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
+                className="flex-1 sm:flex-initial min-w-[120px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
               >
                 <option value="">All Roles</option>
                 {roles.map(r => (
@@ -410,7 +410,7 @@ export const MembersPage: React.FC = () => {
             <select
               value={deptFilter}
               onChange={e => setDeptFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
+              className="flex-1 sm:flex-initial min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
             >
               <option value="">All Departments</option>
               {departments.map(d => (
@@ -421,7 +421,7 @@ export const MembersPage: React.FC = () => {
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
+              className="flex-1 sm:flex-initial min-w-[120px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="active">Active</option>
@@ -432,7 +432,7 @@ export const MembersPage: React.FC = () => {
 
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition cursor-pointer text-center"
             >
               Filter
             </button>
@@ -444,7 +444,7 @@ export const MembersPage: React.FC = () => {
       {activeTab === 'members' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[720px]">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4">Member</th>
@@ -630,7 +630,7 @@ export const MembersPage: React.FC = () => {
       {activeTab === 'workers' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[720px]">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4">Worker Code</th>
@@ -697,45 +697,45 @@ export const MembersPage: React.FC = () => {
 
       {/* Member Details Modal */}
       {viewDetailsOpen && selectedMember && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 sm:space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Member Dossier & Profile</h3>
               <button
                 onClick={() => setViewDetailsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border border-slate-300">
+            <div className="flex items-center space-x-3.5 sm:space-x-4">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border border-slate-300">
                 {selectedMember.profilePictureUrl ? (
                   <img src={selectedMember.profilePictureUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-600 font-bold text-xl">
+                  <div className="w-full h-full flex items-center justify-center text-slate-600 font-bold text-lg sm:text-xl">
                     {selectedMember.firstName?.charAt(0) || 'M'}
                   </div>
                 )}
               </div>
-              <div>
-                <h4 className="text-lg font-extrabold text-slate-900">
+              <div className="min-w-0">
+                <h4 className="text-base sm:text-lg font-extrabold text-slate-900 truncate">
                   {selectedMember.firstName} {selectedMember.middleName} {selectedMember.lastName}
                 </h4>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
                   <span className="bg-blue-50 text-blue-700 font-bold text-xs px-2.5 py-0.5 rounded-full border border-blue-100">
                     {selectedMember.roleName || 'Member'}
                   </span>
-                  <span className="text-xs text-slate-500 font-medium">{selectedMember.branchName}</span>
+                  <span className="text-xs text-slate-500 font-medium truncate">{selectedMember.branchName}</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs bg-slate-50 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/80">
               <div>
                 <span className="text-slate-400 block mb-0.5">Email</span>
-                <span className="font-semibold text-slate-800">{selectedMember.email || '—'}</span>
+                <span className="font-semibold text-slate-800 break-all">{selectedMember.email || '—'}</span>
               </div>
               <div>
                 <span className="text-slate-400 block mb-0.5">Phone Number</span>
@@ -749,7 +749,7 @@ export const MembersPage: React.FC = () => {
                 <span className="text-slate-400 block mb-0.5">Date of Birth</span>
                 <span className="font-semibold text-slate-800">{selectedMember.dateOfBirth || '—'}</span>
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <span className="text-slate-400 block mb-0.5">Residential Address</span>
                 <span className="font-semibold text-slate-800">{selectedMember.residentialAddress || '—'}</span>
               </div>
@@ -764,14 +764,14 @@ export const MembersPage: React.FC = () => {
             </div>
 
             {selectedMember.worker && (
-              <div className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-xs space-y-2">
+              <div className="p-3.5 sm:p-4 bg-indigo-50/60 rounded-xl sm:rounded-2xl border border-indigo-100 text-xs space-y-2">
                 <div className="flex items-center justify-between">
                   <h5 className="font-bold text-indigo-900 uppercase tracking-wider">Worker Service Details</h5>
                   <span className="font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
                     {selectedMember.worker.workerIdCode}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-1 text-slate-700">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-slate-700">
                   <div>Department: <strong className="text-slate-900">{selectedMember.worker.departmentName}</strong></div>
                   <div>Position: <strong className="text-slate-900">{selectedMember.worker.positionName}</strong></div>
                   <div>Serving Since: <strong className="text-slate-900">{selectedMember.worker.dateStartedServing?.split('T')[0] || '2024'}</strong></div>
@@ -784,7 +784,7 @@ export const MembersPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setViewDetailsOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer text-center"
               >
                 Close Dossier
               </button>
@@ -795,8 +795,8 @@ export const MembersPage: React.FC = () => {
 
       {/* Edit Personal Information Modal */}
       {editProfileOpen && selectedMember && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">
               Edit Profile: {selectedMember.fullName}
             </h3>
@@ -809,7 +809,7 @@ export const MembersPage: React.FC = () => {
                 entityId={selectedMember.id}
               />
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">First Name</label>
                   <input
@@ -841,7 +841,7 @@ export const MembersPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Email</label>
                   <input
@@ -862,7 +862,7 @@ export const MembersPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Gender</label>
                   <select
@@ -896,7 +896,7 @@ export const MembersPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Emergency Contact Name</label>
                   <input
@@ -921,7 +921,7 @@ export const MembersPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditProfileOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -940,8 +940,8 @@ export const MembersPage: React.FC = () => {
 
       {/* Edit Role & Assignment Modal */}
       {editAssignmentOpen && selectedMember && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">
               Edit Assignments: {selectedMember.fullName}
             </h3>
@@ -953,7 +953,7 @@ export const MembersPage: React.FC = () => {
                 <select
                   value={assignmentForm.branchId}
                   onChange={e => setAssignmentForm({ ...assignmentForm, branchId: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
                 >
                   {branches.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
@@ -968,7 +968,7 @@ export const MembersPage: React.FC = () => {
                 <select
                   value={assignmentForm.roleId}
                   onChange={e => setAssignmentForm({ ...assignmentForm, roleId: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
                 >
                   {roles
                     .filter(r => user?.adminLevel === 'super_admin' || (r.code !== 'SUPER_ADMIN' && r.name !== 'Administrator'))
@@ -987,7 +987,7 @@ export const MembersPage: React.FC = () => {
                     <select
                       value={assignmentForm.departmentId}
                       onChange={e => setAssignmentForm({ ...assignmentForm, departmentId: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
                     >
                       <option value="">Select Department</option>
                       {departments.map(d => (
@@ -1015,7 +1015,7 @@ export const MembersPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditAssignmentOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1034,8 +1034,8 @@ export const MembersPage: React.FC = () => {
 
       {/* Edit Worker Modal */}
       {editWorkerOpen && selectedWorker && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">
               Edit Worker: {selectedWorker.fullName} ({selectedWorker.workerIdCode})
             </h3>
@@ -1106,9 +1106,9 @@ export const MembersPage: React.FC = () => {
 
       {/* Enroll New Member Modal */}
       {addMemberOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl my-auto max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Enroll New Church Member</h3>
                 <p className="text-[11px] text-slate-500">Directly onboard and register a member into the church directory</p>
@@ -1122,7 +1122,7 @@ export const MembersPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs p-6 overflow-y-auto flex-1">
+            <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs p-4 sm:p-6 overflow-y-auto flex-1">
               {/* Personal Details */}
               <div className="border-b border-slate-100 pb-3">
                 <h4 className="font-bold text-slate-800 uppercase tracking-wider mb-2.5">1. Personal Information</h4>
@@ -1339,18 +1339,18 @@ export const MembersPage: React.FC = () => {
               </div>
 
               {/* Submit Buttons */}
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setAddMemberOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50 shadow-sm"
+                  className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50 shadow-sm text-center"
                 >
                   {actionLoading ? 'Enrolling...' : 'Enroll Member'}
                 </button>
@@ -1362,8 +1362,8 @@ export const MembersPage: React.FC = () => {
 
       {/* QR Code Digital Badge Modal */}
       {qrModalOpen && selectedMember?.workerDetails && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl space-y-4 border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 max-w-sm w-full text-center shadow-2xl space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
             <img
               src="/church-logo.png"
               alt="Faith Preachers Ministries Int'l"

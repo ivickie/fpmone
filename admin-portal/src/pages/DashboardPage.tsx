@@ -53,7 +53,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[400px]">
+      <div className="p-4 sm:p-8 flex items-center justify-center min-h-[400px]">
         <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -63,16 +63,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const pendingTestimoniesCount = testimonies.filter(t => t.status === 'pending_review').length;
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Pending Approvals Alert Banner (if any) */}
       {approvals.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-5 text-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-amber-500/20">
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-4 sm:p-5 text-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-amber-500/20">
           <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center font-black shrink-0">
               {approvals.length}
             </div>
             <div>
-              <h3 className="font-extrabold text-base tracking-tight">New Member Registration Approvals Pending</h3>
+              <h3 className="font-extrabold text-sm sm:text-base tracking-tight">New Member Registration Approvals Pending</h3>
               <p className="text-xs font-medium text-slate-900/80">
                 {approvals.length} applicant(s) are awaiting background review and account activation.
               </p>
@@ -124,8 +124,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       {/* Attendance & Ministry Live Tracker */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's Attendance Overview */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-sm space-y-5 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                 Today's Worker Attendance & Punctuality
@@ -136,7 +136,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </div>
             <button
               onClick={() => onNavigate('attendance')}
-              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center space-x-1 cursor-pointer self-start sm:self-auto"
             >
               <span>Live Attendance Console</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
@@ -144,7 +144,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
 
           {/* Metric Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 text-center">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Expected</span>
               <p className="text-xl font-extrabold text-slate-800 mt-1">{attendance?.totalExpected || 0}</p>
@@ -217,7 +217,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Quick Ministry Highlights */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-sm space-y-5">
           <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Ministry Highlights</h3>
 
           <div className="space-y-4">

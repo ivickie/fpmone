@@ -198,7 +198,7 @@ export const HighlightsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Post-Service Sermon Highlights</h2>
@@ -208,7 +208,7 @@ export const HighlightsPage: React.FC = () => {
         </div>
         <button
           onClick={openCreateModal}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center space-x-2 transition cursor-pointer"
+          className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center space-x-2 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Publish Service Highlight</span>
@@ -218,7 +218,7 @@ export const HighlightsPage: React.FC = () => {
       {loading ? (
         <div className="p-8 text-center text-slate-400">Loading highlights...</div>
       ) : highlights.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/80 shadow-xs">
+        <div className="bg-white rounded-2xl p-8 sm:p-12 text-center border border-slate-200/80 shadow-xs">
           <Sparkles className="w-10 h-10 text-slate-300 mx-auto mb-2" />
           <p className="text-xs text-slate-500 font-medium">No service highlights published yet.</p>
         </div>
@@ -229,20 +229,20 @@ export const HighlightsPage: React.FC = () => {
             const canManage = isSuperAdmin || (user?.branchId === h.branchId);
 
             return (
-              <div key={h.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5 hover:shadow-md transition">
-                <div className="flex items-start justify-between gap-4">
+              <div key={h.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-5 hover:shadow-md transition">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded">
                       {new Date(h.highlightDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                     </span>
-                    <h3 className="text-lg font-black text-slate-900">{h.title}</h3>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">{h.title}</h3>
                     <div className="flex items-center space-x-2 text-xs text-slate-500">
                       <User className="w-3.5 h-3.5 text-amber-600" />
                       <span>Minister: <strong className="text-slate-800">{h.speaker}</strong></span>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 self-start">
                     <span className="flex items-center space-x-1 text-emerald-600 text-xs font-bold bg-emerald-50 px-2.5 py-1 rounded-full">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Published</span>
@@ -408,9 +408,9 @@ export const HighlightsPage: React.FC = () => {
 
       {/* Publish Highlight Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl my-auto max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Publish Service Highlight</h3>
                 <p className="text-[11px] text-slate-500">Recap sermon scriptures, media flyer, and key spiritual notes</p>
@@ -423,7 +423,7 @@ export const HighlightsPage: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreate} className="space-y-4 text-xs p-6 overflow-y-auto flex-1">
+            <form onSubmit={handleCreate} className="space-y-4 text-xs p-4 sm:p-6 overflow-y-auto flex-1">
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Sermon Theme / Title</label>
                 <input
@@ -457,7 +457,7 @@ export const HighlightsPage: React.FC = () => {
                 </div>
 
                 {mediaUrls.length > 0 && (
-                  <div className="grid grid-cols-6 gap-2 mb-2.5">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2.5">
                     {mediaUrls.map((url, idx) => {
                       const isVid = isVideoMedia(url);
                       return (
@@ -575,18 +575,18 @@ export const HighlightsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl cursor-pointer disabled:opacity-50 text-center"
                 >
                   {actionLoading ? 'Publishing...' : 'Publish Highlight'}
                 </button>
@@ -598,9 +598,9 @@ export const HighlightsPage: React.FC = () => {
 
       {/* Edit Highlight Modal */}
       {editModalOpen && selectedHighlight && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl my-auto max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Edit Service Highlight</h3>
                 <p className="text-[11px] text-slate-500">Update sermon details, scripture reference, and quotes</p>
@@ -613,7 +613,7 @@ export const HighlightsPage: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleUpdate} className="space-y-4 text-xs p-6 overflow-y-auto flex-1">
+            <form onSubmit={handleUpdate} className="space-y-4 text-xs p-4 sm:p-6 overflow-y-auto flex-1">
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Sermon Theme / Title</label>
                 <input
@@ -645,7 +645,7 @@ export const HighlightsPage: React.FC = () => {
                 </div>
 
                 {mediaUrls.length > 0 && (
-                  <div className="grid grid-cols-6 gap-2 mb-2.5">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2.5">
                     {mediaUrls.map((url, idx) => {
                       const isVid = isVideoMedia(url);
                       return (
@@ -759,18 +759,18 @@ export const HighlightsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl cursor-pointer disabled:opacity-50 text-center"
                 >
                   {actionLoading ? 'Saving...' : 'Save Changes'}
                 </button>

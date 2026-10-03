@@ -78,31 +78,31 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 animate-scale-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 sm:p-6 space-y-4 animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-start gap-3">
           <div className={`p-2.5 rounded-full ${getBgClass()} flex-shrink-0`}>
             {getIcon()}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-            <p className="text-sm text-slate-600 mt-1 leading-relaxed">{message}</p>
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900">{title}</h3>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">{message}</p>
           </div>
           <button
             onClick={handleClose}
             disabled={finalLoading}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 sm:gap-3 pt-2">
           <button
             type="button"
             onClick={handleClose}
             disabled={finalLoading}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer text-center"
           >
             {finalCancelText}
           </button>
@@ -110,7 +110,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             onClick={onConfirm}
             disabled={finalLoading}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm cursor-pointer ${getButtonClass()}`}
+            className={`w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer ${getButtonClass()}`}
           >
             {finalLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             {finalConfirmText}

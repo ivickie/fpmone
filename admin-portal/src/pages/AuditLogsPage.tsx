@@ -23,11 +23,11 @@ export const AuditLogsPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
-            <History className="w-5 h-5 text-blue-600" />
+            <History className="w-5 h-5 text-blue-600 shrink-0" />
             <span>Immutable Administrative Audit Trail</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -36,7 +36,8 @@ export const AuditLogsPage: React.FC = () => {
         </div>
         <button
           onClick={fetchLogs}
-          className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-slate-600 transition"
+          className="self-end sm:self-auto p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-slate-600 transition"
+          title="Refresh Audit Logs"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -44,7 +45,7 @@ export const AuditLogsPage: React.FC = () => {
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[700px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Timestamp</th>

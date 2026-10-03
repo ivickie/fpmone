@@ -29,6 +29,7 @@ const AppContent: React.FC = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [pendingTestimoniesCount, setPendingTestimoniesCount] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -92,9 +93,14 @@ const AppContent: React.FC = () => {
       {/* Sidebar Navigation */}
       <Sidebar
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={(tab) => {
+          setCurrentTab(tab);
+          setMobileMenuOpen(false);
+        }}
         pendingApprovalsCount={pendingApprovalsCount}
         pendingTestimoniesCount={pendingTestimoniesCount}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -103,6 +109,7 @@ const AppContent: React.FC = () => {
           branches={branches}
           title={currentInfo.title}
           subtitle={currentInfo.subtitle}
+          onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
         />
 
         <main className="flex-1 overflow-y-auto pb-12">
