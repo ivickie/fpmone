@@ -16,7 +16,72 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process
 const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_DEV_JWT;
 
 export class AuthService {
-  public static async login(emailOrPhone: string, password: string): Promise<{ token?: string; user?: AuthUserSession; error?: string; status?: string }> {
+  /**
+   * Evaluates if a user account is authorized to log in to the FPM Global Admin Portal.
+   * Permitted roles & access levels:
+   * - Admin (super_admin, church_admin, branch_admin, isAdmin = true, SUPER_ADMIN)
+   * - Branch Admin (BRANCH_ADMIN or branch_admin)
+   * - Branch Pastor (BRANCH_PASTOR)
+   * - Associate Pastor (ASSOCIATE_PASTOR)
+   * - Pastor (PASTOR)
+   * - HOD (Head of Department)
+   *
+   * Regular workers and members without one of the above roles/titles cannot log into the Admin Portal.
+   */
+  public static isAuthorizedForAdminPortal(sessionUser: AuthUserSession, user?: User): boolean {
+    if (!sessionUser) return false;
+
+    // 1. Admin checks (isAdmin flag or adminLevel is not 'none')
+    if (sessionUser.isAdmin) return true;
+    if (sessionUser.adminLevel && sessionUser.adminLevel !== 'none') return true;
+    if (user && (user.isAdmin || (user.adminLevel && user.adminLevel !== 'none'))) return true;
+
+    // 2. Role code checks
+    const roleCode = (sessionUser.roleCode || '').toUpperCase();
+    const authorizedRoleCodes = [
+      'SUPER_ADMIN',
+      'BRANCH_ADMIN',
+      'BRANCH_PASTOR',
+      'ASSOCIATE_PASTOR',
+      'PASTOR',
+      'HOD'
+    ];
+    if (authorizedRoleCodes.includes(roleCode)) return true;
+
+    // 3. Role name checks
+    const roleName = (sessionUser.roleName || '').toLowerCase();
+    if (
+      roleName.includes('admin') ||
+      roleName.includes('branch pastor') ||
+      roleName.includes('associate pastor') ||
+      roleName.includes('pastor') ||
+      roleName.includes('hod') ||
+      roleName.includes('head of department')
+    ) {
+      return true;
+    }
+
+    // 4. Department HOD assignment check in database
+    const isDeptHod = db.departments.some(d =>
+      d.hodId === sessionUser.userId ||
+      Boolean(sessionUser.email && d.hodEmail && d.hodEmail.toLowerCase() === sessionUser.email.toLowerCase())
+    );
+    if (isDeptHod) return true;
+
+    // 5. Worker position indicating HOD
+    const positionName = (sessionUser.workerDetails?.positionName || '').toLowerCase();
+    if (positionName.includes('hod') || positionName.includes('head of department')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public static async login(
+    emailOrPhone: string,
+    password: string,
+    portal?: string
+  ): Promise<{ token?: string; user?: AuthUserSession; error?: string; status?: string }> {
     const cleanIdentifier = emailOrPhone.trim().toLowerCase();
 
     // Check account-level throttle (progressive delay after failed attempts)
@@ -127,6 +192,16 @@ export class AuthService {
       } : undefined,
       profilePictureUrl: member.profilePictureUrl
     };
+
+    // Enforce Admin Portal authorization when logging in to the admin portal
+    if (portal === 'admin' || portal === 'admin_portal') {
+      if (!this.isAuthorizedForAdminPortal(sessionUser, user)) {
+        return {
+          status: 'unauthorized',
+          error: "You're not authorized here."
+        };
+      }
+    }
 
     const token = jwt.sign(sessionUser, JWT_SECRET, { expiresIn: '7d' });
 

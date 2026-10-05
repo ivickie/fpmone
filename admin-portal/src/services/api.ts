@@ -22,6 +22,7 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   const token = getAuthToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
+    'X-Portal': 'admin',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
@@ -56,7 +57,11 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
 export const api = {
   // Auth
   login: (emailOrPhone: string, password: string) =>
-    apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ emailOrPhone, password }) }),
+    apiRequest('/auth/login', {
+      method: 'POST',
+      headers: { 'X-Portal': 'admin' },
+      body: JSON.stringify({ emailOrPhone, password, portal: 'admin' })
+    }),
   register: (data: any) =>
     apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getProfile: () => apiRequest('/auth/profile'),

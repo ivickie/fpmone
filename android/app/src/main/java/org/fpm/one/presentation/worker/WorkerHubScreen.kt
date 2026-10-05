@@ -495,7 +495,7 @@ fun DigitalWorkerIdBadge(user: UserSession?) {
             )
           }
 
-          // Mock QR Graphic
+          // Digital QR Badge Graphic
           Box(
             modifier = Modifier
               .size(54.dp)

@@ -25,13 +25,17 @@ import {
 // =============================================================================
 export const loginHandler = async (req: Request, res: Response) => {
   try {
-    const { emailOrPhone, password } = req.body;
+    const { emailOrPhone, password, portal } = req.body;
+    const portalHeader = (req.headers['x-portal'] || req.headers['x-client-app']) as string | undefined;
+    const requestedPortal = portal || portalHeader;
+
     if (!emailOrPhone || !password) {
       return res.status(400).json({ error: 'Email/Phone and Password are required.' });
     }
-    const result = await AuthService.login(emailOrPhone, password);
+    const result = await AuthService.login(emailOrPhone, password, requestedPortal);
     if (result.error) {
-      return res.status(result.status === 'pending' ? 403 : 401).json({
+      const statusCode = (result.status === 'pending' || result.status === 'unauthorized') ? 403 : 401;
+      return res.status(statusCode).json({
         error: result.error,
         status: result.status
       });
@@ -52,6 +56,12 @@ export const registerHandler = async (req: Request, res: Response) => {
 };
 
 export const getProfileHandler = (req: Request, res: Response) => {
+  const portalHeader = (req.headers['x-portal'] || req.headers['x-client-app']) as string | undefined;
+  if ((portalHeader === 'admin' || portalHeader === 'admin_portal') && req.user) {
+    if (!AuthService.isAuthorizedForAdminPortal(req.user)) {
+      return res.status(403).json({ error: "You're not authorized here." });
+    }
+  }
   return res.json(req.user);
 };
 

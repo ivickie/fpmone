@@ -17,6 +17,12 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
   // Configured via BuildConfig (production default: https://www.fpmglobal.online/api)
   var baseUrl: String = org.fpm.one.BuildConfig.API_BASE_URL
+    get() = if (org.fpm.one.BuildConfig.DEBUG) field else org.fpm.one.BuildConfig.API_BASE_URL
+    set(value) {
+      if (org.fpm.one.BuildConfig.DEBUG) {
+        field = value
+      }
+    }
   var authToken: String? = null
 
   val json = Json {
@@ -183,9 +189,6 @@ object ApiClient {
     if (url.contains("/uploads/")) {
       val uploadsIndex = url.indexOf("/uploads/")
       return "$serverBase${url.substring(uploadsIndex)}"
-    }
-    if (url.startsWith("http://localhost:5000") || url.startsWith("http://127.0.0.1:5000")) {
-      return url.replace("http://localhost:5000", serverBase).replace("http://127.0.0.1:5000", serverBase)
     }
     return url
   }

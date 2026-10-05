@@ -1,6 +1,5 @@
 package org.fpm.one.core.network
 
-import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
@@ -13,8 +12,8 @@ object ServerDiscovery {
   private const val DISCOVERY_QUERY = "FPM_DISCOVER_SERVER"
 
   /**
-   * Broadcasts UDP packet to local network to locate FPM Global backend server.
-   * Returns discovered Base URL (e.g. "http://10.164.108.241:5000/api") or null if not found.
+   * Broadcasts UDP packet to local network to locate development backend server.
+   * Debug-only helper for local development convenience.
    */
   suspend fun discoverServer(timeoutMs: Int = 2500): String? = withContext(Dispatchers.IO) {
     var socket: DatagramSocket? = null
@@ -44,7 +43,7 @@ object ServerDiscovery {
         ApiClient.baseUrl = discoveredUrl
         return@withContext discoveredUrl
       }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
       // Broadcast might be restricted on some Wi-Fi configurations
     } finally {
       try {

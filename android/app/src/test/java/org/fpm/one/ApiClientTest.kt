@@ -27,9 +27,9 @@ class ApiClientTest {
   }
 
   @Test
-  fun resolveMediaUrl_localhostUploadsPath_rewritesToServerBase() {
-    val result = ApiClient.resolveMediaUrl("http://localhost:5000/uploads/avatars/john.png")
-    assertEquals("https://www.fpmglobal.online/uploads/avatars/john.png", result)
+  fun resolveMediaUrl_legacyUploadsPath_rewritesToServerBase() {
+    val result = ApiClient.resolveMediaUrl("https://legacy-host/uploads/avatars/member.png")
+    assertEquals("https://www.fpmglobal.online/uploads/avatars/member.png", result)
   }
 
   @Test
