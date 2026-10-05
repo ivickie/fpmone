@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import { 
   ShieldCheck, LogIn, AlertCircle, Eye, EyeOff, Sparkles,
-  KeyRound, UserCheck, CheckCircle2, X
+  KeyRound, UserCheck, CheckCircle2, X, UserPlus
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
-export const LoginPage: React.FC = () => {
+interface LoginPageProps {
+  onNavigatePrivacy?: () => void;
+  onNavigateDeleteAccount?: () => void;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({
+  onNavigatePrivacy,
+  onNavigateDeleteAccount
+}) => {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,6 +22,19 @@ export const LoginPage: React.FC = () => {
   const [showResetHelp, setShowResetHelp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sign Up Modal State
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const [signUpFirstName, setSignUpFirstName] = useState('');
+  const [signUpLastName, setSignUpLastName] = useState('');
+  const [signUpEmail, setSignUpEmail] = useState('');
+  const [signUpPhone, setSignUpPhone] = useState('');
+  const [signUpPassword, setSignUpPassword] = useState('');
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [signUpAgreedPrivacy, setSignUpAgreedPrivacy] = useState(false);
+  const [signUpLoading, setSignUpLoading] = useState(false);
+  const [signUpError, setSignUpError] = useState<string | null>(null);
+  const [signUpSuccess, setSignUpSuccess] = useState<string | null>(null);
 
   // Change Password Modal State
   const [showChangePassModal, setShowChangePassModal] = useState(false);
@@ -36,6 +57,50 @@ export const LoginPage: React.FC = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<any | null>(null);
+
+  const handleSignUpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignUpError(null);
+    setSignUpSuccess(null);
+
+    if (!signUpFirstName.trim() || !signUpLastName.trim()) {
+      setSignUpError('First name and last name are required.');
+      return;
+    }
+    if (!signUpEmail.trim() || !signUpPhone.trim()) {
+      setSignUpError('Email address and phone number are required.');
+      return;
+    }
+    if (!signUpPassword || signUpPassword.length < 6) {
+      setSignUpError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (!signUpAgreedPrivacy) {
+      setSignUpError("Please agree to FPM Global's privacy policy.");
+      return;
+    }
+
+    setSignUpLoading(true);
+    try {
+      const res = await api.register({
+        firstName: signUpFirstName.trim(),
+        lastName: signUpLastName.trim(),
+        email: signUpEmail.trim().toLowerCase(),
+        phone: signUpPhone.trim(),
+        password: signUpPassword,
+        gender: 'Male',
+        isWorker: false,
+        branchId: 'b1111111-1111-1111-1111-111111111111',
+        ministryRoleId: 'a5555555-5555-5555-5555-555555555555'
+      });
+      setSignUpSuccess(res.message || 'Registration submitted successfully! Your account has been registered.');
+      setEmail(signUpEmail.trim().toLowerCase());
+    } catch (err: any) {
+      setSignUpError(err.message || 'Registration failed. Please check your information.');
+    } finally {
+      setSignUpLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -352,7 +417,32 @@ export const LoginPage: React.FC = () => {
                   Member & Account Services
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* Sign Up Card Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignUpFirstName('');
+                    setSignUpLastName('');
+                    setSignUpEmail(email || '');
+                    setSignUpPhone('');
+                    setSignUpPassword('');
+                    setSignUpAgreedPrivacy(false);
+                    setSignUpError(null);
+                    setSignUpSuccess(null);
+                    setShowSignUpModal(true);
+                  }}
+                  className="p-2.5 bg-blue-50/70 hover:bg-blue-100/80 active:bg-blue-200/70 border border-blue-200/80 rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-blue-900 flex items-center space-x-1.5">
+                    <UserPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span className="truncate">Sign Up</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+                    Join FPM Global
+                  </div>
+                </button>
+
                 {/* Change Password Card Button */}
                 <button
                   type="button"
@@ -365,14 +455,14 @@ export const LoginPage: React.FC = () => {
                     setChangePassSuccess(null);
                     setShowChangePassModal(true);
                   }}
-                  className="p-3 bg-slate-50/80 hover:bg-slate-100/90 active:bg-slate-200/80 border border-slate-200/90 rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C59B27]/30"
+                  className="p-2.5 bg-slate-50/80 hover:bg-slate-100/90 active:bg-slate-200/80 border border-slate-200/90 rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C59B27]/30"
                 >
                   <div className="text-xs font-bold text-slate-800 group-hover:text-[#0B1528] flex items-center space-x-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-[#C59B27] shrink-0" />
-                    <span className="truncate">Change Password</span>
+                    <span className="truncate">Password</span>
                   </div>
                   <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-                    Update security key
+                    Security key
                   </div>
                 </button>
 
@@ -386,14 +476,14 @@ export const LoginPage: React.FC = () => {
                     setProfileData(null);
                     setShowProfileModal(true);
                   }}
-                  className="p-3 bg-[#FCFBF8] hover:bg-[#F9F5EC] active:bg-[#F4ECE0] border border-[#E8DFC9] rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C59B27]/30"
+                  className="p-2.5 bg-[#FCFBF8] hover:bg-[#F9F5EC] active:bg-[#F4ECE0] border border-[#E8DFC9] rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C59B27]/30"
                 >
                   <div className="text-xs font-bold text-slate-800 group-hover:text-[#9A7416] flex items-center space-x-1.5">
                     <UserCheck className="w-3.5 h-3.5 text-[#C59B27] shrink-0" />
-                    <span className="truncate">View Profile</span>
+                    <span className="truncate">Profile</span>
                   </div>
                   <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-                    Member & role info
+                    Member role
                   </div>
                 </button>
               </div>
@@ -401,8 +491,25 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer Identity */}
-        <div className="w-full text-center py-2">
+        {/* Footer Identity & Public Policy Links */}
+        <div className="w-full text-center py-2 space-y-1.5">
+          <div className="flex items-center justify-center space-x-3 text-xs text-slate-400 font-medium">
+            <button
+              type="button"
+              onClick={() => onNavigatePrivacy ? onNavigatePrivacy() : window.open('/privacy', '_blank')}
+              className="hover:text-[#C59B27] transition underline-offset-4 hover:underline cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-slate-300">&bull;</span>
+            <button
+              type="button"
+              onClick={() => onNavigateDeleteAccount ? onNavigateDeleteAccount() : window.open('/delete-account', '_blank')}
+              className="hover:text-rose-500 transition underline-offset-4 hover:underline cursor-pointer"
+            >
+              Delete Account
+            </button>
+          </div>
           <p className="text-[11px] text-slate-400 font-medium">
             Faith Preachers Ministries Int'l &copy; {new Date().getFullYear()}. All Rights Reserved.
           </p>
@@ -798,6 +905,184 @@ export const LoginPage: React.FC = () => {
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: SIGN UP MODAL                                    */}
+      {/* ======================================================== */}
+      {showSignUpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setShowSignUpModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center space-x-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">Member Sign Up</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Create your FPM Global church profile</p>
+              </div>
+            </div>
+
+            {signUpSuccess ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-3 text-emerald-800 text-xs">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm text-emerald-900 mb-1">Registration Submitted!</p>
+                    <p className="leading-relaxed">{signUpSuccess}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSignUpModal(false);
+                  }}
+                  className="w-full h-11 bg-[#070E1B] hover:bg-[#0B1528] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                >
+                  Return to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSignUpSubmit} className="space-y-4">
+                {signUpError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2.5 text-rose-800 text-xs">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{signUpError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={signUpFirstName}
+                      onChange={(e) => setSignUpFirstName(e.target.value)}
+                      placeholder="e.g. John"
+                      className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={signUpLastName}
+                      onChange={(e) => setSignUpLastName(e.target.value)}
+                      placeholder="e.g. Doe"
+                      className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={signUpEmail}
+                    onChange={(e) => setSignUpEmail(e.target.value)}
+                    placeholder="e.g. john.doe@example.com"
+                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={signUpPhone}
+                    onChange={(e) => setSignUpPhone(e.target.value)}
+                    placeholder="e.g. +234 801 234 5678"
+                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showSignUpPassword ? 'text' : 'password'}
+                      required
+                      value={signUpPassword}
+                      onChange={(e) => setSignUpPassword(e.target.value)}
+                      placeholder="Create a password (min 6 chars)"
+                      className="w-full h-10 pl-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignUpPassword(!showSignUpPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    >
+                      {showSignUpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Privacy Policy Checkbox & Link */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-start space-x-2.5">
+                  <input
+                    type="checkbox"
+                    id="signUpAgreePrivacy"
+                    checked={signUpAgreedPrivacy}
+                    onChange={(e) => setSignUpAgreedPrivacy(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                  />
+                  <label htmlFor="signUpAgreePrivacy" className="text-xs text-slate-700 select-none cursor-pointer leading-snug">
+                    I agree to FPM Global's{' '}
+                    <button
+                      type="button"
+                      onClick={() => onNavigatePrivacy ? onNavigatePrivacy() : window.open('/privacy', '_blank')}
+                      className="text-blue-600 hover:text-blue-800 underline font-bold cursor-pointer"
+                    >
+                      [privacy policy]
+                    </button>
+                  </label>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={signUpLoading || !signUpAgreedPrivacy}
+                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    {signUpLoading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Submit Sign Up</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>

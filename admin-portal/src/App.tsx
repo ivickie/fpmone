@@ -22,10 +22,21 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { FinancePage } from './pages/FinancePage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { DeleteAccountPage } from './pages/DeleteAccountPage';
 import { api } from './services/api';
+
+const getInitialRoute = (): 'app' | 'privacy' | 'delete-account' => {
+  if (typeof window === 'undefined') return 'app';
+  const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+  if (path === '/privacy') return 'privacy';
+  if (path === '/delete-account') return 'delete-account';
+  return 'app';
+};
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
+  const [route, setRoute] = useState<'app' | 'privacy' | 'delete-account'>(getInitialRoute);
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [branches, setBranches] = useState<any[]>([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
@@ -33,6 +44,25 @@ const AppContent: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'password'>('profile');
+
+  const navigateTo = (target: 'app' | 'privacy' | 'delete-account') => {
+    setRoute(target);
+    const targetPath = target === 'privacy' ? '/privacy' : target === 'delete-account' ? '/delete-account' : '/';
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (path === '/privacy') setRoute('privacy');
+      else if (path === '/delete-account') setRoute('delete-account');
+      else setRoute('app');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleOpenProfile = (initialTab: 'profile' | 'password' = 'profile') => {
     setProfileInitialTab(initialTab);
@@ -59,6 +89,24 @@ const AppContent: React.FC = () => {
     }
   }, [user, currentTab]);
 
+  if (route === 'privacy') {
+    return (
+      <PrivacyPolicyPage
+        onNavigateHome={() => navigateTo('app')}
+        onNavigateDeleteAccount={() => navigateTo('delete-account')}
+      />
+    );
+  }
+
+  if (route === 'delete-account') {
+    return (
+      <DeleteAccountPage
+        onNavigateHome={() => navigateTo('app')}
+        onNavigatePrivacy={() => navigateTo('privacy')}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -71,7 +119,12 @@ const AppContent: React.FC = () => {
   }
 
   if (!user) {
-    return <LoginPage />;
+    return (
+      <LoginPage
+        onNavigatePrivacy={() => navigateTo('privacy')}
+        onNavigateDeleteAccount={() => navigateTo('delete-account')}
+      />
+    );
   }
 
   const tabTitles: Record<NavTab, { title: string; subtitle: string }> = {

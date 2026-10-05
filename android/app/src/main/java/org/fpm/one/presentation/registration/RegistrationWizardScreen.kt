@@ -1,5 +1,7 @@
 package org.fpm.one.presentation.registration
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -7,6 +9,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -858,6 +861,8 @@ private fun Step4Review(
   val branchName = state.branches.find { it.id == state.branchId }?.name ?: "Ilorin Branch (Headquarters)"
   val roleName = state.roles.find { it.id == state.ministryRoleId }?.name ?: "Member"
   val deptName = state.departments.find { it.id == state.departmentId }?.name ?: "Unassigned"
+  val context = LocalContext.current
+  var agreedToPrivacy by remember { mutableStateOf(false) }
 
   FpmCard(modifier = Modifier.fillMaxWidth()) {
     Text(
@@ -931,7 +936,50 @@ private fun Step4Review(
       )
     )
 
-    Spacer(modifier = Modifier.height(24.dp))
+    Spacer(modifier = Modifier.height(16.dp))
+
+    // Privacy Policy Agreement
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { agreedToPrivacy = !agreedToPrivacy }
+        .padding(vertical = 4.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Checkbox(
+        checked = agreedToPrivacy,
+        onCheckedChange = { agreedToPrivacy = it },
+        colors = CheckboxDefaults.colors(checkedColor = FpmNavyDark)
+      )
+      Spacer(modifier = Modifier.width(8.dp))
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.weight(1f)
+      ) {
+        Text(
+          text = "I agree to FPM Global's ",
+          fontSize = 12.sp,
+          color = FpmTextPrimary
+        )
+        TextButton(
+          onClick = {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.fpmglobal.online/privacy"))
+            context.startActivity(intent)
+          },
+          contentPadding = PaddingValues(0.dp)
+        ) {
+          Text(
+            text = "privacy policy",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = FpmNavyDark,
+            textDecoration = TextDecoration.Underline
+          )
+        }
+      }
+    }
+
+    Spacer(modifier = Modifier.height(14.dp))
 
     FpmButton(
       text = "Submit for Approval",
@@ -939,6 +987,7 @@ private fun Step4Review(
         viewModel.submitRegistration(onSuccess = onRegistrationComplete)
       },
       isLoading = state.isLoading,
+      enabled = agreedToPrivacy,
       modifier = Modifier.fillMaxWidth()
     )
   }

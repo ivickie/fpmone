@@ -137,6 +137,36 @@ export const lookupMemberProfileHandler = async (req: Request, res: Response) =>
   }
 };
 
+export const deleteAccountRequestHandler = async (req: Request, res: Response) => {
+  try {
+    const { emailOrPhone, password, reason } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId && !emailOrPhone?.trim()) {
+      return res.status(400).json({ success: false, error: 'Registered email or phone number is required.' });
+    }
+
+    const result = await AuthService.requestAccountDeletion({
+      emailOrPhone: emailOrPhone?.trim(),
+      password,
+      reason,
+      userId
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err: any) {
+    console.error('deleteAccountRequestHandler error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to process account deletion request. Please contact privacy@fpmglobal.online directly.'
+    });
+  }
+};
+
 // =============================================================================
 // BRANCHES CONTROLLER
 // =============================================================================

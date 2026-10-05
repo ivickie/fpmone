@@ -5,7 +5,7 @@ import { db, IDS } from '../data/mockDb';
 import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem } from '../types';
 import { AuditService } from './auditService';
 import { SettingsService } from './settingsService';
-import { persistUser, persistMember, persistNotification } from '../db/sync';
+import { persistUser, persistMember, persistNotification, persistDelete } from '../db/sync';
 import { checkAccountLoginThrottle, recordFailedLogin, clearLoginAttempts } from '../middleware/rateLimitMiddleware';
 
 const DEFAULT_DEV_JWT = 'fpm_global_super_secret_jwt_key_faith_preachers_ministry_2026';
@@ -379,6 +379,109 @@ export class AuthService {
           biometricEnabled: worker.biometricEnabled
         } : undefined
       }
+    };
+  }
+
+  public static async requestAccountDeletion(params: {
+    emailOrPhone?: string;
+    password?: string;
+    reason?: string;
+    userId?: string;
+  }): Promise<{ success: boolean; deletedImmediately?: boolean; message: string; error?: string }> {
+    const { emailOrPhone, password, reason, userId } = params;
+
+    let user: User | undefined;
+    if (userId) {
+      user = db.users.find(u => u.id === userId);
+    } else if (emailOrPhone) {
+      const cleanIdentifier = emailOrPhone.trim().toLowerCase();
+      user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+    }
+
+    if (!user) {
+      // Return neutral confirmation to prevent account enumeration
+      return {
+        success: true,
+        deletedImmediately: false,
+        message: 'Your account deletion request has been registered. If an account is associated with this email or phone number, all records will be permanently purged within 24 to 48 hours.'
+      };
+    }
+
+    if (user.adminLevel === 'super_admin') {
+      return {
+        success: false,
+        message: 'Super Administrator accounts cannot be self-deleted via automated web request. Please contact executive church leadership.',
+        error: 'Super Administrator accounts cannot be self-deleted via automated web request.'
+      };
+    }
+
+    // If password provided or authenticated user, verify and delete immediately
+    let verified = !!userId;
+    if (!verified && password) {
+      verified = await bcrypt.compare(password, user.passwordHash);
+    }
+
+    if (verified) {
+      const member = db.members.find(m => m.userId === user?.id);
+
+      // Delete associated worker record
+      if (member) {
+        const workerIdx = db.workers.findIndex(w => w.memberId === member.id);
+        if (workerIdx !== -1) {
+          const worker = db.workers[workerIdx];
+          db.workers.splice(workerIdx, 1);
+          persistDelete('workers', worker.id).catch(() => {});
+        }
+
+        // Delete member record
+        const memberIdx = db.members.findIndex(m => m.id === member.id);
+        if (memberIdx !== -1) {
+          db.members.splice(memberIdx, 1);
+          persistDelete('members', member.id).catch(() => {});
+        }
+      }
+
+      // Delete user record
+      const userIdx = db.users.findIndex(u => u.id === user.id);
+      if (userIdx !== -1) {
+        db.users.splice(userIdx, 1);
+        persistDelete('users', user.id).catch(() => {});
+      }
+
+      AuditService.log(
+        user.email,
+        'member',
+        'DELETE_ACCOUNT_IMMEDIATE',
+        'user',
+        user.id,
+        user.id,
+        undefined,
+        { reason: reason || 'Self requested' }
+      );
+
+      return {
+        success: true,
+        deletedImmediately: true,
+        message: 'Your FPM Global account, profile, and all associated church data have been permanently deleted.'
+      };
+    }
+
+    // Unverified request: log for administrative review & deletion
+    AuditService.log(
+      user.email,
+      'member',
+      'DELETE_ACCOUNT_REQUEST',
+      'user',
+      user.id,
+      user.id,
+      undefined,
+      { reason: reason || 'Not specified' }
+    );
+
+    return {
+      success: true,
+      deletedImmediately: false,
+      message: 'Your account deletion request has been logged. Our administrative team will verify and permanently purge your records within 24 to 48 hours.'
     };
   }
 }

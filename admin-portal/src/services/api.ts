@@ -57,11 +57,15 @@ export const api = {
   // Auth
   login: (emailOrPhone: string, password: string) =>
     apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ emailOrPhone, password }) }),
+  register: (data: any) =>
+    apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getProfile: () => apiRequest('/auth/profile'),
   changePassword: (data: { emailOrPhone?: string; currentPassword?: string; newPassword: string }) =>
     apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
   lookupMemberProfile: (data: { emailOrPhone?: string; password?: string }) =>
     apiRequest('/auth/member-profile', { method: 'POST', body: JSON.stringify(data) }),
+  requestAccountDeletion: (data: { emailOrPhone: string; password?: string; reason?: string }) =>
+    apiRequest('/auth/delete-account-request', { method: 'POST', body: JSON.stringify(data) }),
 
   // Approvals
   getApprovals: (branchId?: string) =>

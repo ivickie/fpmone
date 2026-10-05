@@ -63,6 +63,7 @@ export const MembersPage: React.FC = () => {
     status: 'active',
     password: 'Password123!'
   });
+  const [enrollAgreePrivacy, setEnrollAgreePrivacy] = useState(false);
 
   // Edit Profile Form state
   const [profileForm, setProfileForm] = useState({
@@ -157,6 +158,10 @@ export const MembersPage: React.FC = () => {
 
   const handleAddMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!enrollAgreePrivacy) {
+      toast.error("Please agree to FPM Global's privacy policy before enrolling.");
+      return;
+    }
     setActionLoading(true);
     try {
       await api.createMember(addMemberForm);
@@ -1338,6 +1343,27 @@ export const MembersPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Privacy Policy Agreement */}
+              <div className="flex items-center space-x-2 pt-2 pb-1">
+                <input
+                  type="checkbox"
+                  id="enrollAgreePrivacy"
+                  checked={enrollAgreePrivacy}
+                  onChange={e => setEnrollAgreePrivacy(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="enrollAgreePrivacy" className="text-xs text-slate-700 select-none cursor-pointer">
+                  I agree to FPM Global's{' '}
+                  <button
+                    type="button"
+                    onClick={() => window.open('/privacy', '_blank')}
+                    className="text-blue-600 hover:text-blue-800 underline font-bold cursor-pointer"
+                  >
+                    privacy policy
+                  </button>
+                </label>
+              </div>
+
               {/* Submit Buttons */}
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-2 pt-3 border-t border-slate-100">
                 <button
@@ -1349,7 +1375,7 @@ export const MembersPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
+                  disabled={actionLoading || !enrollAgreePrivacy}
                   className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50 shadow-sm text-center"
                 >
                   {actionLoading ? 'Enrolling...' : 'Enroll Member'}

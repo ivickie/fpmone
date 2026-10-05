@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import {
   loginHandler, registerHandler, getProfileHandler, updateProfileHandler,
-  changePasswordHandler, lookupMemberProfileHandler,
+  changePasswordHandler, lookupMemberProfileHandler, deleteAccountRequestHandler,
   getBranchesHandler, createBranchHandler, updateBranchHandler, deleteBranchHandler,
   getDepartmentsHandler, createDepartmentHandler, updateDepartmentHandler, deleteDepartmentHandler,
   lookupHodHandler, getEligibleHodsHandler,
@@ -58,6 +58,7 @@ router.get('/auth/profile', requireAuth, getProfileHandler);
 router.put('/auth/profile', requireAuth, updateProfileHandler);
 router.post('/auth/change-password', optionalAuth, changePasswordHandler);
 router.post('/auth/member-profile', optionalAuth, lookupMemberProfileHandler);
+router.post('/auth/delete-account-request', optionalAuth, deleteAccountRequestHandler);
 
 // --- BRANCHES ---
 router.get('/branches', getBranchesHandler);
