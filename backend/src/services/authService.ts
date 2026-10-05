@@ -27,14 +27,42 @@ export class AuthService {
       };
     }
 
-    const user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+    // Find user by email, phone, or normalized phone/alias
+    let user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+
+    // 1. Phone number normalization fallback (e.g. 08000000010 matching +2348000000010)
+    if (!user) {
+      let digitsOnly = cleanIdentifier.replace(/\D/g, '');
+      if (digitsOnly.startsWith('0') && digitsOnly.length === 11) {
+        digitsOnly = digitsOnly.slice(1);
+      }
+      if (digitsOnly.length >= 8) {
+        user = db.users.find(u => {
+          if (!u.phone) return false;
+          const uDigits = u.phone.replace(/\D/g, '');
+          return uDigits === digitsOnly || uDigits.endsWith(digitsOnly) || digitsOnly.endsWith(uDigits);
+        });
+      }
+    }
+
+    // 2. Admin alias fallback (e.g. user entering 'admin' or 'superadmin')
+    if (!user && (cleanIdentifier === 'admin' || cleanIdentifier === 'superadmin' || cleanIdentifier === 'super_admin')) {
+      user = db.users.find(u => u.adminLevel === 'super_admin' || u.email.toLowerCase() === 'admin@fpmchurch.org');
+    }
 
     if (!user) {
       recordFailedLogin(cleanIdentifier);
       return { error: 'Invalid email/phone or password.' };
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    // Password verification with whitespace tolerance (for spreadsheet clipboard trailing newline/space)
+    const rawPass = password || '';
+    const trimmedPass = rawPass.trim();
+    let isValidPassword = await bcrypt.compare(rawPass, user.passwordHash);
+    if (!isValidPassword && trimmedPass !== rawPass) {
+      isValidPassword = await bcrypt.compare(trimmedPass, user.passwordHash);
+    }
+
     if (!isValidPassword) {
       recordFailedLogin(cleanIdentifier);
       return { error: 'Invalid email/phone or password.' };

@@ -162,7 +162,7 @@ export const deleteAccountRequestHandler = async (req: Request, res: Response) =
     console.error('deleteAccountRequestHandler error:', err);
     return res.status(500).json({
       success: false,
-      error: err.message || 'Failed to process account deletion request. Please contact privacy@fpmglobal.online directly.'
+      error: err.message || 'Failed to process account deletion request. Please contact contact@fpmglobal.online directly.'
     });
   }
 };

@@ -107,7 +107,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password.trim());
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -410,15 +410,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </button>
             </form>
 
-            {/* Quick Member & Account Self-Service Buttons */}
-            <div className="pt-5 mt-5 border-t border-slate-100">
-              <div className="text-center mb-2.5">
-                <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                  Member & Account Services
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {/* Sign Up Card Button */}
+            {/* Sign Up Link */}
+            <div className="pt-5 mt-5 border-t border-slate-100 text-center">
+              <p className="text-xs text-slate-500 font-medium">
+                Don't have an account?{' '}
                 <button
                   type="button"
                   onClick={() => {
@@ -432,61 +427,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     setSignUpSuccess(null);
                     setShowSignUpModal(true);
                   }}
-                  className="p-2.5 bg-blue-50/70 hover:bg-blue-100/80 active:bg-blue-200/70 border border-blue-200/80 rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="font-bold text-[#0B1528] hover:text-[#C59B27] underline-offset-4 hover:underline transition cursor-pointer"
                 >
-                  <div className="text-xs font-bold text-slate-800 group-hover:text-blue-900 flex items-center space-x-1.5">
-                    <UserPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span className="truncate">Sign Up</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-                    Join FPM Global
-                  </div>
+                  Sign up
                 </button>
-
-                {/* Change Password Card Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setChangePassEmail(email || '');
-                    setChangePassCurrentPassword('');
-                    setChangePassNewPassword('');
-                    setChangePassConfirmPassword('');
-                    setChangePassError(null);
-                    setChangePassSuccess(null);
-                    setShowChangePassModal(true);
-                  }}
-                  className="p-2.5 bg-slate-50/80 hover:bg-slate-100/90 active:bg-slate-200/80 border border-slate-200/90 rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C59B27]/30"
-                >
-                  <div className="text-xs font-bold text-slate-800 group-hover:text-[#0B1528] flex items-center space-x-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-[#C59B27] shrink-0" />
-                    <span className="truncate">Password</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-                    Security key
-                  </div>
-                </button>
-
-                {/* View Profile Card Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileEmail(email || '');
-                    setProfilePassword('');
-                    setProfileError(null);
-                    setProfileData(null);
-                    setShowProfileModal(true);
-                  }}
-                  className="p-2.5 bg-[#FCFBF8] hover:bg-[#F9F5EC] active:bg-[#F4ECE0] border border-[#E8DFC9] rounded-2xl text-left transition-all duration-150 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C59B27]/30"
-                >
-                  <div className="text-xs font-bold text-slate-800 group-hover:text-[#9A7416] flex items-center space-x-1.5">
-                    <UserCheck className="w-3.5 h-3.5 text-[#C59B27] shrink-0" />
-                    <span className="truncate">Profile</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-                    Member role
-                  </div>
-                </button>
-              </div>
+              </p>
             </div>
           </div>
         </div>
@@ -511,7 +456,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </button>
           </div>
           <p className="text-[11px] text-slate-400 font-medium">
-            Faith Preachers Ministries Int'l &copy; {new Date().getFullYear()}. All Rights Reserved.
+            Faith Preachers Ministries Int'l &copy; {new Date().getFullYear()}. All Rights Reserved. 
           </p>
         </div>
       </div>

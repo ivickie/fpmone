@@ -172,7 +172,6 @@ const AppContent: React.FC = () => {
           title={currentInfo.title}
           subtitle={currentInfo.subtitle}
           onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
-          onOpenProfile={() => handleOpenProfile('profile')}
         />
 
         <main className="flex-1 overflow-y-auto pb-12">
