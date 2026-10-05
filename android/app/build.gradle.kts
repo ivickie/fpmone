@@ -1,7 +1,16 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+}
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -13,12 +22,39 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+
+        buildConfigField("String", "API_BASE_URL", "\"https://www.fpmglobal.online/api\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                val storeRelPath = keystoreProperties.getProperty("storeFile") ?: "release.keystore"
+                storeFile = rootProject.file(storeRelPath)
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            } else if (System.getenv("FPM_KEYSTORE_PATH") != null) {
+                storeFile = file(System.getenv("FPM_KEYSTORE_PATH"))
+                storePassword = System.getenv("FPM_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FPM_KEY_ALIAS")
+                keyPassword = System.getenv("FPM_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+                signingConfig = releaseSigning
+            }
+        }
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"https://www.fpmglobal.online/api\"")
         }
     }
     compileOptions {

@@ -29,6 +29,8 @@ android/app/*.iml
 *.aab
 *.keystore
 *.jks
+keystore.properties
+signing.properties
 
 # IDE & Editor
 .idea/

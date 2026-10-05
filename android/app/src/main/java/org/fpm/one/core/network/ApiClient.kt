@@ -15,18 +15,8 @@ import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-  // Automatically route to 10.0.2.2 when running on Android emulator, or LAN IP on physical device
-  var baseUrl: String = if (android.os.Build.FINGERPRINT.startsWith("generic")
-      || android.os.Build.FINGERPRINT.startsWith("unknown")
-      || android.os.Build.MODEL.contains("google_sdk")
-      || android.os.Build.MODEL.contains("Emulator")
-      || android.os.Build.MODEL.contains("Android SDK built for x86")
-      || android.os.Build.HARDWARE.contains("goldfish")
-      || android.os.Build.HARDWARE.contains("ranchu")) {
-    "http://10.0.2.2:5000/api"
-  } else {
-    "http://192.168.1.159:5000/api"
-  }
+  // Configured via BuildConfig (production default: https://www.fpmglobal.online/api)
+  var baseUrl: String = org.fpm.one.BuildConfig.API_BASE_URL
   var authToken: String? = null
 
   val json = Json {
@@ -37,7 +27,11 @@ object ApiClient {
 
   private val client: OkHttpClient by lazy {
     val logging = HttpLoggingInterceptor().apply {
-      level = HttpLoggingInterceptor.Level.BASIC
+      level = if (org.fpm.one.BuildConfig.DEBUG) {
+        HttpLoggingInterceptor.Level.BASIC
+      } else {
+        HttpLoggingInterceptor.Level.NONE
+      }
     }
     OkHttpClient.Builder()
       .connectTimeout(15, TimeUnit.SECONDS)

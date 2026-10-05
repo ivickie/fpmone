@@ -1,5 +1,7 @@
 package org.fpm.one.presentation.profile
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,8 +43,11 @@ fun ProfileScreen(
   onNavigateToNotifications: () -> Unit,
   onLogout: () -> Unit
 ) {
+  val context = LocalContext.current
   val user by SessionManager.getInstance().currentUser.collectAsState()
   var showLogoutConfirm by remember { mutableStateOf(false) }
+  var showDeleteAccountConfirm by remember { mutableStateOf(false) }
+  var showAboutDialog by remember { mutableStateOf(false) }
 
   Scaffold(
     topBar = {
@@ -98,10 +103,25 @@ fun ProfileScreen(
               onClick = {}
             ),
             ProfileOptionItem(
+              icon = Icons.Default.PrivacyTip,
+              title = "Privacy Policy",
+              subtitle = "How FPM Global safeguards your personal data",
+              onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.fpmglobal.online/privacy"))
+                context.startActivity(intent)
+              }
+            ),
+            ProfileOptionItem(
+              icon = Icons.Default.DeleteForever,
+              title = "Request Account Deletion",
+              subtitle = "Permanent deletion of your church account and data",
+              onClick = { showDeleteAccountConfirm = true }
+            ),
+            ProfileOptionItem(
               icon = Icons.Default.Church,
               title = "About Faith Preachers Ministries Int'l",
               subtitle = "Global vision, tenets of faith, and leadership",
-              onClick = {}
+              onClick = { showAboutDialog = true }
             )
           )
         )
@@ -184,6 +204,82 @@ fun ProfileScreen(
       dismissButton = {
         TextButton(onClick = { showLogoutConfirm = false }) {
           Text("Cancel", color = FpmTextSecondary)
+        }
+      }
+    )
+  }
+
+  if (showDeleteAccountConfirm) {
+    AlertDialog(
+      onDismissRequest = { showDeleteAccountConfirm = false },
+      containerColor = FpmSurfaceWhite,
+      shape = RoundedCornerShape(18.dp),
+      title = { Text("Request Account Deletion", fontWeight = FontWeight.Bold, color = FpmError) },
+      text = {
+        Text(
+          "In accordance with Google Play policies and data protection regulations, you can permanently delete your FPM Global account and associated data.\n\n" +
+          "Deleting your account will remove your personal profile, ministry assignments, and attendance logs.\n\n" +
+          "Would you like to open the account deletion portal to complete this request?"
+        )
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            showDeleteAccountConfirm = false
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.fpmglobal.online/delete-account"))
+            context.startActivity(intent)
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = FpmError),
+          shape = RoundedCornerShape(10.dp)
+        ) {
+          Text("Open Deletion Portal")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showDeleteAccountConfirm = false }) {
+          Text("Cancel", color = FpmTextSecondary)
+        }
+      }
+    )
+  }
+
+  if (showAboutDialog) {
+    AlertDialog(
+      onDismissRequest = { showAboutDialog = false },
+      containerColor = FpmSurfaceWhite,
+      shape = RoundedCornerShape(18.dp),
+      title = { Text("About FPM Global", fontWeight = FontWeight.Bold) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text(
+            "Faith Preachers Ministries International",
+            fontWeight = FontWeight.Bold,
+            color = FpmNavyDark
+          )
+          Text(
+            "“Be not afraid of their faces: for I am with thee to deliver thee, saith the Lord.” — Jeremiah 1:8",
+            style = MaterialTheme.typography.bodySmall,
+            color = FpmTextSecondary
+          )
+          HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = FpmCardBorder)
+          Text(
+            "The FPM Global mobile app connects church members, workers, and ministers globally for services, testimonies, notifications, and ministry work.",
+            style = MaterialTheme.typography.bodyMedium
+          )
+          Text(
+            "Version 1.0.0 (Release)\nWeb: https://www.fpmglobal.online",
+            style = MaterialTheme.typography.bodySmall,
+            color = FpmTextMuted
+          )
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = { showAboutDialog = false },
+          colors = ButtonDefaults.buttonColors(containerColor = FpmNavyDark),
+          shape = RoundedCornerShape(10.dp)
+        ) {
+          Text("Close")
         }
       }
     )
