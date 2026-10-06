@@ -517,7 +517,9 @@ export const getDepartmentsHandler = (req: Request, res: Response) => {
     depts = depts.filter(d => d.status !== 'archived');
   }
   if (branchId) {
-    depts = depts.filter(d => !d.branchId || d.branchId === branchId);
+    const branchSpecific = depts.filter(d => d.branchId === branchId);
+    // If the selected branch has specific departments, use them; otherwise fallback to global/HQ
+    depts = branchSpecific.length > 0 ? branchSpecific : depts.filter(d => !d.branchId || d.branchId === IDS.BRANCH_HQ);
   }
 
   // Ensure hodEmail is always populated if an HOD is assigned
@@ -537,7 +539,18 @@ export const getDepartmentsHandler = (req: Request, res: Response) => {
     return d;
   });
 
-  return res.json(enriched);
+  // Strict deduplication by normalized department name: each distinct department is returned ONCE
+  const seen = new Set<string>();
+  const deduplicated: typeof enriched = [];
+  for (const dept of enriched) {
+    const normalizedName = dept.name.trim().toLowerCase();
+    if (!seen.has(normalizedName)) {
+      seen.add(normalizedName);
+      deduplicated.push(dept);
+    }
+  }
+
+  return res.json(deduplicated);
 };
 
 export const lookupHodHandler = (req: Request, res: Response) => {
@@ -1144,20 +1157,20 @@ export const getPendingApprovalsHandler = (req: Request, res: Response) => {
   return res.json(approvals);
 };
 
-export const approveMemberHandler = (req: Request, res: Response) => {
+export const approveMemberHandler = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const adminId = req.user?.userId || IDS.USER_ADMIN;
     const adminName = req.user?.fullName || 'Administrator';
     const adminScope = req.user ? { adminLevel: req.user.adminLevel, branchId: req.user.branchId } : undefined;
-    const result = MemberService.approveMember(userId, adminId, adminName, adminScope);
+    const result = await MemberService.approveMember(userId, adminId, adminName, adminScope);
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
   }
 };
 
-export const rejectMemberHandler = (req: Request, res: Response) => {
+export const rejectMemberHandler = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const { reason } = req.body;
@@ -1165,14 +1178,14 @@ export const rejectMemberHandler = (req: Request, res: Response) => {
     const adminId = req.user?.userId || IDS.USER_ADMIN;
     const adminName = req.user?.fullName || 'Administrator';
     const adminScope = req.user ? { adminLevel: req.user.adminLevel, branchId: req.user.branchId } : undefined;
-    const result = MemberService.rejectMember(userId, adminId, adminName, reason, adminScope);
+    const result = await MemberService.rejectMember(userId, adminId, adminName, reason, adminScope);
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
   }
 };
 
-export const requestChangesHandler = (req: Request, res: Response) => {
+export const requestChangesHandler = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const { notes } = req.body;
@@ -1180,7 +1193,7 @@ export const requestChangesHandler = (req: Request, res: Response) => {
     const adminId = req.user?.userId || IDS.USER_ADMIN;
     const adminName = req.user?.fullName || 'Administrator';
     const adminScope = req.user ? { adminLevel: req.user.adminLevel, branchId: req.user.branchId } : undefined;
-    const result = MemberService.requestChanges(userId, adminId, adminName, notes, adminScope);
+    const result = await MemberService.requestChanges(userId, adminId, adminName, notes, adminScope);
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });

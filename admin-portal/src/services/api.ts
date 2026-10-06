@@ -3,8 +3,8 @@ const getApiBase = (): string => {
     return (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');
   }
   if (typeof window !== 'undefined') {
-    // If accessed directly via mobile on LAN port 3000 without proxy
-    if (window.location.port === '3000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (window.location.port === '3000' && isLocalDev) {
       return `http://${window.location.hostname}:5000/api`;
     }
     return '/api';

@@ -6,6 +6,17 @@ import {
   DepartmentReport, FinanceTransaction, FinanceOpeningBalance
 } from '../types';
 
+export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  if (/https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/i.test(url)) {
+    return url.replace(
+      /https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/gi,
+      'https://ykibiaaohlodgcxpyfdm.supabase.co/storage/v1/object/public/fpm-media/'
+    );
+  }
+  return url;
+};
+
 /**
  * Hydrates in-memory DatabaseStore with live records from Supabase PostgreSQL.
  */
@@ -140,18 +151,26 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
     }
 
     if (deptsRes.rows.length > 0) {
-      store.departments = deptsRes.rows.map((r: any): Department => ({
-        id: r.id,
-        branchId: r.branch_id || undefined,
-        name: r.name,
-        code: r.code,
-        description: r.description || undefined,
-        hodName: r.hod_name || undefined,
-        hodId: r.hod_id || undefined,
-        status: r.status,
-        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
-      }));
+      const seenDeptKeys = new Set<string>();
+      store.departments = deptsRes.rows
+        .map((r: any): Department => ({
+          id: r.id,
+          branchId: r.branch_id || undefined,
+          name: r.name,
+          code: r.code,
+          description: r.description || undefined,
+          hodName: r.hod_name || undefined,
+          hodId: r.hod_id || undefined,
+          status: r.status,
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+        }))
+        .filter((d: Department) => {
+          const key = `${d.branchId || 'global'}:${d.name.trim().toLowerCase()}`;
+          if (seenDeptKeys.has(key)) return false;
+          seenDeptKeys.add(key);
+          return true;
+        });
     }
 
     if (posRes.rows.length > 0) {
@@ -194,7 +213,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         gender: r.gender || 'Other',
         dateOfBirth: r.date_of_birth ? new Date(r.date_of_birth).toISOString().split('T')[0] : undefined,
         residentialAddress: r.residential_address || undefined,
-        profilePictureUrl: r.profile_picture_url || undefined,
+        profilePictureUrl: sanitizeMediaUrl(r.profile_picture_url),
         emergencyContactName: r.emergency_contact_name || undefined,
         emergencyContactPhone: r.emergency_contact_phone || undefined,
         approvedBy: r.approved_by || undefined,
@@ -234,7 +253,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         earliestClockInMinutes: r.earliest_clock_in_minutes,
         attendanceDurationHours: Number(r.attendance_duration_hours) || 4.0,
         liveStreamUrl: r.live_stream_url || undefined,
-        imageUrl: r.image_url || undefined,
+        imageUrl: sanitizeMediaUrl(r.image_url),
         status: r.status,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
@@ -285,7 +304,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         branchId: r.branch_id || undefined,
         title: r.title,
         description: r.description,
-        bannerUrl: r.banner_url || undefined,
+        bannerUrl: sanitizeMediaUrl(r.banner_url),
         startDatetime: r.start_datetime ? new Date(r.start_datetime).toISOString() : new Date().toISOString(),
         endDatetime: r.end_datetime ? new Date(r.end_datetime).toISOString() : new Date().toISOString(),
         location: r.location,
@@ -312,7 +331,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         title: r.title || undefined,
         content: r.content,
         scriptureReference: r.scripture_reference || undefined,
-        mediaUrls: Array.isArray(r.media_urls) ? r.media_urls : [],
+        mediaUrls: (Array.isArray(r.media_urls) ? r.media_urls : []).map((u: string) => sanitizeMediaUrl(u) || u),
         postType: r.post_type || 'post',
         isPinned: !!r.is_pinned,
         likesCount: r.likes_count || 0,
@@ -335,8 +354,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         scripture: r.scripture || undefined,
         keyPoints: Array.isArray(r.key_points) ? r.key_points : (typeof r.key_points === 'string' ? JSON.parse(r.key_points) : []),
         quote: r.quote || undefined,
-        photos: Array.isArray(r.photos) ? r.photos : (typeof r.photos === 'string' ? JSON.parse(r.photos) : []),
-        videoUrl: r.video_url || undefined,
+        photos: (Array.isArray(r.photos) ? r.photos : (typeof r.photos === 'string' ? JSON.parse(r.photos) : [])).map((u: string) => sanitizeMediaUrl(u) || u),
+        videoUrl: sanitizeMediaUrl(r.video_url),
         isPublished: !!r.is_published,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
@@ -353,8 +372,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         title: r.title,
         content: r.content,
         category: r.category,
-        photoUrl: r.photo_url || undefined,
-        videoUrl: r.video_url || undefined,
+        photoUrl: sanitizeMediaUrl(r.photo_url),
+        videoUrl: sanitizeMediaUrl(r.video_url),
         allowPublish: !!r.allow_publish,
         status: r.status,
         rejectionReason: r.rejection_reason || undefined,
@@ -384,7 +403,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       store.mediaFiles = mediaRes.rows.map((r: any): MediaItem => ({
         id: r.id,
         storagePath: r.storage_path,
-        publicUrl: r.public_url,
+        publicUrl: sanitizeMediaUrl(r.public_url) || r.public_url,
         entityType: r.entity_type,
         entityId: r.entity_id || undefined,
         uploadedBy: r.uploaded_by || undefined,
@@ -510,28 +529,51 @@ export function isUuid(val: any): boolean {
 export async function persistUser(user: User): Promise<void> {
   if (!isUuid(user.id)) return;
   try {
-    await query(`
-      INSERT INTO users (id, email, phone, password_hash, account_status, rejection_reason, request_changes_notes, is_admin, admin_level, last_login_at, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      ON CONFLICT (id) DO UPDATE SET
-        email = EXCLUDED.email,
-        phone = EXCLUDED.phone,
-        password_hash = EXCLUDED.password_hash,
-        account_status = EXCLUDED.account_status,
-        rejection_reason = EXCLUDED.rejection_reason,
-        request_changes_notes = EXCLUDED.request_changes_notes,
-        is_admin = EXCLUDED.is_admin,
-        admin_level = EXCLUDED.admin_level,
-        last_login_at = EXCLUDED.last_login_at,
-        updated_at = EXCLUDED.updated_at
+    const updateRes = await query(`
+      UPDATE users SET
+        email = $2,
+        phone = $3,
+        password_hash = $4,
+        account_status = $5,
+        rejection_reason = $6,
+        request_changes_notes = $7,
+        is_admin = $8,
+        admin_level = $9,
+        last_login_at = $10,
+        updated_at = $11
+      WHERE id = $1
     `, [
       user.id, user.email, user.phone, user.passwordHash, user.accountStatus,
       user.rejectionReason || null, user.requestChangesNotes || null,
       user.isAdmin, user.adminLevel, user.lastLoginAt || null,
-      user.createdAt, user.updatedAt
+      user.updatedAt || new Date().toISOString()
     ]);
+
+    if (!updateRes || updateRes.rowCount === 0) {
+      await query(`
+        INSERT INTO users (id, email, phone, password_hash, account_status, rejection_reason, request_changes_notes, is_admin, admin_level, last_login_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          email = EXCLUDED.email,
+          phone = EXCLUDED.phone,
+          password_hash = EXCLUDED.password_hash,
+          account_status = EXCLUDED.account_status,
+          rejection_reason = EXCLUDED.rejection_reason,
+          request_changes_notes = EXCLUDED.request_changes_notes,
+          is_admin = EXCLUDED.is_admin,
+          admin_level = EXCLUDED.admin_level,
+          last_login_at = EXCLUDED.last_login_at,
+          updated_at = EXCLUDED.updated_at
+      `, [
+        user.id, user.email, user.phone, user.passwordHash, user.accountStatus,
+        user.rejectionReason || null, user.requestChangesNotes || null,
+        user.isAdmin, user.adminLevel, user.lastLoginAt || null,
+        user.createdAt, user.updatedAt
+      ]);
+    }
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: users] ${err.message}`);
+    throw err;
   }
 }
 
@@ -541,36 +583,67 @@ export async function persistMember(member: Member): Promise<void> {
     member.primaryBranchId = 'b1111111-1111-1111-1111-111111111111';
   }
   try {
-    await query(`
-      INSERT INTO members (id, user_id, primary_branch_id, first_name, middle_name, last_name, primary_role_id, is_worker, gender, date_of_birth, residential_address, profile_picture_url, emergency_contact_name, emergency_contact_phone, approved_by, approved_at, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-      ON CONFLICT (id) DO UPDATE SET
-        primary_branch_id = EXCLUDED.primary_branch_id,
-        first_name = EXCLUDED.first_name,
-        middle_name = EXCLUDED.middle_name,
-        last_name = EXCLUDED.last_name,
-        primary_role_id = EXCLUDED.primary_role_id,
-        is_worker = EXCLUDED.is_worker,
-        gender = EXCLUDED.gender,
-        date_of_birth = EXCLUDED.date_of_birth,
-        residential_address = EXCLUDED.residential_address,
-        profile_picture_url = EXCLUDED.profile_picture_url,
-        emergency_contact_name = EXCLUDED.emergency_contact_name,
-        emergency_contact_phone = EXCLUDED.emergency_contact_phone,
-        approved_by = EXCLUDED.approved_by,
-        approved_at = EXCLUDED.approved_at,
-        updated_at = EXCLUDED.updated_at
+    const updateRes = await query(`
+      UPDATE members SET
+        primary_branch_id = $2,
+        first_name = $3,
+        middle_name = $4,
+        last_name = $5,
+        primary_role_id = $6,
+        is_worker = $7,
+        gender = $8,
+        date_of_birth = $9,
+        residential_address = $10,
+        profile_picture_url = $11,
+        emergency_contact_name = $12,
+        emergency_contact_phone = $13,
+        approved_by = $14,
+        approved_at = $15,
+        updated_at = $16
+      WHERE id = $1
     `, [
-      member.id, member.userId, member.primaryBranchId, member.firstName,
+      member.id, member.primaryBranchId, member.firstName,
       member.middleName || null, member.lastName, member.primaryRoleId,
       member.isWorker, member.gender, member.dateOfBirth || null,
       member.residentialAddress || null, member.profilePictureUrl || null,
       member.emergencyContactName || null, member.emergencyContactPhone || null,
       member.approvedBy || null, member.approvedAt || null,
-      member.createdAt, member.updatedAt
+      member.updatedAt || new Date().toISOString()
     ]);
+
+    if (!updateRes || updateRes.rowCount === 0) {
+      await query(`
+        INSERT INTO members (id, user_id, primary_branch_id, first_name, middle_name, last_name, primary_role_id, is_worker, gender, date_of_birth, residential_address, profile_picture_url, emergency_contact_name, emergency_contact_phone, approved_by, approved_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        ON CONFLICT (id) DO UPDATE SET
+          primary_branch_id = EXCLUDED.primary_branch_id,
+          first_name = EXCLUDED.first_name,
+          middle_name = EXCLUDED.middle_name,
+          last_name = EXCLUDED.last_name,
+          primary_role_id = EXCLUDED.primary_role_id,
+          is_worker = EXCLUDED.is_worker,
+          gender = EXCLUDED.gender,
+          date_of_birth = EXCLUDED.date_of_birth,
+          residential_address = EXCLUDED.residential_address,
+          profile_picture_url = EXCLUDED.profile_picture_url,
+          emergency_contact_name = EXCLUDED.emergency_contact_name,
+          emergency_contact_phone = EXCLUDED.emergency_contact_phone,
+          approved_by = EXCLUDED.approved_by,
+          approved_at = EXCLUDED.approved_at,
+          updated_at = EXCLUDED.updated_at
+      `, [
+        member.id, member.userId, member.primaryBranchId, member.firstName,
+        member.middleName || null, member.lastName, member.primaryRoleId,
+        member.isWorker, member.gender, member.dateOfBirth || null,
+        member.residentialAddress || null, member.profilePictureUrl || null,
+        member.emergencyContactName || null, member.emergencyContactPhone || null,
+        member.approvedBy || null, member.approvedAt || null,
+        member.createdAt, member.updatedAt
+      ]);
+    }
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: members] ${err.message}`);
+    throw err;
   }
 }
 

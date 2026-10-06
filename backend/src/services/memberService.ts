@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, IDS } from '../data/mockDb';
-import { Member, User, Worker, AccountStatus } from '../types';
+import { Member, User, Worker, AccountStatus, NotificationItem } from '../types';
 import { AuditService } from './auditService';
 import { persistUser, persistMember, persistWorker, persistNotification, persistDepartment } from '../db/sync';
 
@@ -64,7 +64,7 @@ export class MemberService {
   /**
    * Approve Member Registration
    */
-  public static approveMember(
+  public static async approveMember(
     userId: string,
     adminId: string,
     adminName: string,
@@ -93,7 +93,7 @@ export class MemberService {
         updatedAt: new Date().toISOString()
       };
       db.members.push(repairedMember);
-      persistMember(repairedMember).catch(() => {});
+      await persistMember(repairedMember).catch(() => {});
       member = repairedMember;
     }
 
@@ -149,18 +149,16 @@ export class MemberService {
       workerRecord = existingWorker;
     }
 
-    // Persist sequentially so foreign keys are respected
-    (async () => {
-      try {
-        await persistUser(user);
-        await persistMember(member);
-        if (workerRecord) {
-          await persistWorker(workerRecord);
-        }
-      } catch (dbErr: any) {
-        console.warn('[MEMBER APPROVE DB PERSISTENCE ERROR]', dbErr.message);
+    // Persist sequentially and AWAIT so database changes are committed before returning
+    try {
+      await persistUser(user);
+      await persistMember(member);
+      if (workerRecord) {
+        await persistWorker(workerRecord);
       }
-    })();
+    } catch (dbErr: any) {
+      console.warn('[MEMBER APPROVE DB PERSISTENCE ERROR]', dbErr.message);
+    }
 
     // Audit log
     AuditService.log(
@@ -179,7 +177,7 @@ export class MemberService {
     );
 
     // Send push notification to the member
-    db.notifications.unshift({
+    const notifItem: NotificationItem = {
       id: uuidv4(),
       title: 'Registration Approved!',
       body: `Welcome to Faith Preachers Ministries Int'l! Your account is now active.${workerRecord ? ` Your Worker ID is ${workerRecord.workerIdCode}.` : ''}`,
@@ -187,7 +185,9 @@ export class MemberService {
       targetScope: 'specific_member',
       targetId: member.id,
       createdAt: now
-    });
+    };
+    db.notifications.unshift(notifItem);
+    persistNotification(notifItem).catch(() => {});
 
     return {
       success: true,
@@ -199,7 +199,7 @@ export class MemberService {
   /**
    * Reject Member Registration
    */
-  public static rejectMember(
+  public static async rejectMember(
     userId: string,
     adminId: string,
     adminName: string,
@@ -240,12 +240,20 @@ export class MemberService {
       prevState,
       { accountStatus: 'rejected', reason }
     );
-    persistUser(user).catch(() => {});
+    try {
+      await persistUser(user);
+    } catch (e: any) {
+      console.warn('[MEMBER REJECT DB PERSISTENCE ERROR]', e.message);
+    }
 
     if (member) {
       member.updatedAt = now;
-      persistMember(member).catch(() => {});
-      db.notifications.unshift({
+      try {
+        await persistMember(member);
+      } catch (e: any) {
+        console.warn('[MEMBER REJECT DB PERSISTENCE ERROR]', e.message);
+      }
+      const notifItem: NotificationItem = {
         id: uuidv4(),
         title: 'Registration Application Update',
         body: `Your registration could not be approved at this time: ${reason}`,
@@ -253,7 +261,9 @@ export class MemberService {
         targetScope: 'specific_member',
         targetId: member.id,
         createdAt: now
-      });
+      };
+      db.notifications.unshift(notifItem);
+      persistNotification(notifItem).catch(() => {});
     }
 
     return { success: true, message: 'Member registration rejected.' };
@@ -262,7 +272,7 @@ export class MemberService {
   /**
    * Request Changes on Registration
    */
-  public static requestChanges(
+  public static async requestChanges(
     userId: string,
     adminId: string,
     adminName: string,
@@ -291,7 +301,11 @@ export class MemberService {
 
     user.requestChangesNotes = notes;
     user.updatedAt = now;
-    persistUser(user).catch(() => {});
+    try {
+      await persistUser(user);
+    } catch (e: any) {
+      console.warn('[MEMBER REQUEST CHANGES DB PERSISTENCE ERROR]', e.message);
+    }
 
     AuditService.log(
       adminName,
@@ -305,7 +319,7 @@ export class MemberService {
     );
 
     if (member) {
-      db.notifications.unshift({
+      const notifItem: NotificationItem = {
         id: uuidv4(),
         title: 'Registration Update Needed',
         body: `Please review and update your information: ${notes}`,
@@ -313,7 +327,9 @@ export class MemberService {
         targetScope: 'specific_member',
         targetId: member.id,
         createdAt: now
-      });
+      };
+      db.notifications.unshift(notifItem);
+      persistNotification(notifItem).catch(() => {});
     }
 
     return { success: true, message: 'Changes requested from member.' };

@@ -49,6 +49,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             val releaseSigning = signingConfigs.getByName("release")
             if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
                 signingConfig = releaseSigning
@@ -139,3 +142,17 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 }
+
+tasks.register<Zip>("packageReleaseNativeDebugSymbolsZip") {
+    description = "Packages native libraries for Google Play Console native debug symbol upload"
+    group = "publishing"
+    from(layout.buildDirectory.dir("intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib"))
+    destinationDirectory.set(layout.buildDirectory.dir("outputs/native-debug-symbols/release"))
+    archiveFileName.set("native-debug-symbols.zip")
+    dependsOn("mergeReleaseNativeLibs")
+}
+
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    finalizedBy("packageReleaseNativeDebugSymbolsZip")
+}
+

@@ -125,7 +125,7 @@ async function runTests() {
     assert(pendingList.some(p => p.userId === regResult.userId), 'New applicant appears in pending approvals queue');
 
     // TEST 6: Admin Approval & Worker Code Generation
-    const approvalResult = MemberService.approveMember(regResult.userId!, IDS.USER_ADMIN, 'Ezekiel Adeyemi');
+    const approvalResult = await MemberService.approveMember(regResult.userId!, IDS.USER_ADMIN, 'Ezekiel Adeyemi');
     assert(approvalResult.success === true, 'Admin successfully approves applicant');
     assert(approvalResult.workerCode?.startsWith('FPM-') === true, `Unique Worker ID assigned: ${approvalResult.workerCode}`);
     assert(newlyRegisteredUser?.accountStatus === 'active', 'User status transitioned to active');
@@ -227,7 +227,7 @@ async function runTests() {
     // TEST 17: Self-Approval Prevention
     let selfApprovalBlocked = false;
     try {
-      MemberService.approveMember(IDS.USER_ADMIN, IDS.USER_ADMIN, 'Ezekiel Adeyemi');
+      await MemberService.approveMember(IDS.USER_ADMIN, IDS.USER_ADMIN, 'Ezekiel Adeyemi');
     } catch (e: any) {
       selfApprovalBlocked = e.message.includes('cannot approve their own registration');
     }
@@ -252,7 +252,7 @@ async function runTests() {
     let crossBranchApprovalBlocked = false;
     try {
       // Lekki pastor attempts to approve London member
-      MemberService.approveMember(
+      await MemberService.approveMember(
         londonApplicant.userId!,
         IDS.USER_PASTOR,
         'Pastor David',
@@ -1323,7 +1323,7 @@ async function runTests() {
     db.users.push(orphanedUser);
     assert(!db.members.some(m => m.userId === orphanedUserId), 'Orphaned user has no initial member profile in database');
 
-    const orphanApprovalResult = MemberService.approveMember(
+    const orphanApprovalResult = await MemberService.approveMember(
       orphanedUserId,
       IDS.USER_ADMIN,
       'General Overseer Adeyemi',
@@ -1350,7 +1350,7 @@ async function runTests() {
     db.users.push(orphanedRejectUser);
     assert(!db.members.some(m => m.userId === orphanedRejectId), 'Second orphaned user has no member profile');
 
-    const rejectResult = MemberService.rejectMember(
+    const rejectResult = await MemberService.rejectMember(
       orphanedRejectId,
       IDS.USER_ADMIN,
       'General Overseer Adeyemi',

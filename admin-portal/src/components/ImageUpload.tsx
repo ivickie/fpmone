@@ -59,11 +59,18 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     if (url.startsWith('blob:') || url.startsWith('data:')) {
       return url;
     }
+    if (/https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/i.test(url)) {
+      return url.replace(
+        /https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/gi,
+        'https://ykibiaaohlodgcxpyfdm.supabase.co/storage/v1/object/public/fpm-media/'
+      );
+    }
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
     if (typeof window !== 'undefined') {
-      if (window.location.port === '3000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (window.location.port === '3000' && isLocalHost) {
         const host = window.location.hostname;
         const normalized = url.startsWith('/') ? url : `/${url}`;
         return `http://${host}:5000${normalized}`;
