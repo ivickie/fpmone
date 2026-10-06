@@ -86,6 +86,12 @@ const AppContent: React.FC = () => {
         }
       };
       loadMetadata();
+
+      const handleDataMutation = () => {
+        loadMetadata();
+      };
+      window.addEventListener('fpm:data-mutation', handleDataMutation);
+      return () => window.removeEventListener('fpm:data-mutation', handleDataMutation);
     }
   }, [user, currentTab]);
 

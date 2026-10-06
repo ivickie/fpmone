@@ -50,6 +50,13 @@ export const BranchesPage: React.FC = () => {
 
   useEffect(() => {
     fetchBranches();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('branche')) {
+        fetchBranches();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, []);
 
   const openCreateModal = () => {
@@ -98,8 +105,12 @@ export const BranchesPage: React.FC = () => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await api.createBranch(formData);
+      const res = await api.createBranch(formData);
       setCreateModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.branch) {
+        setBranches(prev => [res.branch, ...prev]);
+      }
       toast.success('Branch created successfully');
       await fetchBranches();
     } catch (err: any) {
@@ -112,10 +123,13 @@ export const BranchesPage: React.FC = () => {
   const handleUpdateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBranch) return;
+    const targetId = selectedBranch.id;
     setActionLoading(true);
     try {
-      await api.updateBranch(selectedBranch.id, formData);
+      const res = await api.updateBranch(targetId, formData);
       setEditModalOpen(false);
+      // Immediately reflect update in local state
+      setBranches(prev => prev.map(b => (b.id === targetId ? { ...b, ...formData, ...(res?.branch || {}) } : b)));
       toast.success('Branch updated successfully');
       await fetchBranches();
     } catch (err: any) {
@@ -127,12 +141,15 @@ export const BranchesPage: React.FC = () => {
 
   const handleArchiveOrDelete = async () => {
     if (!selectedBranch) return;
+    const targetId = selectedBranch.id;
     setActionLoading(true);
     try {
-      const res = await api.deleteBranch(selectedBranch.id);
+      const res = await api.deleteBranch(targetId);
       setConfirmArchiveOpen(false);
+      // Immediately reflect deletion/archive in local state
+      setBranches(prev => prev.filter(b => b.id !== targetId));
       await fetchBranches();
-      toast.success(res.message || 'Branch archived or deleted successfully');
+      toast.success(res?.message || 'Branch archived or deleted successfully');
     } catch (err: any) {
       toast.error(err.message || 'Failed to remove or archive branch');
     } finally {

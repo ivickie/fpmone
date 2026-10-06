@@ -126,7 +126,7 @@ export class FinanceService {
   /**
    * Records a new income or expense transaction.
    */
-  public static createTransaction(dto: CreateFinanceTransactionDto, user: AuthUserSession): FinanceTransaction {
+  public static async createTransaction(dto: CreateFinanceTransactionDto, user: AuthUserSession): Promise<FinanceTransaction> {
     if (!this.isAuthorized(user)) {
       throw new Error('Forbidden: Unauthorized to record financial transactions.');
     }
@@ -183,7 +183,7 @@ export class FinanceService {
     };
 
     db.financeTransactions.unshift(newTx);
-    persistFinanceTransaction(newTx).catch(() => {});
+    await persistFinanceTransaction(newTx).catch(err => console.warn('[PERSIST FINANCE ERROR]', err.message));
 
     // Audit log
     AuditService.log(
@@ -204,7 +204,7 @@ export class FinanceService {
    * Updates an existing transaction.
    * Requires editReason to preserve financial auditability and avoid silent overwrites.
    */
-  public static updateTransaction(id: string, dto: UpdateFinanceTransactionDto, user: AuthUserSession): FinanceTransaction {
+  public static async updateTransaction(id: string, dto: UpdateFinanceTransactionDto, user: AuthUserSession): Promise<FinanceTransaction> {
     if (!this.isAuthorized(user)) {
       throw new Error('Forbidden: Unauthorized to edit financial transactions.');
     }
@@ -260,7 +260,7 @@ export class FinanceService {
     tx.updatedByName = user.fullName;
     tx.updatedAt = new Date().toISOString();
 
-    persistFinanceTransaction(tx).catch(() => {});
+    await persistFinanceTransaction(tx).catch(err => console.warn('[PERSIST FINANCE ERROR]', err.message));
 
     // Audit log with reason
     AuditService.log(
@@ -281,7 +281,7 @@ export class FinanceService {
    * Voids or archives a financial transaction.
    * The transaction remains in the historical database but is excluded from totals.
    */
-  public static voidTransaction(id: string, reason: string, user: AuthUserSession): FinanceTransaction {
+  public static async voidTransaction(id: string, reason: string, user: AuthUserSession): Promise<FinanceTransaction> {
     if (!this.isAuthorized(user)) {
       throw new Error('Forbidden: Unauthorized to void financial transactions.');
     }
@@ -307,7 +307,7 @@ export class FinanceService {
     tx.updatedByName = user.fullName;
     tx.updatedAt = new Date().toISOString();
 
-    persistFinanceTransaction(tx).catch(() => {});
+    await persistFinanceTransaction(tx).catch(err => console.warn('[PERSIST FINANCE ERROR]', err.message));
 
     AuditService.log(
       user.fullName,
@@ -376,14 +376,14 @@ export class FinanceService {
   /**
    * Establishes or updates initial opening balance baseline for a branch.
    */
-  public static setInitialOpeningBalance(
+  public static async setInitialOpeningBalance(
     branchId: string,
     year: number,
     month: number,
     amount: number,
     notes: string | undefined,
     user: AuthUserSession
-  ): FinanceOpeningBalance {
+  ): Promise<FinanceOpeningBalance> {
     if (!this.isAuthorized(user)) {
       throw new Error('Forbidden: Unauthorized to establish opening balances.');
     }
@@ -434,7 +434,7 @@ export class FinanceService {
       db.financeOpeningBalances.push(existing);
     }
 
-    persistFinanceOpeningBalance(existing).catch(() => {});
+    await persistFinanceOpeningBalance(existing).catch(err => console.warn('[PERSIST FINANCE ERROR]', err.message));
 
     AuditService.log(
       user.fullName,

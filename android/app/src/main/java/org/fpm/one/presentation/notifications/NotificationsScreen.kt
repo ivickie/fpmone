@@ -54,7 +54,7 @@ fun NotificationsScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmIvoryBg)
+        .background(FpmTheme.canvasBackground)
     ) {
       if (state.isLoading && state.notifications.isEmpty()) {
         Column(
@@ -97,10 +97,13 @@ fun NotificationItemCard(
   item: NotificationItem,
   onClick: () -> Unit
 ) {
+  val unreadBg = if (FpmTheme.isDark) FpmAmberContainerDark else FpmGoldSubtle
+  val unreadBorder = if (FpmTheme.isDark) FpmAmberBorderDark else FpmGoldMuted.copy(alpha = 0.5f)
+
   FpmCard(
     modifier = Modifier.fillMaxWidth(),
-    backgroundColor = if (item.isRead) FpmSurfaceWhite else FpmGoldSubtle,
-    borderColor = if (item.isRead) FpmCardBorder else FpmGoldMuted.copy(alpha = 0.5f),
+    backgroundColor = if (item.isRead) FpmTheme.cardBackground else unreadBg,
+    borderColor = if (item.isRead) FpmTheme.cardBorder else unreadBorder,
     elevation = if (item.isRead) 0.5.dp else 1.5.dp,
     onClick = onClick
   ) {
@@ -110,10 +113,10 @@ fun NotificationItemCard(
     ) {
       // Themed Icon based on notification type
       val (icon, tint, bg) = when (item.notificationType.lowercase()) {
-        "attendance" -> Triple(Icons.Default.CheckCircle, FpmSuccess, FpmSuccessBg)
-        "reminder" -> Triple(Icons.Default.Alarm, FpmGoldDark, FpmAmberLight)
-        "urgent" -> Triple(Icons.Default.Warning, FpmError, FpmErrorBg)
-        else -> Triple(Icons.Default.Campaign, FpmRoyalBlue, Color(0xFFE0E7FF))
+        "attendance" -> Triple(Icons.Default.CheckCircle, FpmSuccess, if (FpmTheme.isDark) FpmSuccessBgDark else FpmSuccessBg)
+        "reminder" -> Triple(Icons.Default.Alarm, if (FpmTheme.isDark) FpmGold else FpmGoldDark, if (FpmTheme.isDark) FpmAmberContainerDark else FpmAmberLight)
+        "urgent" -> Triple(Icons.Default.Warning, FpmError, if (FpmTheme.isDark) FpmErrorBgDark else FpmErrorBg)
+        else -> Triple(Icons.Default.Campaign, FpmRoyalBlue, if (FpmTheme.isDark) FpmNavySurface else Color(0xFFE0E7FF))
       }
 
       Box(
@@ -138,7 +141,7 @@ fun NotificationItemCard(
             text = item.title,
             fontSize = 14.sp,
             fontWeight = if (item.isRead) FontWeight.SemiBold else FontWeight.Black,
-            color = FpmTextPrimary,
+            color = FpmTheme.textPrimary,
             modifier = Modifier.weight(1f)
           )
           if (!item.isRead) {
@@ -157,7 +160,7 @@ fun NotificationItemCard(
         Text(
           text = item.body,
           fontSize = 12.sp,
-          color = FpmTextSecondary,
+          color = FpmTheme.textSecondary,
           lineHeight = 17.sp
         )
 
@@ -166,7 +169,7 @@ fun NotificationItemCard(
         Text(
           text = item.createdAt.take(16).replace("T", " "),
           fontSize = 10.sp,
-          color = FpmTextMuted
+          color = FpmTheme.textMuted
         )
       }
     }

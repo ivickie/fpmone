@@ -116,7 +116,7 @@ fun WorkerHubScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmIvoryBg),
+        .background(FpmTheme.canvasBackground),
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -208,18 +208,18 @@ fun WorkerHubScreen(
             text = "My Attendance History",
             fontSize = 16.sp,
             fontWeight = FontWeight.Black,
-            color = FpmTextPrimary
+            color = FpmTheme.textPrimary
           )
           Surface(
-            color = FpmSlateBg,
+            color = FpmTheme.surfaceTonal,
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, FpmBorderLight)
+            border = androidx.compose.foundation.BorderStroke(1.dp, FpmTheme.borderLight)
           ) {
             Text(
               text = "${state.records.size} Records",
               fontSize = 11.sp,
               fontWeight = FontWeight.Bold,
-              color = FpmRoyalBlue,
+              color = FpmTheme.royalBlue,
               modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
             )
           }
@@ -234,27 +234,27 @@ fun WorkerHubScreen(
       } else if (state.records.isEmpty()) {
         item {
           Surface(
-            color = FpmSurfaceWhite,
+            color = FpmTheme.cardBackground,
             shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, FpmCardBorder),
+            border = androidx.compose.foundation.BorderStroke(1.dp, FpmTheme.cardBorder),
             modifier = Modifier.fillMaxWidth()
           ) {
             Column(
               modifier = Modifier.padding(28.dp),
               horizontalAlignment = Alignment.CenterHorizontally
             ) {
-              Icon(Icons.Default.EventAvailable, contentDescription = null, tint = FpmTextMuted, modifier = Modifier.size(40.dp))
+              Icon(Icons.Default.EventAvailable, contentDescription = null, tint = FpmTheme.textMuted, modifier = Modifier.size(40.dp))
               Spacer(modifier = Modifier.height(10.dp))
               Text(
                 text = "No Attendance Records Yet",
                 fontSize = 15.sp,
-                color = FpmTextPrimary,
+                color = FpmTheme.textPrimary,
                 fontWeight = FontWeight.Bold
               )
               Text(
                 text = "Clock in during church services to log your worker attendance.",
                 fontSize = 12.sp,
-                color = FpmTextSecondary
+                color = FpmTheme.textSecondary
               )
             }
           }
@@ -636,12 +636,12 @@ fun AttendanceStatusCard(
           text = record.serviceName ?: "Church Service",
           fontSize = 16.sp,
           fontWeight = FontWeight.Black,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
         Text(
           text = "Clocked in at: ${record.clockInTime ?: "Today"} (Method: ${record.clockInMethod ?: "Biometric"})",
           fontSize = 12.sp,
-          color = FpmTextSecondary
+          color = FpmTheme.textSecondary
         )
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -660,19 +660,19 @@ fun AttendanceStatusCard(
           text = "Service Attendance Check-In",
           fontSize = 16.sp,
           fontWeight = FontWeight.Black,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
         Text(
           text = "Select active service and authenticate via Biometric, PIN, or QR badge.",
           fontSize = 12.sp,
-          color = FpmTextSecondary
+          color = FpmTheme.textSecondary
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // Service Selector Chips
         if (state.services.isNotEmpty()) {
-          Text("Select Service:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
+          Text("Select Service:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FpmTheme.textPrimary)
           Spacer(modifier = Modifier.height(6.dp))
           Row(
             modifier = Modifier
@@ -686,17 +686,17 @@ fun AttendanceStatusCard(
                 modifier = Modifier
                   .clip(RoundedCornerShape(16.dp))
                   .clickable { onSelectService(srv) },
-                color = if (isSelected) FpmNavyDark else FpmSlateBg,
+                color = if (isSelected) (if (FpmTheme.isDark) FpmGold else FpmNavyDark) else FpmTheme.surfaceTonal,
                 border = androidx.compose.foundation.BorderStroke(
                   1.dp,
-                  if (isSelected) FpmNavyDark else FpmBorderLight
+                  if (isSelected) (if (FpmTheme.isDark) FpmGold else FpmNavyDark) else FpmTheme.borderLight
                 )
               ) {
                 Text(
                   text = "${srv.name} (${srv.startTime.take(5)})",
                   fontSize = 11.sp,
                   fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                  color = if (isSelected) FpmSurfaceWhite else FpmTextSecondary,
+                  color = if (isSelected) (if (FpmTheme.isDark) FpmNavyDark else FpmSurfaceWhite) else FpmTheme.textSecondary,
                   modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
               }
@@ -726,7 +726,7 @@ fun AttendanceSummarySection(summary: org.fpm.one.data.model.AttendanceSummary) 
     StatMiniCard(
       title = "Attendance",
       value = "${summary.rate}%",
-      color = FpmNavy,
+      color = if (FpmTheme.isDark) FpmGoldLight else FpmNavy,
       modifier = Modifier.weight(1f)
     )
     StatMiniCard(
@@ -744,7 +744,7 @@ fun AttendanceSummarySection(summary: org.fpm.one.data.model.AttendanceSummary) 
     StatMiniCard(
       title = "Total",
       value = "${summary.total}",
-      color = FpmGoldDark,
+      color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
       modifier = Modifier.weight(1f)
     )
   }
@@ -753,9 +753,9 @@ fun AttendanceSummarySection(summary: org.fpm.one.data.model.AttendanceSummary) 
 @Composable
 fun StatMiniCard(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
   Surface(
-    color = FpmSurfaceWhite,
+    color = FpmTheme.cardBackground,
     shape = RoundedCornerShape(12.dp),
-    border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmCardBorder),
+    border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmTheme.cardBorder),
     shadowElevation = 1.dp,
     modifier = modifier
   ) {
@@ -763,7 +763,7 @@ fun StatMiniCard(title: String, value: String, color: Color, modifier: Modifier 
       modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
-      Text(text = title, fontSize = 10.sp, color = FpmTextMuted, fontWeight = FontWeight.Bold, maxLines = 1)
+      Text(text = title, fontSize = 10.sp, color = FpmTheme.textMuted, fontWeight = FontWeight.Bold, maxLines = 1)
       Spacer(modifier = Modifier.height(4.dp))
       Text(text = value, fontSize = 17.sp, color = color, fontWeight = FontWeight.Black)
     }
@@ -783,29 +783,29 @@ fun AttendanceRecordRow(record: AttendanceRecordItem) {
           text = record.serviceName ?: "Church Service",
           fontSize = 14.sp,
           fontWeight = FontWeight.Bold,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
           text = "${record.serviceDate} • ${record.clockInTime ?: "--:--"} to ${record.clockOutTime ?: "In Progress"}",
           fontSize = 11.sp,
-          color = FpmTextSecondary
+          color = FpmTheme.textSecondary
         )
         if (record.durationMinutes != null && record.durationMinutes > 0) {
           Text(
             text = "Duration: ${record.durationMinutes} minutes",
             fontSize = 11.sp,
-            color = FpmGoldDark,
+            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
             fontWeight = FontWeight.Medium
           )
         }
       }
 
       val (badgeBg, badgeText, label) = when (record.status.lowercase()) {
-        "present" -> Triple(FpmSuccessBg, FpmSuccess, "✓ Present")
-        "late" -> Triple(FpmLateBg, FpmLate, "L Late")
-        "excused" -> Triple(FpmGoldLight.copy(alpha = 0.3f), FpmGoldDark, "E Excused")
-        else -> Triple(FpmErrorBg, FpmError, "A Absent")
+        "present" -> Triple(if (FpmTheme.isDark) FpmSuccess.copy(alpha = 0.2f) else FpmSuccessBg, FpmSuccess, "✓ Present")
+        "late" -> Triple(if (FpmTheme.isDark) FpmLate.copy(alpha = 0.2f) else FpmLateBg, FpmLate, "L Late")
+        "excused" -> Triple(if (FpmTheme.isDark) FpmGoldLight.copy(alpha = 0.2f) else FpmGoldLight.copy(alpha = 0.3f), if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark, "E Excused")
+        else -> Triple(if (FpmTheme.isDark) FpmError.copy(alpha = 0.2f) else FpmErrorBg, FpmError, "A Absent")
       }
 
       Surface(
@@ -841,14 +841,14 @@ fun ClockInModalDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
-    containerColor = FpmSurfaceWhite,
+    containerColor = FpmTheme.dialogBackground,
     title = {
       Column {
         Text(
           text = "Worker Attendance Verification",
           fontSize = 18.sp,
           fontWeight = FontWeight.Bold,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
         Text(
           text = "Target: ${selectedService?.name ?: "Current Service"}",
@@ -861,8 +861,8 @@ fun ClockInModalDialog(
       Column(modifier = Modifier.fillMaxWidth()) {
         PrimaryTabRow(
           selectedTabIndex = selectedTab,
-          containerColor = FpmSlateBg,
-          contentColor = FpmNavyDark
+          containerColor = FpmTheme.surfaceTonal,
+          contentColor = if (FpmTheme.isDark) FpmGold else FpmNavyDark
         ) {
           tabs.forEachIndexed { index, title ->
             Tab(
@@ -886,13 +886,13 @@ fun ClockInModalDialog(
                 modifier = Modifier
                   .size(72.dp)
                   .clip(CircleShape)
-                  .background(FpmNavy.copy(alpha = 0.1f)),
+                  .background((if (FpmTheme.isDark) FpmGold else FpmNavy).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
               ) {
                 Icon(
                   Icons.Default.Fingerprint,
                   contentDescription = "Fingerprint",
-                  tint = FpmNavy,
+                  tint = if (FpmTheme.isDark) FpmGold else FpmNavy,
                   modifier = Modifier.size(44.dp)
                 )
               }
@@ -901,12 +901,12 @@ fun ClockInModalDialog(
                 text = "Biometric & Passkey Prompt",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
               )
               Text(
                 text = "Touch device fingerprint scanner or passkey prompt to verify presence.",
                 fontSize = 11.sp,
-                color = FpmTextSecondary,
+                color = FpmTheme.textSecondary,
                 modifier = Modifier.padding(horizontal = 12.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
               )
@@ -931,13 +931,14 @@ fun ClockInModalDialog(
                 placeholder = { Text("e.g. 1234") },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
+                colors = fpmOutlinedTextFieldColors(),
                 singleLine = true
               )
               Spacer(modifier = Modifier.height(6.dp))
               Text(
                 text = "Use the PIN assigned during worker onboarding.",
                 fontSize = 11.sp,
-                color = FpmTextMuted
+                color = FpmTheme.textMuted
               )
               Spacer(modifier = Modifier.height(16.dp))
               FpmButton(
@@ -958,13 +959,13 @@ fun ClockInModalDialog(
                 modifier = Modifier
                   .size(80.dp)
                   .clip(RoundedCornerShape(12.dp))
-                  .background(FpmNavy.copy(alpha = 0.1f)),
+                  .background((if (FpmTheme.isDark) FpmGold else FpmNavy).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
               ) {
                 Icon(
                   Icons.Default.QrCodeScanner,
                   contentDescription = "QR Scanner",
-                  tint = FpmNavy,
+                  tint = if (FpmTheme.isDark) FpmGold else FpmNavy,
                   modifier = Modifier.size(48.dp)
                 )
               }
@@ -973,12 +974,12 @@ fun ClockInModalDialog(
                 text = "Station QR Scanner",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
               )
               Text(
                 text = "Scan the service attendance QR badge displayed at the church entrance terminal.",
                 fontSize = 11.sp,
-                color = FpmTextSecondary,
+                color = FpmTheme.textSecondary,
                 modifier = Modifier.padding(horizontal = 12.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
               )
@@ -996,7 +997,7 @@ fun ClockInModalDialog(
     confirmButton = {},
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text("Cancel", color = FpmTextSecondary)
+        Text("Cancel", color = FpmTheme.textSecondary)
       }
     }
   )

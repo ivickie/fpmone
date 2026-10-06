@@ -18,16 +18,35 @@ export const getAuthToken = () => localStorage.getItem('fpm_admin_token');
 export const setAuthToken = (token: string) => localStorage.setItem('fpm_admin_token', token);
 export const removeAuthToken = () => localStorage.removeItem('fpm_admin_token');
 
+export function notifyDataMutation(entityType?: string, action?: string, payload?: any) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('fpm:data-mutation', {
+      detail: { entityType, action, payload, timestamp: Date.now() }
+    }));
+  }
+}
+
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
+  const method = (options.method || 'GET').toUpperCase();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-Portal': 'admin',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  let url = `${API_BASE}${endpoint}`;
+  if (method === 'GET') {
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}_t=${Date.now()}`;
+  }
+
+  const response = await fetch(url, {
+    cache: 'no-store',
     ...options,
     headers
   });
@@ -38,20 +57,26 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   }
 
   const contentType = response.headers.get('content-type');
+  let data: any;
   if (contentType && contentType.includes('application/json')) {
-    const data = await response.json();
+    data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || data.message || 'API request failed');
     }
-    return data;
+  } else {
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'API request failed');
+    }
+    data = (await response.text()) as unknown as T;
   }
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'API request failed');
+  // Automatically broadcast data mutation event on any successful non-GET mutation
+  if (method !== 'GET' && !endpoint.includes('/auth/login')) {
+    notifyDataMutation(endpoint, method, data);
   }
 
-  return (await response.text()) as unknown as T;
+  return data;
 }
 
 export const api = {

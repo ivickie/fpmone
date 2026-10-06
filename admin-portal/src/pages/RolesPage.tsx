@@ -44,6 +44,13 @@ export const RolesPage: React.FC = () => {
 
   useEffect(() => {
     fetchRoles();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('role')) {
+        fetchRoles();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, []);
 
   const openCreateModal = () => {
@@ -65,7 +72,7 @@ export const RolesPage: React.FC = () => {
       name: r.name || '',
       code: r.code || '',
       description: r.description || '',
-      hierarchyLevel: r.hierarchyLevel || 7,
+      hierarchyLevel: r.hierarchyLevel ?? 7,
       permissions: [...(r.permissions || [])],
       isActive: r.isActive !== false
     });
@@ -82,8 +89,12 @@ export const RolesPage: React.FC = () => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await api.createRole(formData);
+      const res = await api.createRole(formData);
       setCreateModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.role) {
+        setRoles(prev => [...prev, res.role]);
+      }
       toast.success('Role created successfully');
       await fetchRoles();
     } catch (err: any) {
@@ -96,10 +107,13 @@ export const RolesPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
+    const targetId = selectedRole.id;
     setActionLoading(true);
     try {
-      await api.updateRole(selectedRole.id, formData);
+      const res = await api.updateRole(targetId, formData);
       setEditModalOpen(false);
+      // Immediately reflect update in local state
+      setRoles(prev => prev.map(r => (r.id === targetId ? { ...r, ...formData, ...(res?.role || {}) } : r)));
       toast.success('Role updated successfully');
       await fetchRoles();
     } catch (err: any) {
@@ -111,10 +125,13 @@ export const RolesPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedRole) return;
+    const targetId = selectedRole.id;
     setActionLoading(true);
     try {
-      await api.deleteRole(selectedRole.id);
+      await api.deleteRole(targetId);
       setConfirmDeleteOpen(false);
+      // Immediately reflect deletion in local state
+      setRoles(prev => prev.filter(r => r.id !== targetId));
       toast.success('Role deleted successfully');
       await fetchRoles();
     } catch (err: any) {

@@ -80,6 +80,13 @@ export const ServicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchServices();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('service')) {
+        fetchServices();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [selectedBranchId]);
 
   const openCreateModal = () => {
@@ -134,6 +141,10 @@ export const ServicesPage: React.FC = () => {
         imageUrl: formData.imageUrl?.trim() || undefined
       });
       setCreateModalOpen(false);
+      // Immediately reflect creation in local state
+      if (created) {
+        setServices(prev => [created, ...prev]);
+      }
       toast.success('Service schedule created successfully');
       await fetchServices();
       if (created) {
@@ -149,9 +160,10 @@ export const ServicesPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService) return;
+    const targetId = selectedService.id;
     setActionLoading(true);
     try {
-      await api.updateService(selectedService.id, {
+      const res = await api.updateService(targetId, {
         ...formData,
         startTime: `${formData.startTime}:00`,
         expectedEndTime: `${formData.expectedEndTime}:00`,
@@ -161,6 +173,8 @@ export const ServicesPage: React.FC = () => {
         imageUrl: formData.imageUrl?.trim() || undefined
       });
       setEditModalOpen(false);
+      // Immediately reflect update in local state
+      setServices(prev => prev.map(s => (s.id === targetId ? { ...s, ...formData, ...(res?.service || {}) } : s)));
       toast.success('Service schedule updated successfully');
       await fetchServices();
     } catch (err: any) {
@@ -172,12 +186,15 @@ export const ServicesPage: React.FC = () => {
 
   const handleArchiveOrDelete = async () => {
     if (!selectedService) return;
+    const targetId = selectedService.id;
     setActionLoading(true);
     try {
-      const res = await api.deleteService(selectedService.id);
+      const res = await api.deleteService(targetId);
       setConfirmArchiveOpen(false);
+      // Immediately reflect deletion/archive in local state
+      setServices(prev => prev.filter(s => s.id !== targetId));
       await fetchServices();
-      toast.success(res.message || 'Service archived successfully');
+      toast.success(res?.message || 'Service archived successfully');
     } catch (err: any) {
       toast.error(err.message || 'Failed to archive or delete service');
     } finally {

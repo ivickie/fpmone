@@ -1,6 +1,7 @@
 package org.fpm.one.core.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -104,7 +105,7 @@ val ScriptureTextStyle = TextStyle(
     fontWeight = FontWeight.Normal,
     fontSize = 16.sp,
     lineHeight = 24.sp,
-    color = FpmTextPrimary
+    color = Color.Unspecified
 )
 
 // Editorial Section Kicker
@@ -114,5 +115,5 @@ val KickerTextStyle = TextStyle(
     fontSize = 11.sp,
     lineHeight = 14.sp,
     letterSpacing = 1.2.sp,
-    color = FpmGoldDark
+    color = Color.Unspecified
 )

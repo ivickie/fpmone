@@ -46,6 +46,13 @@ export const FeedPage: React.FC = () => {
 
   useEffect(() => {
     fetchFeed();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('feed') || e?.detail?.entityType?.includes('post')) {
+        fetchFeed();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, []);
 
   const openCreateModal = () => {
@@ -86,7 +93,7 @@ export const FeedPage: React.FC = () => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await api.createPost({
+      const res = await api.createPost({
         title: formData.title || undefined,
         content: formData.content,
         scriptureReference: formData.scriptureReference || undefined,
@@ -97,6 +104,10 @@ export const FeedPage: React.FC = () => {
         allowComments: formData.postType === 'announcement' ? false : formData.allowComments
       });
       setModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.post) {
+        setPosts(prev => [res.post, ...prev]);
+      }
       toast.success('Post published successfully');
       await fetchFeed();
     } catch (err: any) {
@@ -109,9 +120,10 @@ export const FeedPage: React.FC = () => {
   const handleUpdatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPost) return;
+    const targetId = selectedPost.id;
     setActionLoading(true);
     try {
-      await api.updatePost(selectedPost.id, {
+      const res = await api.updatePost(targetId, {
         title: formData.title || undefined,
         content: formData.content,
         scriptureReference: formData.scriptureReference || undefined,
@@ -120,6 +132,8 @@ export const FeedPage: React.FC = () => {
         allowComments: formData.postType === 'announcement' ? false : formData.allowComments
       });
       setEditModalOpen(false);
+      // Immediately reflect update in local state
+      setPosts(prev => prev.map(p => (p.id === targetId ? { ...p, ...formData, ...(res?.post || {}) } : p)));
       toast.success('Post updated successfully');
       await fetchFeed();
     } catch (err: any) {
@@ -131,10 +145,13 @@ export const FeedPage: React.FC = () => {
 
   const handleDeletePost = async () => {
     if (!selectedPost) return;
+    const targetId = selectedPost.id;
     setActionLoading(true);
     try {
-      await api.deletePost(selectedPost.id);
+      await api.deletePost(targetId);
       setConfirmDeleteOpen(false);
+      // Immediately reflect deletion in local state
+      setPosts(prev => prev.filter(p => p.id !== targetId));
       toast.success('Post deleted successfully');
       await fetchFeed();
     } catch (err: any) {

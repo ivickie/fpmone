@@ -40,7 +40,8 @@ import kotlinx.coroutines.launch
 import org.fpm.one.R
 import org.fpm.one.core.network.ApiClient
 import org.fpm.one.core.theme.*
-import org.fpm.one.presentation.components.FpmButton
+import org.fpm.one.presentation.components.*
+import androidx.compose.foundation.isSystemInDarkTheme
 
 enum class AuthScreenState {
   WELCOME,
@@ -56,6 +57,7 @@ fun LoginScreen(
 ) {
   val uiState by viewModel.uiState.collectAsState()
   val scope = rememberCoroutineScope()
+  val isDark = FpmTheme.isDark
 
   var authState by remember { mutableStateOf(AuthScreenState.WELCOME) }
   var emailOrPhone by remember { mutableStateOf("") }
@@ -242,9 +244,9 @@ fun LoginScreen(
           )
         ),
       shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-      color = FpmSurfaceWhite,
+      color = FpmTheme.dialogBackground,
       shadowElevation = 24.dp,
-      border = BorderStroke(1.dp, FpmCardBorder.copy(alpha = 0.7f))
+      border = BorderStroke(1.dp, FpmTheme.cardBorder.copy(alpha = 0.7f))
     ) {
       if (authState == AuthScreenState.WELCOME) {
         // STATE 1: WELCOME / GATEWAY ACTIONS (matching reference composition)
@@ -263,7 +265,8 @@ fun LoginScreen(
               .height(54.dp),
             shape = RoundedCornerShape(27.dp),
             colors = ButtonDefaults.buttonColors(
-              containerColor = FpmRoyalBlue
+              containerColor = if (isDark) FpmGold else FpmRoyalBlue,
+              contentColor = if (isDark) FpmNavyDeep else FpmSurfaceWhite
             ),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
           ) {
@@ -275,13 +278,13 @@ fun LoginScreen(
                 text = "Create an account",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmSurfaceWhite
+                color = if (isDark) FpmNavyDeep else FpmSurfaceWhite
               )
               Spacer(modifier = Modifier.width(8.dp))
               Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = FpmGoldLight,
+                tint = if (isDark) FpmNavyDeep else FpmGoldLight,
                 modifier = Modifier.size(18.dp)
               )
             }
@@ -300,7 +303,7 @@ fun LoginScreen(
               text = "Already have an account",
               fontSize = 14.sp,
               fontWeight = FontWeight.SemiBold,
-              color = FpmTextPrimary
+              color = FpmTheme.textPrimary
             )
           }
         }
@@ -324,12 +327,12 @@ fun LoginScreen(
               onClick = { authState = AuthScreenState.WELCOME },
               modifier = Modifier
                 .size(36.dp)
-                .background(FpmSurfaceTonal, CircleShape)
+                .background(FpmTheme.surfaceTonal, CircleShape)
             ) {
               Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back to Welcome",
-                tint = FpmTextPrimary,
+                tint = FpmTheme.textPrimary,
                 modifier = Modifier.size(20.dp)
               )
             }
@@ -341,12 +344,12 @@ fun LoginScreen(
                 text = "Sign In to Your Portal",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
               )
               Text(
                 text = "Access church announcements, services & attendance",
                 fontSize = 11.sp,
-                color = FpmTextSecondary
+                color = FpmTheme.textSecondary
               )
             }
           }
@@ -359,12 +362,12 @@ fun LoginScreen(
               modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 14.dp),
-              color = FpmErrorBg,
+              color = FpmTheme.errorContainer,
               shape = RoundedCornerShape(10.dp)
             ) {
               Text(
                 text = uiState.error!!,
-                color = FpmError,
+                color = FpmTheme.errorText,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(10.dp)
@@ -378,11 +381,12 @@ fun LoginScreen(
             onValueChange = { emailOrPhone = it },
             label = { Text("Email Address or Phone", fontSize = 12.sp) },
             leadingIcon = {
-              Icon(Icons.Default.Person, contentDescription = null, tint = FpmRoyalBlue)
+              Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) FpmGold else FpmRoyalBlue)
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            singleLine = true
+            singleLine = true,
+            colors = fpmOutlinedTextFieldColors()
           )
 
           Spacer(modifier = Modifier.height(12.dp))
@@ -393,14 +397,14 @@ fun LoginScreen(
             onValueChange = { password = it },
             label = { Text("Password", fontSize = 12.sp) },
             leadingIcon = {
-              Icon(Icons.Default.Lock, contentDescription = null, tint = FpmRoyalBlue)
+              Icon(Icons.Default.Lock, contentDescription = null, tint = if (isDark) FpmGold else FpmRoyalBlue)
             },
             trailingIcon = {
               IconButton(onClick = { passwordVisible = !passwordVisible }) {
                 Icon(
                   imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                   contentDescription = if (passwordVisible) "Hide password" else "Show password",
-                  tint = FpmTextSecondary
+                  tint = FpmTheme.textSecondary
                 )
               }
             },
@@ -408,7 +412,8 @@ fun LoginScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            singleLine = true
+            singleLine = true,
+            colors = fpmOutlinedTextFieldColors()
           )
 
           Spacer(modifier = Modifier.height(18.dp))
@@ -436,13 +441,13 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Text(text = "New to FPM? ", fontSize = 12.sp, color = FpmTextSecondary)
+            Text(text = "New to FPM? ", fontSize = 12.sp, color = FpmTheme.textSecondary)
             TextButton(onClick = onNavigateToRegister) {
               Text(
                 text = "Register as Member",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmRoyalBlue
+                color = if (isDark) FpmGold else FpmRoyalBlue
               )
             }
           }

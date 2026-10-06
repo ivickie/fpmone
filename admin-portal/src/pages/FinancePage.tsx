@@ -353,6 +353,17 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
     } else if (activeTab === 'expense_analysis') {
       loadCategoryAnalysis('expense');
     }
+
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('finance')) {
+        if (activeTab === 'dashboard') loadDashboard();
+        else if (activeTab === 'income' || activeTab === 'expenses') loadTransactions(txPagination.page);
+        else if (activeTab === 'statements_monthly') loadMonthlyStatement();
+        else if (activeTab === 'statements_annual') loadAnnualStatement();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [activeTab, branchFilter, selectedYear, selectedMonth]);
 
   // Handle Create Transaction
@@ -387,6 +398,10 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
       if (res.success) {
         toast.success(`${newTxForm.transactionType === 'income' ? 'Income' : 'Expense'} recorded successfully.`);
         setIsNewTxModalOpen(false);
+        // Immediately reflect in local transactions state
+        if (res.transaction) {
+          setTransactions(prev => [res.transaction, ...prev]);
+        }
         // Refresh active tab
         if (activeTab === 'dashboard') loadDashboard();
         else if (activeTab === 'income' || activeTab === 'expenses') loadTransactions(txPagination.page);
@@ -418,6 +433,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
   const handleUpdateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTx) return;
+    const targetId = editingTx.id;
     if (!editTxForm.editReason.trim()) {
       toast.error('An audit reason is strictly required to update a financial record.');
       return;
@@ -425,7 +441,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
 
     setSubmittingAction(true);
     try {
-      const res = await api.updateFinanceTransaction(editingTx.id, {
+      const res = await api.updateFinanceTransaction(targetId, {
         amount: parseFloat(editTxForm.amount),
         category: editTxForm.category,
         transactionDate: editTxForm.transactionDate,
@@ -437,6 +453,8 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
       if (res.success) {
         toast.success('Transaction updated and logged to audit trail.');
         setEditingTx(null);
+        // Immediately reflect update in local transactions state
+        setTransactions(prev => prev.map(t => (t.id === targetId ? { ...t, ...editTxForm, amount: parseFloat(editTxForm.amount), ...(res.transaction || {}) } : t)));
         if (activeTab === 'dashboard') loadDashboard();
         else if (activeTab === 'income' || activeTab === 'expenses') loadTransactions(txPagination.page);
         else if (activeTab === 'statements_monthly') loadMonthlyStatement();
@@ -453,6 +471,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
   const handleVoidTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!voidingTx) return;
+    const targetId = voidingTx.id;
     if (!voidReasonInput.trim()) {
       toast.error('A void reason is required.');
       return;
@@ -460,11 +479,13 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
 
     setSubmittingAction(true);
     try {
-      const res = await api.voidFinanceTransaction(voidingTx.id, voidReasonInput.trim());
+      const res = await api.voidFinanceTransaction(targetId, voidReasonInput.trim());
       if (res.success) {
         toast.success('Transaction marked as voided and excluded from calculations.');
         setVoidingTx(null);
         setVoidReasonInput('');
+        // Immediately reflect void status in local transactions state
+        setTransactions(prev => prev.map(t => (t.id === targetId ? { ...t, status: 'voided' as const } : t)));
         if (activeTab === 'dashboard') loadDashboard();
         else if (activeTab === 'income' || activeTab === 'expenses') loadTransactions(txPagination.page);
         else if (activeTab === 'statements_monthly') loadMonthlyStatement();

@@ -64,6 +64,13 @@ export const DepartmentsPage: React.FC = () => {
 
   useEffect(() => {
     fetchDepartments();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('department')) {
+        fetchDepartments();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [selectedBranchId]);
 
   const fetchHodSuggestions = async (query: string) => {
@@ -225,11 +232,15 @@ export const DepartmentsPage: React.FC = () => {
     }
     setActionLoading(true);
     try {
-      await api.createDepartment({
+      const res = await api.createDepartment({
         ...formData,
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.department) {
+        setDepartments(prev => [res.department, ...prev]);
+      }
       toast.success('Department created successfully');
       await fetchDepartments();
     } catch (err: any) {
@@ -242,14 +253,17 @@ export const DepartmentsPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDept) return;
+    const targetId = selectedDept.id;
     if (formData.hodEmail && hodValidation && !hodValidation.eligible) {
       toast.error(hodValidation.error || 'Cannot assign ineligible member as Head of Department.');
       return;
     }
     setActionLoading(true);
     try {
-      await api.updateDepartment(selectedDept.id, formData);
+      const res = await api.updateDepartment(targetId, formData);
       setEditModalOpen(false);
+      // Immediately reflect update in local state
+      setDepartments(prev => prev.map(d => (d.id === targetId ? { ...d, ...formData, ...(res?.department || {}) } : d)));
       toast.success('Department updated successfully');
       await fetchDepartments();
     } catch (err: any) {
@@ -261,12 +275,15 @@ export const DepartmentsPage: React.FC = () => {
 
   const handleArchiveOrDelete = async () => {
     if (!selectedDept) return;
+    const targetId = selectedDept.id;
     setActionLoading(true);
     try {
-      const res = await api.deleteDepartment(selectedDept.id);
+      const res = await api.deleteDepartment(targetId);
       setConfirmArchiveOpen(false);
+      // Immediately reflect deletion in local state
+      setDepartments(prev => prev.filter(d => d.id !== targetId));
       await fetchDepartments();
-      toast.success(res.message || 'Department archived successfully');
+      toast.success(res?.message || 'Department archived successfully');
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete department');
     } finally {

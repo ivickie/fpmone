@@ -55,10 +55,25 @@ val FpmLiveRed = Color(0xFFE11D48)       // Vibrant broadcast pulse for live-str
 val FpmShimmerBase = Color(0xFFEAE6DD)
 val FpmShimmerHighlight = Color(0xFFFAF8F5)
 
-// 8. Backward-Compatible Color Aliases (harmonized with FPM Gold & Navy)
+// 8. Dark Mode Dedicated Palette Tokens (Midnight Navy Foundation)
+val FpmCardDark = Color(0xFF0E1A30)          // Midnight navy card background
+val FpmCardBorderDark = Color(0xFF1E3252)    // Hairline border on dark surfaces
+val FpmSurfaceTonalDark = Color(0xFF14243F)  // Tonal secondary container on dark
+val FpmSurfaceMutedDark = Color(0xFF1A2E4E)  // Muted container on dark
+val FpmTextSecondaryDark = Color(0xFF94A3B8) // Slate 400 high-contrast secondary on dark
+val FpmTextMutedDark = Color(0xFF64748B)     // Slate 500 caption text on dark
+val FpmAmberContainerDark = Color(0xFF3B1D06)// Deep warm amber container wash on dark
+val FpmAmberBorderDark = Color(0xFFB45309)   // Amber border on dark
+val FpmErrorBgDark = Color(0xFF381010)       // Error container wash on dark
+val FpmErrorBorderDark = Color(0xFF7F1D1D)   // Error border on dark
+val FpmSuccessBgDark = Color(0xFF063326)     // Success container wash on dark
+val FpmSuccessBorderDark = Color(0xFF0F766E) // Success border on dark
+
+// 9. Backward-Compatible Color Aliases (harmonized with FPM Gold & Navy)
 val FpmCrimson = FpmGold
 val FpmCrimsonDark = FpmGoldDark
 val FpmCrimsonLight = FpmGoldLight
 val FpmCrimsonSubtle = FpmGoldSubtle
 val FpmRed = FpmError
 val FpmRedLight = FpmErrorBg
+

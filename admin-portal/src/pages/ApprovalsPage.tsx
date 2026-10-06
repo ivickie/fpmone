@@ -38,6 +38,13 @@ export const ApprovalsPage: React.FC = () => {
 
   useEffect(() => {
     fetchApprovals();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('approval') || e?.detail?.entityType?.includes('member')) {
+        fetchApprovals();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [selectedBranchId]);
 
   const handleApprove = async (userId: string) => {
@@ -45,6 +52,9 @@ export const ApprovalsPage: React.FC = () => {
     try {
       const res = await api.approveMember(userId);
       toast.success(`Applicant approved successfully!${res.workerCode ? ` Unique Worker ID: ${res.workerCode}` : ''}`);
+      // Immediately reflect removal from local state without waiting for re-fetch
+      setApprovals(prev => prev.filter(app => app.userId !== userId));
+      setSelectedApplicant((prev: any) => (prev?.userId === userId ? null : prev));
       await fetchApprovals();
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve applicant');
@@ -56,10 +66,14 @@ export const ApprovalsPage: React.FC = () => {
   const handleRejectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedApplicant || !reason) return;
+    const targetUserId = selectedApplicant.userId;
     setActionLoading(true);
     try {
-      await api.rejectMember(selectedApplicant.userId, reason);
+      await api.rejectMember(targetUserId, reason);
       toast.success('Applicant has been marked as rejected.');
+      // Immediately reflect removal from local state and close modal
+      setApprovals(prev => prev.filter(app => app.userId !== targetUserId));
+      setSelectedApplicant(null);
       setRejectModalOpen(false);
       setReason('');
       await fetchApprovals();
@@ -73,9 +87,10 @@ export const ApprovalsPage: React.FC = () => {
   const handleChangesSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedApplicant || !notes) return;
+    const targetUserId = selectedApplicant.userId;
     setActionLoading(true);
     try {
-      await api.requestChanges(selectedApplicant.userId, notes);
+      await api.requestChanges(targetUserId, notes);
       toast.info('Feedback sent to applicant requesting information changes.');
       setChangesModalOpen(false);
       setNotes('');

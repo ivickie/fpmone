@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.layout.*
@@ -38,8 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import org.fpm.one.core.theme.*
-import org.fpm.one.presentation.components.FpmButton
-import org.fpm.one.presentation.components.FpmCard
+import org.fpm.one.presentation.components.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +51,7 @@ fun RegistrationWizardScreen(
   onRegistrationComplete: () -> Unit
 ) {
   val state by viewModel.state.collectAsState()
+  val isDark = FpmTheme.isDark
 
   Scaffold(
     topBar = {
@@ -69,7 +72,7 @@ fun RegistrationWizardScreen(
               text = "Member Registration",
               fontSize = 17.sp,
               fontWeight = FontWeight.Bold,
-              color = FpmTextPrimary
+              color = FpmTheme.textPrimary
             )
           }
         },
@@ -77,17 +80,17 @@ fun RegistrationWizardScreen(
           IconButton(onClick = {
             if (state.currentStep > 1) viewModel.prevStep() else onNavigateBack()
           }) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTextPrimary)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTheme.textPrimary)
           }
         },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmSurfaceWhite)
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmTheme.cardBackground)
       )
     }
   ) { padding ->
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .background(FpmSlateBg)
+        .background(FpmTheme.canvasBackground)
         .padding(padding)
         .padding(horizontal = 20.dp, vertical = 12.dp)
         .verticalScroll(rememberScrollState())
@@ -110,7 +113,7 @@ fun RegistrationWizardScreen(
               modifier = Modifier
                 .size(28.dp)
                 .background(
-                  color = if (isCurrent) FpmRoyalBlue else if (isActive) FpmSuccess else FpmCardBorder,
+                  color = if (isCurrent) (if (isDark) FpmGold else FpmRoyalBlue) else if (isActive) FpmSuccess else (if (isDark) FpmCardBorderDark else FpmCardBorder),
                   shape = RoundedCornerShape(14.dp)
                 ),
               contentAlignment = Alignment.Center
@@ -119,14 +122,14 @@ fun RegistrationWizardScreen(
                 text = if (isActive && !isCurrent) "✓" else "$stepNum",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isActive) FpmSurfaceWhite else FpmTextSecondary
+                color = if (isActive) (if (isCurrent && isDark) FpmNavyDeep else FpmSurfaceWhite) else FpmTheme.textSecondary
               )
             }
             Text(
               text = label,
               fontSize = 10.sp,
               fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-              color = if (isCurrent) FpmRoyalBlue else FpmTextSecondary,
+              color = if (isCurrent) (if (isDark) FpmGold else FpmRoyalBlue) else FpmTheme.textSecondary,
               modifier = Modifier.padding(top = 4.dp)
             )
           }
@@ -138,12 +141,12 @@ fun RegistrationWizardScreen(
           modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 14.dp),
-          color = FpmErrorBg,
+          color = FpmTheme.errorContainer,
           shape = RoundedCornerShape(10.dp)
         ) {
           Text(
             text = state.error!!,
-            color = FpmError,
+            color = FpmTheme.errorText,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(10.dp)
@@ -180,12 +183,12 @@ private fun Step1Account(
       text = "Step 1 — Account Setup",
       fontSize = 16.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextPrimary
+      color = FpmTheme.textPrimary
     )
     Text(
       text = "Enter your primary login details and legal names",
       fontSize = 12.sp,
-      color = FpmTextSecondary,
+      color = FpmTheme.textSecondary,
       modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
     )
 
@@ -197,10 +200,11 @@ private fun Step1Account(
       },
       label = { Text("First Name *", fontSize = 12.sp) },
       isError = state.firstNameError != null,
-      supportingText = { state.firstNameError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
+      supportingText = { state.firstNameError?.let { Text(it, color = FpmTheme.errorText, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
-      singleLine = true
+      singleLine = true,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -214,7 +218,8 @@ private fun Step1Account(
       label = { Text("Middle Name", fontSize = 12.sp) },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
-      singleLine = true
+      singleLine = true,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -227,10 +232,11 @@ private fun Step1Account(
       },
       label = { Text("Last Name *", fontSize = 12.sp) },
       isError = state.lastNameError != null,
-      supportingText = { state.lastNameError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
+      supportingText = { state.lastNameError?.let { Text(it, color = FpmTheme.errorText, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
-      singleLine = true
+      singleLine = true,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -245,15 +251,16 @@ private fun Step1Account(
       isError = state.phoneError != null,
       supportingText = { 
         if (state.phoneError != null) {
-          Text(state.phoneError!!, color = FpmError, fontSize = 11.sp)
+          Text(state.phoneError!!, color = FpmTheme.errorText, fontSize = 11.sp)
         } else {
-          Text("Format: e.g. +2348012345678 or 08012345678", fontSize = 10.sp, color = FpmTextSecondary)
+          Text("Format: e.g. +2348012345678 or 08012345678", fontSize = 10.sp, color = FpmTheme.textSecondary)
         }
       },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true,
-      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -266,11 +273,12 @@ private fun Step1Account(
       },
       label = { Text("Email Address *", fontSize = 12.sp) },
       isError = state.emailError != null,
-      supportingText = { state.emailError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
+      supportingText = { state.emailError?.let { Text(it, color = FpmTheme.errorText, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true,
-      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -285,15 +293,16 @@ private fun Step1Account(
       isError = state.passwordError != null,
       supportingText = { 
         if (state.passwordError != null) {
-          Text(state.passwordError!!, color = FpmError, fontSize = 11.sp)
+          Text(state.passwordError!!, color = FpmTheme.errorText, fontSize = 11.sp)
         } else {
-          Text("Minimum 6 characters", fontSize = 10.sp, color = FpmTextSecondary)
+          Text("Minimum 6 characters", fontSize = 10.sp, color = FpmTheme.textSecondary)
         }
       },
       visualTransformation = PasswordVisualTransformation(),
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
-      singleLine = true
+      singleLine = true,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(20.dp))
@@ -314,13 +323,13 @@ private fun Step1Account(
       horizontalArrangement = Arrangement.Center,
       verticalAlignment = Alignment.CenterVertically
     ) {
-      Text(text = "Already have an account? ", fontSize = 12.sp, color = FpmTextSecondary)
+      Text(text = "Already have an account? ", fontSize = 12.sp, color = FpmTheme.textSecondary)
       TextButton(onClick = onNavigateBack) {
         Text(
           text = "Sign In",
           fontSize = 12.sp,
           fontWeight = FontWeight.Bold,
-          color = FpmRoyalBlue
+          color = if (FpmTheme.isDark) FpmGold else FpmRoyalBlue
         )
       }
     }
@@ -346,12 +355,12 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       text = "Step 2 — Church Information",
       fontSize = 16.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextPrimary
+      color = FpmTheme.textPrimary
     )
     Text(
       text = "Select your primary worship branch and ministry role",
       fontSize = 12.sp,
-      color = FpmTextSecondary,
+      color = FpmTheme.textSecondary,
       modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
     )
 
@@ -359,12 +368,12 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       text = "PRIMARY BRANCH / CHAPTER *",
       fontSize = 11.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextSecondary
+      color = FpmTheme.textSecondary
     )
     if (state.branchError != null) {
       Text(
         text = state.branchError,
-        color = FpmError,
+        color = FpmTheme.errorText,
         fontSize = 11.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(top = 2.dp)
@@ -382,9 +391,10 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       ) {
         RadioButton(
           selected = branchId == b.id,
-          onClick = { branchId = b.id }
+          onClick = { branchId = b.id },
+          colors = fpmRadioButtonColors()
         )
-        Text(text = "${b.name} (${b.city})", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(text = "${b.name} (${b.city})", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = FpmTheme.textPrimary)
       }
     }
 
@@ -394,12 +404,12 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       text = "MINISTRY ROLE *",
       fontSize = 11.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextSecondary
+      color = FpmTheme.textSecondary
     )
     if (state.roleError != null) {
       Text(
         text = state.roleError,
-        color = FpmError,
+        color = FpmTheme.errorText,
         fontSize = 11.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(top = 2.dp)
@@ -426,12 +436,13 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
             roleId = r.id
             viewModel.onRoleSelected(r.id)
             if (r.code == "WORKER") isWorker = true
-          }
+          },
+          colors = fpmRadioButtonColors()
         )
         Column {
-          Text(text = r.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          Text(text = r.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = FpmTheme.textPrimary)
           r.description?.let { desc ->
-            Text(text = desc, fontSize = 11.sp, color = FpmTextSecondary)
+            Text(text = desc, fontSize = 11.sp, color = FpmTheme.textSecondary)
           }
         }
       }
@@ -443,7 +454,8 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .background(FpmAmberLight.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+        .background(FpmTheme.amberContainer, RoundedCornerShape(12.dp))
+        .border(1.dp, FpmTheme.amberBorder, RoundedCornerShape(12.dp))
         .padding(12.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
@@ -453,12 +465,12 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
           text = "Serve as a Dedicated Worker?",
           fontSize = 13.sp,
           fontWeight = FontWeight.Bold,
-          color = FpmTextPrimary
+          color = FpmTheme.amberText
         )
         Text(
           text = "Allows clock-in for services and departmental assignment",
           fontSize = 11.sp,
-          color = FpmTextSecondary
+          color = FpmTheme.textSecondary
         )
       }
       Switch(
@@ -467,7 +479,8 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
           isWorker = it
           viewModel.onWorkerToggled(it)
           roleId = viewModel.state.value.ministryRoleId
-        }
+        },
+        colors = fpmSwitchColors()
       )
     }
 
@@ -478,12 +491,12 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
         text = "DEPARTMENT *",
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
-        color = FpmTextSecondary
+        color = FpmTheme.textSecondary
       )
       if (state.departmentError != null) {
         Text(
           text = state.departmentError,
-          color = FpmError,
+          color = FpmTheme.errorText,
           fontSize = 11.sp,
           fontWeight = FontWeight.Medium,
           modifier = Modifier.padding(top = 2.dp)
@@ -501,9 +514,10 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
         ) {
           RadioButton(
             selected = deptId == d.id,
-            onClick = { deptId = d.id }
+            onClick = { deptId = d.id },
+            colors = fpmRadioButtonColors()
           )
-          Text(text = d.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          Text(text = d.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = FpmTheme.textPrimary)
         }
       }
 
@@ -515,7 +529,8 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
         label = { Text("Department Position (e.g. Vocalist, Camera Operator)", fontSize = 12.sp) },
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        singleLine = true
+        singleLine = true,
+        colors = fpmOutlinedTextFieldColors()
       )
     }
 
@@ -525,9 +540,10 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
       OutlinedButton(
         onClick = { viewModel.prevStep() },
         modifier = Modifier.weight(1f),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, FpmTheme.cardBorder)
       ) {
-        Text("Back", fontSize = 13.sp)
+        Text("Back", fontSize = 13.sp, color = FpmTheme.textPrimary)
       }
       FpmButton(
         text = "Next: Personal",
@@ -593,12 +609,12 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       text = "Step 3 — Personal Information",
       fontSize = 16.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextPrimary
+      color = FpmTheme.textPrimary
     )
     Text(
       text = "Demographic information and optional emergency contact",
       fontSize = 12.sp,
-      color = FpmTextSecondary,
+      color = FpmTheme.textSecondary,
       modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
     )
 
@@ -607,7 +623,7 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       text = "PROFILE PICTURE",
       fontSize = 11.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextSecondary
+      color = FpmTheme.textSecondary
     )
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -621,7 +637,7 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
         modifier = Modifier
           .size(80.dp)
           .clip(CircleShape)
-          .background(FpmNavy.copy(alpha = 0.08f))
+          .background(if (FpmTheme.isDark) FpmSurfaceTonalDark else FpmNavy.copy(alpha = 0.08f))
           .clickable {
             photoPickerLauncher.launch(
               PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -641,7 +657,7 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
             imageVector = Icons.Default.Person,
             contentDescription = "No photo",
             modifier = Modifier.size(40.dp),
-            tint = FpmTextSecondary
+            tint = FpmTheme.textSecondary
           )
         }
 
@@ -650,13 +666,13 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
           modifier = Modifier
             .size(24.dp)
             .align(Alignment.BottomEnd)
-            .background(FpmRoyalBlue, CircleShape),
+            .background(if (FpmTheme.isDark) FpmGold else FpmRoyalBlue, CircleShape),
           contentAlignment = Alignment.Center
         ) {
           Icon(
             imageVector = Icons.Default.CameraAlt,
             contentDescription = "Upload",
-            tint = FpmSurfaceWhite,
+            tint = if (FpmTheme.isDark) FpmNavyDeep else FpmSurfaceWhite,
             modifier = Modifier.size(14.dp)
           )
         }
@@ -670,13 +686,15 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
             )
           },
           shape = RoundedCornerShape(8.dp),
+          border = BorderStroke(1.dp, FpmTheme.cardBorder),
           modifier = Modifier.fillMaxWidth()
         ) {
-          Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(14.dp))
+          Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(14.dp), tint = FpmTheme.textPrimary)
           Spacer(modifier = Modifier.width(6.dp))
           Text(
             text = if (state.profilePictureUrl.isNotBlank()) "Change Photo" else "Upload Photo",
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            color = FpmTheme.textPrimary
           )
         }
 
@@ -686,14 +704,14 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
             modifier = Modifier.align(Alignment.CenterHorizontally),
             contentPadding = PaddingValues(0.dp)
           ) {
-            Text("Remove Photo", fontSize = 11.sp, color = FpmError)
+            Text("Remove Photo", fontSize = 11.sp, color = FpmTheme.errorText)
           }
         }
 
         Text(
           text = "Strictly photos (JPEG, PNG, WEBP) · Max 1MB",
           fontSize = 10.sp,
-          color = FpmTextSecondary
+          color = FpmTheme.textSecondary
         )
       }
     }
@@ -703,12 +721,12 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
         modifier = Modifier
           .fillMaxWidth()
           .padding(top = 8.dp),
-        color = FpmErrorBg,
+        color = FpmTheme.errorContainer,
         shape = RoundedCornerShape(8.dp)
       ) {
         Text(
           text = localPhotoError ?: state.avatarUploadError ?: "",
-          color = FpmError,
+          color = FpmTheme.errorText,
           fontSize = 11.sp,
           modifier = Modifier.padding(8.dp)
         )
@@ -721,12 +739,12 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       text = "GENDER *",
       fontSize = 11.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextSecondary
+      color = FpmTheme.textSecondary
     )
     if (state.genderError != null) {
       Text(
         text = state.genderError,
-        color = FpmError,
+        color = FpmTheme.errorText,
         fontSize = 11.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(top = 2.dp)
@@ -746,9 +764,10 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
             onClick = {
               gender = g
               viewModel.updateStep3(g, dob, address, emName, emPhone)
-            }
+            },
+            colors = fpmRadioButtonColors()
           )
-          Text(text = g, fontSize = 13.sp)
+          Text(text = g, fontSize = 13.sp, color = FpmTheme.textPrimary)
         }
       }
     }
@@ -765,14 +784,15 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       isError = state.dobError != null,
       supportingText = {
         if (state.dobError != null) {
-          Text(state.dobError, color = FpmError, fontSize = 11.sp)
+          Text(state.dobError, color = FpmTheme.errorText, fontSize = 11.sp)
         } else {
-          Text("Format: YYYY-MM-DD (e.g. 1995-08-20)", fontSize = 10.sp, color = FpmTextSecondary)
+          Text("Format: YYYY-MM-DD (e.g. 1995-08-20)", fontSize = 10.sp, color = FpmTheme.textSecondary)
         }
       },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
-      singleLine = true
+      singleLine = true,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -785,11 +805,12 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       },
       label = { Text("Residential Address *", fontSize = 12.sp) },
       isError = state.addressError != null,
-      supportingText = { state.addressError?.let { Text(it, color = FpmError, fontSize = 11.sp) } },
+      supportingText = { state.addressError?.let { Text(it, color = FpmTheme.errorText, fontSize = 11.sp) } },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = false,
-      maxLines = 2
+      maxLines = 2,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -798,7 +819,7 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       text = "EMERGENCY CONTACT (OPTIONAL)",
       fontSize = 11.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextSecondary
+      color = FpmTheme.textSecondary
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -812,7 +833,8 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       label = { Text("Emergency Contact Name", fontSize = 12.sp) },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
-      singleLine = true
+      singleLine = true,
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(10.dp))
@@ -827,7 +849,8 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true,
-      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+      colors = fpmOutlinedTextFieldColors()
     )
 
     Spacer(modifier = Modifier.height(20.dp))
@@ -836,9 +859,10 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
       OutlinedButton(
         onClick = { viewModel.prevStep() },
         modifier = Modifier.weight(1f),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, FpmTheme.cardBorder)
       ) {
-        Text("Back", fontSize = 13.sp)
+        Text("Back", fontSize = 13.sp, color = FpmTheme.textPrimary)
       }
       FpmButton(
         text = "Next: Review",
@@ -869,12 +893,12 @@ private fun Step4Review(
       text = "Step 4 — Review & Confirm",
       fontSize = 16.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextPrimary
+      color = FpmTheme.textPrimary
     )
     Text(
       text = "Verify your information before submitting for approval",
       fontSize = 12.sp,
-      color = FpmTextSecondary,
+      color = FpmTheme.textSecondary,
       modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
     )
 
@@ -949,7 +973,7 @@ private fun Step4Review(
       Checkbox(
         checked = agreedToPrivacy,
         onCheckedChange = { agreedToPrivacy = it },
-        colors = CheckboxDefaults.colors(checkedColor = FpmNavyDark)
+        colors = fpmCheckboxColors()
       )
       Spacer(modifier = Modifier.width(8.dp))
       Row(
@@ -959,7 +983,7 @@ private fun Step4Review(
         Text(
           text = "I agree to FPM Global's ",
           fontSize = 12.sp,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
         TextButton(
           onClick = {
@@ -972,7 +996,7 @@ private fun Step4Review(
             text = "privacy policy",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = FpmNavyDark,
+            color = if (FpmTheme.isDark) FpmGold else FpmNavyDark,
             textDecoration = TextDecoration.Underline
           )
         }
@@ -999,10 +1023,12 @@ private fun ReviewSection(
   onEdit: () -> Unit,
   items: List<Pair<String, String>>
 ) {
+  val isDark = FpmTheme.isDark
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .background(FpmSlateBg, RoundedCornerShape(12.dp))
+      .background(FpmTheme.surfaceTonal, RoundedCornerShape(12.dp))
+      .border(1.dp, FpmTheme.cardBorder, RoundedCornerShape(12.dp))
       .padding(12.dp)
   ) {
     Row(
@@ -1010,9 +1036,9 @@ private fun ReviewSection(
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {
-      Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmRoyalBlue)
+      Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDark) FpmGold else FpmRoyalBlue)
       TextButton(onClick = onEdit, contentPadding = PaddingValues(0.dp)) {
-        Text("Edit", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FpmBlueAccent)
+        Text("Edit", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isDark) FpmGoldLight else FpmBlueAccent)
       }
     }
 
@@ -1023,8 +1049,8 @@ private fun ReviewSection(
           .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween
       ) {
-        Text(text = label, fontSize = 11.sp, color = FpmTextSecondary)
-        Text(text = value, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = FpmTextPrimary)
+        Text(text = label, fontSize = 11.sp, color = FpmTheme.textSecondary)
+        Text(text = value, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = FpmTheme.textPrimary)
       }
     }
   }

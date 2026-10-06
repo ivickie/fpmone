@@ -63,6 +63,13 @@ export const HighlightsPage: React.FC = () => {
 
   useEffect(() => {
     fetchHighlights();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('highlight')) {
+        fetchHighlights();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, []);
 
   const openCreateModal = () => {
@@ -138,7 +145,7 @@ export const HighlightsPage: React.FC = () => {
       const keyPoints = keyPointsText.split('\n').map(s => s.trim()).filter(Boolean);
       const photos = mediaUrls.filter(isImageMedia).slice(0, 5);
       const videoItem = mediaUrls.find(isVideoMedia);
-      await api.createHighlight({
+      const res = await api.createHighlight({
         title,
         speaker,
         summary,
@@ -150,6 +157,10 @@ export const HighlightsPage: React.FC = () => {
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.highlight) {
+        setHighlights(prev => [res.highlight, ...prev]);
+      }
       toast.success('Highlight published successfully');
       await fetchHighlights();
     } catch (err: any) {
@@ -162,12 +173,13 @@ export const HighlightsPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedHighlight) return;
+    const targetId = selectedHighlight.id;
     setActionLoading(true);
     try {
       const keyPoints = keyPointsText.split('\n').map(s => s.trim()).filter(Boolean);
       const photos = mediaUrls.filter(isImageMedia).slice(0, 5);
       const videoItem = mediaUrls.find(isVideoMedia);
-      await api.updateHighlight(selectedHighlight.id, {
+      const res = await api.updateHighlight(targetId, {
         title,
         speaker,
         summary,
@@ -179,6 +191,8 @@ export const HighlightsPage: React.FC = () => {
       });
       setEditModalOpen(false);
       setSelectedHighlight(null);
+      // Immediately reflect update in local state
+      setHighlights(prev => prev.map(h => (h.id === targetId ? { ...h, ...(res?.highlight || {}) } : h)));
       toast.success('Highlight updated successfully');
       await fetchHighlights();
     } catch (err: any) {
@@ -190,11 +204,14 @@ export const HighlightsPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedHighlight) return;
+    const targetId = selectedHighlight.id;
     setActionLoading(true);
     try {
-      await api.deleteHighlight(selectedHighlight.id);
+      await api.deleteHighlight(targetId);
       setConfirmDeleteOpen(false);
       setSelectedHighlight(null);
+      // Immediately reflect deletion in local state
+      setHighlights(prev => prev.filter(h => h.id !== targetId));
       toast.success('Highlight deleted successfully');
       await fetchHighlights();
     } catch (err: any) {

@@ -74,11 +74,11 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmIvoryBg)
+        .background(FpmTheme.canvasBackground)
     ) {
       // 1. Top Header & Scripture Tagline
       Surface(
-        color = FpmSurfaceWhite,
+        color = FpmTheme.cardBackground,
         shadowElevation = 2.dp
       ) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
@@ -92,12 +92,12 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
                 text = "Faith Testimonies",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Black,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
               )
               Text(
                 text = "Celebrating the miraculous deeds of God in FPM",
                 fontSize = 12.sp,
-                color = FpmTextSecondary
+                color = FpmTheme.textSecondary
               )
             }
             IconButton(onClick = { viewModel.loadTestimonies() }) {
@@ -109,9 +109,9 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
 
           // Inspiration Quote
           Surface(
-            color = FpmGoldSubtle,
+            color = if (FpmTheme.isDark) FpmAmberContainerDark else FpmGoldSubtle,
             shape = RoundedCornerShape(8.dp),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmGoldMuted.copy(alpha = 0.3f)),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, if (FpmTheme.isDark) FpmAmberBorderDark else FpmGoldMuted.copy(alpha = 0.3f)),
             modifier = Modifier.fillMaxWidth()
           ) {
             Row(
@@ -119,13 +119,13 @@ fun TestimoniesScreen(viewModel: TestimoniesViewModel) {
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-              Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = FpmGoldDark, modifier = Modifier.size(14.dp))
+              Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = if (FpmTheme.isDark) FpmGold else FpmGoldDark, modifier = Modifier.size(14.dp))
               Text(
                 text = "\"They overcame him by the word of their testimony.\" — Rev 12:11",
                 fontSize = 11.sp,
                 fontStyle = FontStyle.Italic,
                 fontWeight = FontWeight.Medium,
-                color = FpmTextPrimary
+                color = if (FpmTheme.isDark) FpmGoldLight else FpmTheme.textPrimary
               )
             }
           }
@@ -271,9 +271,7 @@ fun TestimonyCard(
   FpmCard(
     modifier = Modifier
       .fillMaxWidth()
-      .clickable { onCardClick?.invoke() },
-    backgroundColor = FpmSurfaceWhite,
-    borderColor = FpmCardBorder
+      .clickable { onCardClick?.invoke() }
   ) {
     Column {
       // 1. Post Header: Author Avatar, Name, Branch, Date, and Category Pill
@@ -295,12 +293,12 @@ fun TestimonyCard(
               text = testimony.authorName,
               fontSize = 13.sp,
               fontWeight = FontWeight.Bold,
-              color = FpmTextPrimary
+              color = FpmTheme.textPrimary
             )
             Text(
               text = "${testimony.branchName.ifBlank { "Faith Preachers Ministries Int'l" }} • ${testimony.createdAt.take(10)}",
               fontSize = 11.sp,
-              color = FpmTextSecondary
+              color = FpmTheme.textSecondary
             )
           }
         }
@@ -314,7 +312,7 @@ fun TestimonyCard(
             text = testimony.category.uppercase(),
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            color = FpmGoldDark,
+            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
             letterSpacing = 0.6.sp,
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
           )
@@ -328,7 +326,7 @@ fun TestimonyCard(
         text = testimony.title,
         fontSize = 16.sp,
         fontWeight = FontWeight.Black,
-        color = FpmTextPrimary
+        color = FpmTheme.textPrimary
       )
 
       Spacer(modifier = Modifier.height(4.dp))
@@ -529,7 +527,7 @@ fun SubmitTestimonyDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
-    containerColor = FpmSurfaceWhite,
+    containerColor = FpmTheme.dialogBackground,
     shape = RoundedCornerShape(20.dp),
     title = {
       Column {
@@ -537,12 +535,12 @@ fun SubmitTestimonyDialog(
           text = "Share Your Testimony",
           fontSize = 18.sp,
           fontWeight = FontWeight.Bold,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
         Text(
           text = "And they overcame him by the blood of the Lamb and by the word of their testimony.",
           fontSize = 11.sp,
-          color = FpmGoldDark,
+          color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
           lineHeight = 15.sp
         )
       }
@@ -556,13 +554,13 @@ fun SubmitTestimonyDialog(
       ) {
         error?.let {
           Surface(
-            color = FpmErrorBg,
+            color = FpmTheme.errorContainer,
             shape = RoundedCornerShape(8.dp),
             modifier = Modifier.fillMaxWidth()
           ) {
             Text(
               text = it,
-              color = FpmError,
+              color = FpmTheme.errorText,
               fontSize = 12.sp,
               fontWeight = FontWeight.Medium,
               modifier = Modifier.padding(10.dp)
@@ -577,10 +575,11 @@ fun SubmitTestimonyDialog(
           placeholder = { Text("e.g. Healed of Chronic Migraines") },
           modifier = Modifier.fillMaxWidth(),
           shape = RoundedCornerShape(10.dp),
+          colors = fpmOutlinedTextFieldColors(),
           singleLine = true
         )
 
-        Text("Select Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
+        Text("Select Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTheme.textPrimary)
         Row(
           modifier = Modifier.horizontalScroll(rememberScrollState()),
           horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -591,17 +590,17 @@ fun SubmitTestimonyDialog(
               modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
                 .clickable { category = cat },
-              color = if (isSelected) FpmNavyDark else FpmSlateBg,
+              color = if (isSelected) (if (FpmTheme.isDark) FpmNavySurface else FpmNavyDark) else FpmTheme.surfaceTonal,
               border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (isSelected) FpmNavyDark else FpmBorderLight
+                if (isSelected) FpmGold else FpmTheme.cardBorder
               )
             ) {
               Text(
                 text = cat,
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) FpmSurfaceWhite else FpmTextSecondary,
+                color = if (isSelected) (if (FpmTheme.isDark) FpmGold else FpmSurfaceWhite) else FpmTheme.textSecondary,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
               )
             }
@@ -617,14 +616,15 @@ fun SubmitTestimonyDialog(
             .fillMaxWidth()
             .height(120.dp),
           shape = RoundedCornerShape(10.dp),
+          colors = fpmOutlinedTextFieldColors(),
           maxLines = 5
         )
 
         // Photo Attachment Section (Strictly images & <= 1MB)
         Surface(
-          color = FpmSlateBg,
+          color = FpmTheme.surfaceTonal,
           shape = RoundedCornerShape(10.dp),
-          border = androidx.compose.foundation.BorderStroke(1.dp, FpmBorderLight),
+          border = androidx.compose.foundation.BorderStroke(1.dp, FpmTheme.cardBorder),
           modifier = Modifier.fillMaxWidth()
         ) {
           Row(
@@ -652,19 +652,19 @@ fun SubmitTestimonyDialog(
                   text = "Photo Proof / Media",
                   fontSize = 12.sp,
                   fontWeight = FontWeight.Bold,
-                  color = FpmTextPrimary
+                  color = FpmTheme.textPrimary
                 )
                 Text(
                   text = if (isUploading) "Uploading to Supabase Storage..."
                          else if (uploadedPhotoUrl != null) (photoFileName ?: "Photo attached (< 1MB)")
                          else "Attach blessing photo (Max 1MB)",
                   fontSize = 10.sp,
-                  color = if (uploadedPhotoUrl != null) FpmSuccess else FpmTextSecondary
+                  color = if (uploadedPhotoUrl != null) FpmSuccess else FpmTheme.textSecondary
                 )
               }
             }
             if (isUploading) {
-              CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = FpmNavyDark)
+              CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = FpmGold)
             } else if (uploadedPhotoUrl != null) {
               IconButton(onClick = {
                 uploadedPhotoUrl = null
@@ -691,9 +691,9 @@ fun SubmitTestimonyDialog(
         }
 
         Surface(
-          color = FpmSlateBg,
+          color = FpmTheme.surfaceTonal,
           shape = RoundedCornerShape(10.dp),
-          border = androidx.compose.foundation.BorderStroke(1.dp, FpmBorderLight),
+          border = androidx.compose.foundation.BorderStroke(1.dp, FpmTheme.cardBorder),
           modifier = Modifier.fillMaxWidth()
         ) {
           Row(
@@ -705,21 +705,18 @@ fun SubmitTestimonyDialog(
                 text = "Consent to Publish",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
               )
               Text(
                 text = "Permit publishing on the mobile feed and church bulletins upon pastoral approval.",
                 fontSize = 10.sp,
-                color = FpmTextSecondary
+                color = FpmTheme.textSecondary
               )
             }
             Switch(
               checked = allowPublish,
               onCheckedChange = { allowPublish = it },
-              colors = SwitchDefaults.colors(
-                checkedThumbColor = FpmSurfaceWhite,
-                checkedTrackColor = FpmNavyDark
-              )
+              colors = fpmSwitchColors()
             )
           }
         }
@@ -727,7 +724,7 @@ fun SubmitTestimonyDialog(
         Text(
           text = "Note: All testimonies are held in pastoral moderation queue until reviewed.",
           fontSize = 10.sp,
-          color = FpmTextMuted
+          color = FpmTheme.textMuted
         )
       }
     },
@@ -747,7 +744,7 @@ fun SubmitTestimonyDialog(
     },
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text("Cancel", color = FpmTextSecondary)
+        Text("Cancel", color = FpmTheme.textSecondary)
       }
     }
   )

@@ -46,11 +46,11 @@ fun EventsScreen(viewModel: EventsViewModel) {
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .background(FpmIvoryBg)
+      .background(FpmTheme.canvasBackground)
   ) {
     // 1. Top Bar
     Surface(
-      color = FpmSurfaceWhite,
+      color = FpmTheme.cardBackground,
       shadowElevation = 2.dp
     ) {
       Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
@@ -64,12 +64,12 @@ fun EventsScreen(viewModel: EventsViewModel) {
               text = "Church Events",
               fontSize = 19.sp,
               fontWeight = FontWeight.Black,
-              color = FpmTextPrimary
+              color = FpmTheme.textPrimary
             )
             Text(
               text = "Conventions, leadership retreats, and fellowship conferences",
               fontSize = 12.sp,
-              color = FpmTextSecondary
+              color = FpmTheme.textSecondary
             )
           }
 
@@ -249,7 +249,7 @@ fun EventsScreen(viewModel: EventsViewModel) {
                     text = "FAITH PREACHERS EVENT",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = FpmGoldDark,
+                    color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                   )
                 }
@@ -258,12 +258,12 @@ fun EventsScreen(viewModel: EventsViewModel) {
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                  Icon(Icons.Default.People, contentDescription = null, tint = FpmTextSecondary, modifier = Modifier.size(14.dp))
+                  Icon(Icons.Default.People, contentDescription = null, tint = FpmTheme.textSecondary, modifier = Modifier.size(14.dp))
                   Text(
                     text = "${ev.currentRegistrationsCount} Attending",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = FpmTextSecondary
+                    color = FpmTheme.textSecondary
                   )
                 }
               }
@@ -272,14 +272,14 @@ fun EventsScreen(viewModel: EventsViewModel) {
                 text = ev.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
-                color = FpmTextPrimary,
+                color = FpmTheme.textPrimary,
                 modifier = Modifier.padding(top = 8.dp)
               )
 
               Text(
                 text = ev.description,
                 fontSize = 12.sp,
-                color = FpmTextSecondary,
+                color = FpmTheme.textSecondary,
                 lineHeight = 18.sp,
                 modifier = Modifier.padding(top = 4.dp)
               )
@@ -290,22 +290,22 @@ fun EventsScreen(viewModel: EventsViewModel) {
               Column(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .background(FpmSlateBg, RoundedCornerShape(10.dp))
+                  .background(FpmTheme.surfaceTonal, RoundedCornerShape(10.dp))
                   .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
               ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Icon(Icons.Default.CalendarToday, contentDescription = null, tint = FpmRoyalBlue, modifier = Modifier.size(14.dp))
-                  Text(text = ev.startDatetime.take(10), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FpmTextPrimary)
+                  Icon(Icons.Default.CalendarToday, contentDescription = null, tint = if (FpmTheme.isDark) FpmBlueAccent else FpmRoyalBlue, modifier = Modifier.size(14.dp))
+                  Text(text = ev.startDatetime.take(10), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FpmTheme.textPrimary)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                   Icon(Icons.Default.Place, contentDescription = null, tint = FpmSuccess, modifier = Modifier.size(14.dp))
-                  Text(text = ev.location, fontSize = 12.sp, color = FpmTextSecondary)
+                  Text(text = ev.location, fontSize = 12.sp, color = FpmTheme.textSecondary)
                 }
                 if (ev.speaker != null) {
                   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Default.Person, contentDescription = null, tint = FpmGold, modifier = Modifier.size(14.dp))
-                    Text(text = "Speaker: ${ev.speaker}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = FpmTextPrimary)
+                    Text(text = "Speaker: ${ev.speaker}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = FpmTheme.textPrimary)
                   }
                 }
               }

@@ -44,11 +44,11 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .background(FpmIvoryBg)
+      .background(FpmTheme.canvasBackground)
   ) {
     // 1. Header with Segmented Pill Selector
     Surface(
-      color = FpmSurfaceWhite,
+      color = FpmTheme.cardBackground,
       shadowElevation = 2.dp
     ) {
       Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
@@ -62,12 +62,12 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
               text = "Church Services",
               fontSize = 19.sp,
               fontWeight = FontWeight.Black,
-              color = FpmTextPrimary
+              color = FpmTheme.textPrimary
             )
             Text(
               text = "Weekly gatherings, grace windows, and sermon archives",
               fontSize = 12.sp,
-              color = FpmTextSecondary
+              color = FpmTheme.textSecondary
             )
           }
 
@@ -80,7 +80,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
 
         // Custom Modern Segmented Pill Control
         Surface(
-          color = FpmSlateBg,
+          color = FpmTheme.surfaceTonal,
           shape = RoundedCornerShape(12.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -89,11 +89,14 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
               .padding(4.dp)
               .fillMaxWidth()
           ) {
+            val activeBg = if (FpmTheme.isDark) FpmNavySurface else FpmNavyDark
+            val activeText = if (FpmTheme.isDark) FpmGold else FpmSurfaceWhite
+
             Box(
               modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(10.dp))
-                .background(if (activeTab == 0) FpmNavyDark else Color.Transparent)
+                .background(if (activeTab == 0) activeBg else Color.Transparent)
                 .clickable { activeTab = 0 }
                 .padding(vertical = 8.dp),
               contentAlignment = Alignment.Center
@@ -105,14 +108,14 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                 Icon(
                   Icons.Default.CalendarMonth,
                   contentDescription = null,
-                  tint = if (activeTab == 0) FpmGoldLight else FpmTextSecondary,
+                  tint = if (activeTab == 0) (if (FpmTheme.isDark) FpmGold else FpmGoldLight) else FpmTheme.textSecondary,
                   modifier = Modifier.size(16.dp)
                 )
                 Text(
                   text = "Weekly Schedule",
                   fontSize = 12.sp,
                   fontWeight = if (activeTab == 0) FontWeight.Bold else FontWeight.Medium,
-                  color = if (activeTab == 0) FpmSurfaceWhite else FpmTextSecondary
+                  color = if (activeTab == 0) activeText else FpmTheme.textSecondary
                 )
               }
             }
@@ -121,7 +124,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
               modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(10.dp))
-                .background(if (activeTab == 1) FpmNavyDark else Color.Transparent)
+                .background(if (activeTab == 1) activeBg else Color.Transparent)
                 .clickable { activeTab = 1 }
                 .padding(vertical = 8.dp),
               contentAlignment = Alignment.Center
@@ -133,14 +136,14 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                 Icon(
                   Icons.AutoMirrored.Filled.MenuBook,
                   contentDescription = null,
-                  tint = if (activeTab == 1) FpmGoldLight else FpmTextSecondary,
+                  tint = if (activeTab == 1) (if (FpmTheme.isDark) FpmGold else FpmGoldLight) else FpmTheme.textSecondary,
                   modifier = Modifier.size(16.dp)
                 )
                 Text(
                   text = "Sermon Recaps",
                   fontSize = 12.sp,
                   fontWeight = if (activeTab == 1) FontWeight.Bold else FontWeight.Medium,
-                  color = if (activeTab == 1) FpmSurfaceWhite else FpmTextSecondary
+                  color = if (activeTab == 1) activeText else FpmTheme.textSecondary
                 )
               }
             }
@@ -249,7 +252,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                           text = svc.dayOfWeek.uppercase(),
                           fontSize = 10.sp,
                           fontWeight = FontWeight.Bold,
-                          color = FpmGoldDark,
+                          color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                           modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                       }
@@ -268,7 +271,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                             text = "${svc.startTime.take(5)} - ${svc.expectedEndTime.take(5)}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FpmRoyalBlue
+                            color = if (FpmTheme.isDark) FpmBlueAccent else FpmRoyalBlue
                           )
                         }
                       }
@@ -278,7 +281,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                       text = svc.name,
                       fontSize = 16.sp,
                       fontWeight = FontWeight.Black,
-                      color = FpmTextPrimary,
+                      color = FpmTheme.textPrimary,
                       modifier = Modifier.padding(top = 8.dp)
                     )
 
@@ -287,17 +290,17 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                     Row(
                       modifier = Modifier
                         .fillMaxWidth()
-                        .background(FpmSlateBg, RoundedCornerShape(10.dp))
+                        .background(FpmTheme.surfaceTonal, RoundedCornerShape(10.dp))
                         .padding(10.dp),
                       horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                       Column {
-                        Text("Worker Grace Period", fontSize = 10.sp, color = FpmTextSecondary)
-                        Text("${svc.gracePeriodMinutes} Minutes", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
+                        Text("Worker Grace Period", fontSize = 10.sp, color = FpmTheme.textSecondary)
+                        Text("${svc.gracePeriodMinutes} Minutes", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTheme.textPrimary)
                       }
                       Column(horizontalAlignment = Alignment.End) {
-                        Text("Attendance Timeout", fontSize = 10.sp, color = FpmTextSecondary)
-                        Text("${svc.attendanceDurationHours} Hours", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTextPrimary)
+                        Text("Attendance Timeout", fontSize = 10.sp, color = FpmTheme.textSecondary)
+                        Text("${svc.attendanceDurationHours} Hours", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FpmTheme.textPrimary)
                       }
                     }
 
@@ -326,7 +329,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                               }
                             }
                           },
-                        color = if (isStarted) Color(0xFFDC2626) else FpmSlateBg
+                        color = if (isStarted) Color(0xFFDC2626) else FpmTheme.surfaceTonal
                       ) {
                         Row(
                           modifier = Modifier
@@ -338,7 +341,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                           Icon(
                             imageVector = if (isStarted) Icons.Default.PlayArrow else Icons.Default.AccessTime,
                             contentDescription = null,
-                            tint = if (isStarted) Color.White else FpmTextSecondary,
+                            tint = if (isStarted) Color.White else FpmTheme.textSecondary,
                             modifier = Modifier.size(18.dp)
                           )
                           Spacer(modifier = Modifier.width(6.dp))
@@ -346,7 +349,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                             text = if (isStarted) "Watch Service Live Online" else "Live Stream Starts ${svc.dayOfWeek} ${svc.startTime.take(5)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isStarted) Color.White else FpmTextSecondary
+                            color = if (isStarted) Color.White else FpmTheme.textSecondary
                           )
                         }
                       }
@@ -373,9 +376,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                   FpmCard(
                     modifier = Modifier
                       .fillMaxWidth()
-                      .clickable { activeHighlightDetail = h },
-                    backgroundColor = FpmSurfaceWhite,
-                    borderColor = FpmCardBorder
+                      .clickable { activeHighlightDetail = h }
                   ) {
                     // 1. Post Header: Speaker Avatar & Date
                     Row(
@@ -406,12 +407,12 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                             text = "Preached by ${h.speaker}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FpmTextPrimary
+                            color = FpmTheme.textPrimary
                           )
                           Text(
                             text = h.highlightDate,
                             fontSize = 10.sp,
-                            color = FpmTextSecondary
+                            color = FpmTheme.textSecondary
                           )
                         }
                       }
@@ -425,7 +426,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                           text = "SERMON RECAP",
                           fontSize = 10.sp,
                           fontWeight = FontWeight.Bold,
-                          color = FpmGoldDark,
+                          color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                           letterSpacing = 0.8.sp,
                           modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
@@ -437,7 +438,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                       text = h.title,
                       fontSize = 16.sp,
                       fontWeight = FontWeight.Black,
-                      color = FpmTextPrimary,
+                      color = FpmTheme.textPrimary,
                       modifier = Modifier.padding(top = 10.dp)
                     )
 
@@ -447,9 +448,9 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                         modifier = Modifier
                           .fillMaxWidth()
                           .padding(vertical = 6.dp),
-                        color = FpmGoldSubtle,
+                        color = if (FpmTheme.isDark) FpmGold.copy(alpha = 0.15f) else FpmGoldSubtle,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(0.5.dp, FpmGoldMuted.copy(alpha = 0.3f))
+                        border = BorderStroke(0.5.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.3f) else FpmGoldMuted.copy(alpha = 0.3f))
                       ) {
                         Row(
                           modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -461,7 +462,7 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                             text = h.scripture!!,
                             fontSize = 12.sp,
                             fontStyle = FontStyle.Italic,
-                            color = FpmTextPrimary
+                            color = if (FpmTheme.isDark) FpmGoldLight else FpmTheme.textPrimary
                           )
                         }
                       }
@@ -490,14 +491,14 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                       Spacer(modifier = Modifier.height(8.dp))
                       Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = FpmSlateBg,
+                        color = FpmTheme.surfaceTonal,
                         shape = RoundedCornerShape(8.dp)
                       ) {
                         Text(
                           text = "“${h.quote}”",
                           fontSize = 11.sp,
                           fontStyle = FontStyle.Italic,
-                          color = FpmNavyDark,
+                          color = if (FpmTheme.isDark) FpmGoldLight else FpmNavyDark,
                           modifier = Modifier.padding(10.dp)
                         )
                       }

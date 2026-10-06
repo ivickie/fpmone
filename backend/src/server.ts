@@ -17,8 +17,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Disable server fingerprinting header
+// Disable server fingerprinting header and dynamic response caching
 app.disable('x-powered-by');
+app.set('etag', false);
 
 // Trust reverse proxy (Vercel, Nginx) for protocol, host, and client IP
 app.set('trust proxy', 1);
@@ -140,7 +141,11 @@ const corsOptions: cors.CorsOptions = {
     'x-request-id',
     'Accept',
     'Origin',
-    'X-Requested-With'
+    'X-Requested-With',
+    'Cache-Control',
+    'Pragma',
+    'Expires',
+    'X-Portal'
   ],
   exposedHeaders: ['X-Request-Id'],
   maxAge: 86400
@@ -148,6 +153,15 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// Enforce strict anti-caching headers across all /api routes to eliminate stale UI data
+app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
 
 // Apply General API Rate Limiting across all API routes (300 req/min allowance)
 app.use('/api', generalApiRateLimiter);

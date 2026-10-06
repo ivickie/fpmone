@@ -155,7 +155,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(FpmIvoryBg)
+            .background(FpmTheme.canvasBackground)
     ) {
         // ---------------------------------------------------------------------
         // SCROLLABLE CONTENT FEED
@@ -235,7 +235,7 @@ fun HomeScreen(
                                         text = "Across FPM Global",
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Black,
-                                        color = FpmTextPrimary
+                                        color = FpmTheme.textPrimary
                                     )
                                 }
 
@@ -244,7 +244,7 @@ fun HomeScreen(
                                         text = "${sortedBranches.size} Branches",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = FpmRoyalBlue
+                                        color = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue
                                     )
                                 }
                             }
@@ -259,14 +259,14 @@ fun HomeScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp)
                                     .height(120.dp)
-                                    .background(FpmSurfaceWhite, RoundedCornerShape(16.dp))
-                                    .border(1.dp, FpmCardBorder, RoundedCornerShape(16.dp)),
+                                    .background(FpmTheme.cardBackground, RoundedCornerShape(16.dp))
+                                    .border(1.dp, FpmTheme.cardBorder, RoundedCornerShape(16.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "Loading church branches...",
                                     fontSize = 12.sp,
-                                    color = FpmTextSecondary
+                                    color = FpmTheme.textSecondary
                                 )
                             }
                         } else {
@@ -491,9 +491,7 @@ fun HomeScreen(
                             FpmCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { activeHighlightDetail = topHighlight },
-                                backgroundColor = FpmSurfaceWhite,
-                                borderColor = FpmCardBorder
+                                    .clickable { activeHighlightDetail = topHighlight }
                             ) {
                                 // 1. Post Header: Speaker Avatar & Date
                                 Row(
@@ -524,12 +522,12 @@ fun HomeScreen(
                                                 text = "Preached by ${topHighlight.speaker}",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = FpmTextPrimary
+                                                color = FpmTheme.textPrimary
                                             )
                                             Text(
                                                 text = topHighlight.highlightDate,
                                                 fontSize = 10.sp,
-                                                color = FpmTextSecondary
+                                                color = FpmTheme.textSecondary
                                             )
                                         }
                                     }
@@ -543,7 +541,7 @@ fun HomeScreen(
                                             text = "SERMON RECAP",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = FpmGoldDark,
+                                            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                             letterSpacing = 0.8.sp,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
@@ -555,7 +553,7 @@ fun HomeScreen(
                                     text = topHighlight.title,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = FpmTextPrimary,
+                                    color = FpmTheme.textPrimary,
                                     modifier = Modifier.padding(top = 10.dp)
                                 )
 
@@ -565,9 +563,9 @@ fun HomeScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(vertical = 6.dp),
-                                        color = FpmGoldSubtle,
+                                        color = if (FpmTheme.isDark) FpmGold.copy(alpha = 0.15f) else FpmGoldSubtle,
                                         shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(0.5.dp, FpmGoldMuted.copy(alpha = 0.3f))
+                                        border = BorderStroke(0.5.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.3f) else FpmGoldMuted.copy(alpha = 0.3f))
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -579,7 +577,7 @@ fun HomeScreen(
                                                 text = topHighlight.scripture!!,
                                                 fontSize = 12.sp,
                                                 fontStyle = FontStyle.Italic,
-                                                color = FpmTextPrimary
+                                                color = if (FpmTheme.isDark) FpmGoldLight else FpmTheme.textPrimary
                                             )
                                         }
                                     }
@@ -615,7 +613,7 @@ fun HomeScreen(
                                             text = "“${topHighlight.quote}”",
                                             fontSize = 11.sp,
                                             fontStyle = FontStyle.Italic,
-                                            color = FpmTextSecondary,
+                                            color = FpmTheme.textSecondary,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f, fill = false)
@@ -628,7 +626,7 @@ fun HomeScreen(
                                         text = "Full Recap & Notes →",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = FpmRoyalBlue,
+                                        color = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
                                         modifier = Modifier.clickable { activeHighlightDetail = topHighlight }
                                     )
                                 }
@@ -654,9 +652,7 @@ fun HomeScreen(
                 items(state.posts, key = { it.id }) { post ->
                     Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                         FpmCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            backgroundColor = FpmSurfaceWhite,
-                            borderColor = FpmCardBorder
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             // Header: Author Avatar & Name
                             Row(
@@ -677,12 +673,12 @@ fun HomeScreen(
                                             text = post.authorName,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = FpmTextPrimary
+                                            color = FpmTheme.textPrimary
                                         )
                                         Text(
                                             text = post.createdAt.take(10),
                                             fontSize = 11.sp,
-                                            color = FpmTextMuted
+                                            color = FpmTheme.textMuted
                                         )
                                     }
                                 }
@@ -699,14 +695,14 @@ fun HomeScreen(
                                             Icon(
                                                 Icons.Default.PushPin,
                                                 contentDescription = null,
-                                                tint = FpmGoldDark,
+                                                tint = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                                 modifier = Modifier.size(10.dp)
                                             )
                                             Text(
                                                 text = " Pinned",
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = FpmGoldDark
+                                                color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark
                                             )
                                         }
                                     }
@@ -719,7 +715,7 @@ fun HomeScreen(
                                     text = post.title,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = FpmTextPrimary,
+                                    color = FpmTheme.textPrimary,
                                     modifier = Modifier.padding(top = 10.dp)
                                 )
                             }
@@ -727,16 +723,16 @@ fun HomeScreen(
                             // Scripture Reference Tag
                             if (!post.scriptureReference.isNullOrBlank()) {
                                 Surface(
-                                    color = FpmGoldSubtle,
+                                    color = if (FpmTheme.isDark) FpmGold.copy(alpha = 0.15f) else FpmGoldSubtle,
                                     shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(0.5.dp, FpmGoldMuted.copy(alpha = 0.3f)),
+                                    border = BorderStroke(0.5.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.3f) else FpmGoldMuted.copy(alpha = 0.3f)),
                                     modifier = Modifier.padding(top = 6.dp)
                                 ) {
                                     Text(
                                         text = "📖 ${post.scriptureReference}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = FpmGoldDark,
+                                        color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
@@ -746,7 +742,7 @@ fun HomeScreen(
                             Text(
                                 text = post.content,
                                 fontSize = 13.sp,
-                                color = FpmTextPrimary,
+                                color = FpmTheme.textPrimary,
                                 lineHeight = 20.sp,
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
@@ -762,7 +758,7 @@ fun HomeScreen(
                             }
 
                             HorizontalDivider(
-                                color = FpmBorderLight,
+                                color = if (FpmTheme.isDark) FpmCardBorderDark else FpmBorderLight,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
                             )
 
@@ -783,22 +779,22 @@ fun HomeScreen(
                                     ) {
                                         Icon(
                                             imageVector = if (isLiked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
-                                            contentDescription = if (isLiked) "Unlike" else "Amen",
-                                            tint = if (isLiked) Color(0xFFE53935) else FpmTextSecondary,
+                                             contentDescription = if (isLiked) "Unlike" else "Amen",
+                                            tint = if (isLiked) Color(0xFFE53935) else FpmTheme.textSecondary,
                                             modifier = Modifier.size(17.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "Amen (${post.likesCount})",
                                             fontSize = 12.sp,
-                                            color = if (isLiked) Color(0xFFE53935) else FpmTextSecondary,
+                                            color = if (isLiked) Color(0xFFE53935) else FpmTheme.textSecondary,
                                             fontWeight = if (isLiked) FontWeight.Bold else FontWeight.Medium
                                         )
                                     }
 
                                     if (post.postType != "announcement") {
                                         if (post.allowComments) {
-                                            TextButton(
+                                             TextButton(
                                                 onClick = {
                                                     activeCommentPost = post
                                                     commentInputText = ""
@@ -809,14 +805,14 @@ fun HomeScreen(
                                                 Icon(
                                                     Icons.Outlined.ChatBubbleOutline,
                                                     contentDescription = "Comment",
-                                                    tint = FpmTextSecondary,
+                                                    tint = FpmTheme.textSecondary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text(
                                                     text = "Comment (${post.commentsCount})",
                                                     fontSize = 12.sp,
-                                                    color = FpmTextSecondary,
+                                                    color = FpmTheme.textSecondary,
                                                     fontWeight = FontWeight.Medium
                                                 )
                                             }
@@ -828,14 +824,14 @@ fun HomeScreen(
                                                 Icon(
                                                     Icons.Default.CommentsDisabled,
                                                     contentDescription = null,
-                                                    tint = FpmTextMuted,
+                                                    tint = FpmTheme.textMuted,
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text(
                                                     text = "Comments turned off",
                                                     fontSize = 11.sp,
-                                                    color = FpmTextMuted,
+                                                    color = FpmTheme.textMuted,
                                                     fontStyle = FontStyle.Italic
                                                 )
                                             }
@@ -1193,18 +1189,19 @@ fun HomeScreen(
                     photoCaption = ""
                 }
             },
+            containerColor = FpmTheme.dialogBackground,
             title = {
                 Column {
                     Text(
                         text = "Share Sunday Moment",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = FpmTextPrimary
+                        color = FpmTheme.textPrimary
                     )
                     Text(
                         text = branch.name,
                         fontSize = 12.sp,
-                        color = FpmGoldDark,
+                        color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -1217,7 +1214,7 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .height(160.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(FpmSurfaceTonal)
+                            .background(FpmTheme.surfaceTonal)
                     ) {
                         AsyncImage(
                             model = selectedPhotoUri,
@@ -1235,13 +1232,14 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 3,
                         enabled = !isUploadingSundayPhoto,
+                        colors = fpmOutlinedTextFieldColors(),
                         shape = RoundedCornerShape(10.dp)
                     )
 
                     Text(
                         text = "Your photo will be shared with the ${branch.name} Sunday gallery.",
                         fontSize = 11.sp,
-                        color = FpmTextSecondary
+                        color = FpmTheme.textSecondary
                     )
                 }
             },
@@ -1304,11 +1302,10 @@ fun HomeScreen(
                     },
                     enabled = !isUploadingSundayPhoto
                 ) {
-                    Text("Cancel", color = FpmTextSecondary)
+                    Text("Cancel", color = FpmTheme.textSecondary)
                 }
             },
-            shape = RoundedCornerShape(18.dp),
-            containerColor = FpmSurfaceWhite
+            shape = RoundedCornerShape(18.dp)
         )
     }
 
@@ -1331,12 +1328,12 @@ fun HomeScreen(
                         text = "Add Comment",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = FpmTextPrimary
+                        color = FpmTheme.textPrimary
                     )
                     Text(
                         text = "To: ${post.title ?: post.authorName}",
                         fontSize = 12.sp,
-                        color = FpmTextSecondary,
+                        color = FpmTheme.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1354,10 +1351,7 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 4,
                         enabled = !isSubmittingComment,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = FpmNavyDark,
-                            unfocusedBorderColor = FpmCardBorder
-                        )
+                        colors = fpmOutlinedTextFieldColors()
                     )
                     if (commentErrorMessage != null) {
                         Text(
@@ -1400,10 +1394,10 @@ fun HomeScreen(
                     },
                     enabled = !isSubmittingComment
                 ) {
-                    Text("Cancel", color = FpmTextSecondary)
+                    Text("Cancel", color = FpmTheme.textSecondary)
                 }
             },
-            containerColor = FpmSurfaceWhite,
+            containerColor = FpmTheme.dialogBackground,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -1636,14 +1630,14 @@ private fun SundayMomentsGalleryDialog(
                                 text = branch.name,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmTextPrimary,
+                                color = FpmTheme.textPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Sunday Moments • $formattedSundayDate",
                                 fontSize = 11.sp,
-                                color = FpmGoldDark,
+                                color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -1653,7 +1647,7 @@ private fun SundayMomentsGalleryDialog(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Close",
-                                tint = FpmTextPrimary
+                                tint = FpmTheme.textPrimary
                             )
                         }
                     },
@@ -1681,14 +1675,18 @@ private fun SundayMomentsGalleryDialog(
                             }
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmSurfaceWhite)
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = FpmTheme.dialogBackground,
+                        titleContentColor = FpmTheme.textPrimary,
+                        navigationIconContentColor = FpmTheme.textPrimary
+                    )
                 )
             }
         ) { padding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(FpmIvoryBg)
+                    .background(FpmTheme.canvasBackground)
                     .padding(padding)
             ) {
                 if (moments.isEmpty()) {
@@ -1703,14 +1701,14 @@ private fun SundayMomentsGalleryDialog(
                         Box(
                             modifier = Modifier
                                 .size(72.dp)
-                                .background(FpmGoldSubtle, CircleShape)
-                                .border(1.dp, FpmGoldMuted, CircleShape),
+                                .background(if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle, CircleShape)
+                                .border(1.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.4f) else FpmGoldMuted, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
                                 contentDescription = null,
-                                tint = FpmGoldDark,
+                                tint = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                 modifier = Modifier.size(34.dp)
                             )
                         }
@@ -1721,7 +1719,7 @@ private fun SundayMomentsGalleryDialog(
                             text = "No Sunday Moments Yet",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
-                            color = FpmTextPrimary
+                            color = FpmTheme.textPrimary
                         )
 
                         Spacer(modifier = Modifier.height(6.dp))
@@ -1729,7 +1727,7 @@ private fun SundayMomentsGalleryDialog(
                         Text(
                             text = "Sunday moments will appear here as your church family shares photos.",
                             fontSize = 13.sp,
-                            color = FpmTextSecondary,
+                            color = FpmTheme.textSecondary,
                             textAlign = TextAlign.Center,
                             lineHeight = 18.sp
                         )
@@ -1753,9 +1751,9 @@ private fun SundayMomentsGalleryDialog(
                         // Header Banner
                         item {
                             Surface(
-                                color = FpmSurfaceWhite,
+                                color = FpmTheme.cardBackground,
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, FpmCardBorder),
+                                border = BorderStroke(1.dp, FpmTheme.cardBorder),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -1774,12 +1772,12 @@ private fun SundayMomentsGalleryDialog(
                                             text = "${moments.size} Photos Shared This Week",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = FpmTextPrimary
+                                            color = FpmTheme.textPrimary
                                         )
                                         Text(
                                             text = "Approved worship and fellowship moments from church family",
                                             fontSize = 11.sp,
-                                            color = FpmTextSecondary
+                                            color = FpmTheme.textSecondary
                                         )
                                     }
                                 }
@@ -1831,8 +1829,8 @@ private fun SundayMomentGridItem(
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = FpmSurfaceWhite),
-        border = BorderStroke(1.dp, FpmCardBorder),
+        colors = CardDefaults.cardColors(containerColor = FpmTheme.cardBackground),
+        border = BorderStroke(1.dp, FpmTheme.cardBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
@@ -1875,7 +1873,7 @@ private fun SundayMomentGridItem(
                         text = moment.caption,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = FpmTextPrimary,
+                        color = FpmTheme.textPrimary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1891,7 +1889,7 @@ private fun SundayMomentGridItem(
                         text = moment.uploadedByName ?: "Member",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = FpmRoyalBlue,
+                        color = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1899,7 +1897,7 @@ private fun SundayMomentGridItem(
                     Text(
                         text = moment.createdAt.take(10),
                         fontSize = 9.sp,
-                        color = FpmTextMuted
+                        color = FpmTheme.textMuted
                     )
                 }
             }

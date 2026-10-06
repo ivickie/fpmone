@@ -51,8 +51,9 @@ class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Initialize session manager singleton
+    // Initialize session manager and theme manager
     val sessionManager = SessionManager.init(applicationContext)
+    ThemeManager.init(applicationContext)
 
     // Repositories
     val authRepository = AuthRepository(sessionManager)

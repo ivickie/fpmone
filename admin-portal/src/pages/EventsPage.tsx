@@ -53,6 +53,13 @@ export const EventsPage: React.FC = () => {
 
   useEffect(() => {
     fetchEvents();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('event')) {
+        fetchEvents();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [selectedBranchId]);
 
   const openCreateModal = () => {
@@ -114,7 +121,7 @@ export const EventsPage: React.FC = () => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await api.createEvent({
+      const res = await api.createEvent({
         title: formData.title,
         description: formData.description,
         bannerUrl: formData.bannerUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800',
@@ -128,6 +135,10 @@ export const EventsPage: React.FC = () => {
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.event) {
+        setEvents(prev => [res.event, ...prev]);
+      }
       toast.success('Event created successfully');
       await fetchEvents();
     } catch (err: any) {
@@ -140,9 +151,10 @@ export const EventsPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEvent) return;
+    const targetId = selectedEvent.id;
     setActionLoading(true);
     try {
-      await api.updateEvent(selectedEvent.id, {
+      const res = await api.updateEvent(targetId, {
         title: formData.title,
         description: formData.description,
         bannerUrl: formData.bannerUrl,
@@ -156,6 +168,8 @@ export const EventsPage: React.FC = () => {
         status: formData.status
       });
       setEditModalOpen(false);
+      // Immediately reflect update in local state
+      setEvents(prev => prev.map(ev => (ev.id === targetId ? { ...ev, ...formData, ...(res?.event || {}) } : ev)));
       toast.success('Event updated successfully');
       await fetchEvents();
     } catch (err: any) {
@@ -167,10 +181,13 @@ export const EventsPage: React.FC = () => {
 
   const handleArchive = async () => {
     if (!selectedEvent) return;
+    const targetId = selectedEvent.id;
     setActionLoading(true);
     try {
-      await api.deleteEvent(selectedEvent.id);
+      await api.deleteEvent(targetId);
       setConfirmArchiveOpen(false);
+      // Immediately reflect archive/deletion in local state
+      setEvents(prev => prev.filter(ev => ev.id !== targetId));
       toast.success('Event archived successfully');
       await fetchEvents();
     } catch (err: any) {

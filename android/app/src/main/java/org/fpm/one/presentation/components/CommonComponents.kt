@@ -56,6 +56,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.VisualTransformation
 import org.fpm.one.data.model.*
 import org.fpm.one.R
 import org.fpm.one.core.theme.*
@@ -65,14 +69,150 @@ import org.fpm.one.core.theme.*
 // =============================================================================
 
 /**
- * Editorial FPM Card with warm ivory/white surface, hairline border, and gentle tonal depth.
+ * Universal OutlinedTextFieldColors resolving high-contrast states in both Light and Dark mode.
+ */
+@Composable
+fun fpmOutlinedTextFieldColors(): TextFieldColors {
+    val isDark = FpmTheme.isDark
+    return OutlinedTextFieldDefaults.colors(
+        focusedTextColor = if (isDark) FpmTextOnDark else FpmTextPrimary,
+        unfocusedTextColor = if (isDark) FpmTextOnDark else FpmTextPrimary,
+        disabledTextColor = if (isDark) FpmTextMutedDark else FpmTextMuted,
+        errorTextColor = if (isDark) Color(0xFFFCA5A5) else FpmError,
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent,
+        disabledContainerColor = Color.Transparent,
+        errorContainerColor = Color.Transparent,
+        cursorColor = if (isDark) FpmGold else FpmRoyalBlue,
+        errorCursorColor = FpmError,
+        focusedBorderColor = if (isDark) FpmGold else FpmRoyalBlue,
+        unfocusedBorderColor = if (isDark) FpmCardBorderDark else FpmCardBorder,
+        disabledBorderColor = if (isDark) FpmCardBorderDark.copy(alpha = 0.5f) else FpmBorderSubtle,
+        errorBorderColor = if (isDark) Color(0xFFEF4444) else FpmError,
+        focusedLabelColor = if (isDark) FpmGold else FpmRoyalBlue,
+        unfocusedLabelColor = if (isDark) FpmTextSecondaryDark else FpmTextSecondary,
+        disabledLabelColor = if (isDark) FpmTextMutedDark else FpmTextMuted,
+        errorLabelColor = if (isDark) Color(0xFFFCA5A5) else FpmError,
+        focusedPlaceholderColor = if (isDark) FpmTextSecondaryDark.copy(alpha = 0.7f) else FpmTextMuted,
+        unfocusedPlaceholderColor = if (isDark) FpmTextSecondaryDark.copy(alpha = 0.7f) else FpmTextMuted,
+        disabledPlaceholderColor = if (isDark) FpmTextMutedDark.copy(alpha = 0.5f) else FpmTextMuted.copy(alpha = 0.5f),
+        errorPlaceholderColor = if (isDark) Color(0xFFFCA5A5).copy(alpha = 0.7f) else FpmError.copy(alpha = 0.7f),
+        focusedSupportingTextColor = if (isDark) FpmTextSecondaryDark else FpmTextSecondary,
+        unfocusedSupportingTextColor = if (isDark) FpmTextSecondaryDark else FpmTextSecondary,
+        disabledSupportingTextColor = if (isDark) FpmTextMutedDark else FpmTextMuted,
+        errorSupportingTextColor = if (isDark) Color(0xFFFCA5A5) else FpmError,
+        focusedLeadingIconColor = if (isDark) FpmGold else FpmRoyalBlue,
+        unfocusedLeadingIconColor = if (isDark) FpmTextSecondaryDark else FpmTextSecondary,
+        focusedTrailingIconColor = if (isDark) FpmGold else FpmRoyalBlue,
+        unfocusedTrailingIconColor = if (isDark) FpmTextSecondaryDark else FpmTextSecondary
+    )
+}
+
+/**
+ * Universal RadioButtonColors for high visibility across Light and Dark mode.
+ */
+@Composable
+fun fpmRadioButtonColors(): RadioButtonColors {
+    val isDark = FpmTheme.isDark
+    return RadioButtonDefaults.colors(
+        selectedColor = if (isDark) FpmGold else FpmRoyalBlue,
+        unselectedColor = if (isDark) FpmTextSecondaryDark else FpmTextSecondary
+    )
+}
+
+/**
+ * Universal CheckboxColors ensuring checkmark and border contrast in all themes.
+ */
+@Composable
+fun fpmCheckboxColors(): CheckboxColors {
+    val isDark = FpmTheme.isDark
+    return CheckboxDefaults.colors(
+        checkedColor = if (isDark) FpmGold else FpmNavyDark,
+        uncheckedColor = if (isDark) FpmTextSecondaryDark else FpmCardBorder,
+        checkmarkColor = if (isDark) FpmNavyDeep else FpmSurfaceWhite
+    )
+}
+
+/**
+ * Universal SwitchColors with distinct track and thumb contrast in both themes.
+ */
+@Composable
+fun fpmSwitchColors(): SwitchColors {
+    val isDark = FpmTheme.isDark
+    return SwitchDefaults.colors(
+        checkedThumbColor = if (isDark) FpmNavyDark else FpmSurfaceWhite,
+        checkedTrackColor = if (isDark) FpmGold else FpmRoyalBlue,
+        uncheckedThumbColor = if (isDark) FpmTextSecondaryDark else FpmSurfaceWhite,
+        uncheckedTrackColor = if (isDark) FpmSurfaceTonalDark else FpmBorderLight,
+        uncheckedBorderColor = if (isDark) FpmCardBorderDark else FpmCardBorder
+    )
+}
+
+/**
+ * Drop-in OutlinedTextField wrapping fpmOutlinedTextFieldColors by default.
+ */
+@Composable
+fun FpmOutlinedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    textStyle: androidx.compose.ui.text.TextStyle = LocalTextStyle.current,
+    label: @Composable (() -> Unit)? = null,
+    placeholder: @Composable (() -> Unit)? = null,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    prefix: @Composable (() -> Unit)? = null,
+    suffix: @Composable (() -> Unit)? = null,
+    supportingText: @Composable (() -> Unit)? = null,
+    isError: Boolean = false,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    singleLine: Boolean = false,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(10.dp),
+    colors: TextFieldColors = fpmOutlinedTextFieldColors()
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        readOnly = readOnly,
+        textStyle = textStyle,
+        label = label,
+        placeholder = placeholder,
+        leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
+        prefix = prefix,
+        suffix = suffix,
+        supportingText = supportingText,
+        isError = isError,
+        visualTransformation = visualTransformation,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        minLines = minLines,
+        interactionSource = interactionSource,
+        shape = shape,
+        colors = colors
+    )
+}
+
+/**
+ * Editorial FPM Card dynamically adopting Light/Dark surface tokens.
  */
 @Composable
 fun FpmCard(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(16.dp),
-    backgroundColor: Color = FpmSurfaceWhite,
-    borderColor: Color = FpmCardBorder,
+    backgroundColor: Color = FpmTheme.cardBackground,
+    borderColor: Color = FpmTheme.cardBorder,
     elevation: Dp = 0.5.dp,
     contentPadding: Dp = 16.dp,
     onClick: (() -> Unit)? = null,
@@ -650,15 +790,17 @@ fun ExpandableFacebookText(
     modifier: Modifier = Modifier,
     maxChars: Int = 180,
     fontSize: androidx.compose.ui.unit.TextUnit = 13.sp,
-    color: Color = FpmTextSecondary,
+    color: Color = Color.Unspecified,
     lineHeight: androidx.compose.ui.unit.TextUnit = 20.sp,
     onSeeMoreClick: (() -> Unit)? = null
 ) {
+    val resolvedColor = if (color != Color.Unspecified) color else FpmTheme.textSecondary
+    val actionColor = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue
     if (text.length <= maxChars) {
         Text(
             text = text,
             fontSize = fontSize,
-            color = color,
+            color = resolvedColor,
             lineHeight = lineHeight,
             modifier = modifier
         )
@@ -669,14 +811,14 @@ fun ExpandableFacebookText(
                 Text(
                     text = text,
                     fontSize = fontSize,
-                    color = color,
+                    color = resolvedColor,
                     lineHeight = lineHeight
                 )
                 Text(
                     text = "See less",
                     fontSize = fontSize,
                     fontWeight = FontWeight.Bold,
-                    color = FpmRoyalBlue,
+                    color = actionColor,
                     modifier = Modifier
                         .padding(top = 4.dp)
                         .clickable { isExpanded = false }
@@ -686,7 +828,7 @@ fun ExpandableFacebookText(
                 Text(
                     text = "$truncated...",
                     fontSize = fontSize,
-                    color = color,
+                    color = resolvedColor,
                     lineHeight = lineHeight,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis
@@ -695,7 +837,7 @@ fun ExpandableFacebookText(
                     text = "See more",
                     fontSize = fontSize,
                     fontWeight = FontWeight.Bold,
-                    color = FpmRoyalBlue,
+                    color = actionColor,
                     modifier = Modifier
                         .padding(top = 2.dp)
                         .clickable {
@@ -735,24 +877,24 @@ fun SermonRecapDetailDialog(
                                 text = "Sermon Recap",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmTextPrimary
+                                color = FpmTheme.textPrimary
                             )
                             Text(
                                 text = highlight.highlightDate,
                                 fontSize = 11.sp,
-                                color = FpmTextSecondary
+                                color = FpmTheme.textSecondary
                             )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTextPrimary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTheme.textPrimary)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmSurfaceWhite)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmTheme.cardBackground)
                 )
             },
-            containerColor = FpmIvoryBg
+            containerColor = FpmTheme.canvasBackground
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -791,12 +933,12 @@ fun SermonRecapDetailDialog(
                                 text = "Preached by ${highlight.speaker}",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmTextPrimary
+                                color = FpmTheme.textPrimary
                             )
                             Text(
                                 text = "Faith Preachers Ministries Int'l",
                                 fontSize = 11.sp,
-                                color = FpmTextSecondary
+                                color = FpmTheme.textSecondary
                             )
                         }
                     }
@@ -810,7 +952,7 @@ fun SermonRecapDetailDialog(
                             text = "SERMON RECAP",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FpmGoldDark,
+                            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                             letterSpacing = 0.8.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
@@ -822,17 +964,18 @@ fun SermonRecapDetailDialog(
                     text = highlight.title,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
-                    color = FpmTextPrimary,
+                    color = FpmTheme.textPrimary,
                     lineHeight = 28.sp
                 )
 
                 // Anchor Scripture
                 if (!highlight.scripture.isNullOrBlank()) {
+                    val isDark = FpmTheme.isDark
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = FpmGoldSubtle,
+                        color = if (isDark) FpmSurfaceTonalDark else FpmGoldSubtle,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, FpmGoldMuted.copy(alpha = 0.4f))
+                        border = BorderStroke(1.dp, if (isDark) FpmGold.copy(alpha = 0.3f) else FpmGoldMuted.copy(alpha = 0.4f))
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
@@ -848,7 +991,7 @@ fun SermonRecapDetailDialog(
                                 fontSize = 13.sp,
                                 fontStyle = FontStyle.Italic,
                                 fontWeight = FontWeight.SemiBold,
-                                color = FpmTextPrimary,
+                                color = FpmTheme.textPrimary,
                                 lineHeight = 19.sp
                             )
                         }
@@ -858,23 +1001,23 @@ fun SermonRecapDetailDialog(
                 // Sermon Summary (Full unabbreviated text)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = FpmSurfaceWhite,
+                    color = FpmTheme.cardBackground,
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, FpmCardBorder)
+                    border = BorderStroke(1.dp, FpmTheme.cardBorder)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "MESSAGE SUMMARY",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FpmGoldDark,
+                            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                             letterSpacing = 0.8.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = highlight.summary,
                             fontSize = 14.sp,
-                            color = FpmTextPrimary,
+                            color = FpmTheme.textPrimary,
                             lineHeight = 22.sp
                         )
                     }
@@ -884,16 +1027,16 @@ fun SermonRecapDetailDialog(
                 if (highlight.keyPoints.isNotEmpty()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = FpmSurfaceWhite,
+                        color = FpmTheme.cardBackground,
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, FpmCardBorder)
+                        border = BorderStroke(1.dp, FpmTheme.cardBorder)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
                                 text = "KEY TAKEAWAYS",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmGoldDark,
+                                color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                 letterSpacing = 0.8.sp
                             )
                             Spacer(modifier = Modifier.height(10.dp))
@@ -907,12 +1050,12 @@ fun SermonRecapDetailDialog(
                                         text = "${idx + 1}.",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = FpmRoyalBlue
+                                        color = if (FpmTheme.isDark) FpmGold else FpmRoyalBlue
                                     )
                                     Text(
                                         text = point,
                                         fontSize = 13.sp,
-                                        color = FpmTextPrimary,
+                                        color = FpmTheme.textPrimary,
                                         lineHeight = 19.sp
                                     )
                                 }
@@ -991,13 +1134,13 @@ fun SermonRecapDetailDialog(
                                 text = "PHOTOS FROM THE ALTAR (${highlight.photos.size})",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmGoldDark,
+                                color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                                 letterSpacing = 0.8.sp
                             )
                             Text(
                                 text = "Tap photo to zoom",
                                 fontSize = 10.sp,
-                                color = FpmTextSecondary
+                                color = FpmTheme.textSecondary
                             )
                         }
 
@@ -1066,7 +1209,7 @@ fun TestimonyDetailDialog(
                                 text = "Testimony",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmTextPrimary
+                                color = FpmTheme.textPrimary
                             )
                             Text(
                                 text = testimony.category.uppercase(),
@@ -1079,13 +1222,13 @@ fun TestimonyDetailDialog(
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTextPrimary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FpmTheme.textPrimary)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmSurfaceWhite)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = FpmTheme.cardBackground)
                 )
             },
-            containerColor = FpmIvoryBg
+            containerColor = FpmTheme.canvasBackground
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -1114,12 +1257,12 @@ fun TestimonyDetailDialog(
                                 text = testimony.authorName,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = FpmTextPrimary
+                                color = FpmTheme.textPrimary
                             )
                             Text(
                                 text = testimony.branchName.ifBlank { "Faith Preachers Ministries Int'l" },
                                 fontSize = 11.sp,
-                                color = FpmTextSecondary
+                                color = FpmTheme.textSecondary
                             )
                         }
                     }
@@ -1127,7 +1270,7 @@ fun TestimonyDetailDialog(
                     Text(
                         text = testimony.createdAt.take(10),
                         fontSize = 11.sp,
-                        color = FpmTextMuted
+                        color = FpmTheme.textMuted
                     )
                 }
 
@@ -1136,22 +1279,22 @@ fun TestimonyDetailDialog(
                     text = testimony.title,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
-                    color = FpmTextPrimary,
+                    color = FpmTheme.textPrimary,
                     lineHeight = 28.sp
                 )
 
                 // Full Content
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = FpmSurfaceWhite,
+                    color = FpmTheme.cardBackground,
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, FpmCardBorder)
+                    border = BorderStroke(1.dp, FpmTheme.cardBorder)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = testimony.content,
                             fontSize = 14.sp,
-                            color = FpmTextPrimary,
+                            color = FpmTheme.textPrimary,
                             lineHeight = 22.sp
                         )
                     }
@@ -1164,7 +1307,7 @@ fun TestimonyDetailDialog(
                             text = "TESTIMONY EVIDENCE / PHOTO",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FpmGoldDark,
+                            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
                             letterSpacing = 0.8.sp
                         )
                         Box(
@@ -1508,10 +1651,11 @@ fun FpmDevotionalCard(
     modifier: Modifier = Modifier,
     kicker: String = "WORD FOR THE SEASON"
 ) {
+    val isDark = FpmTheme.isDark
     FpmCard(
         modifier = modifier.fillMaxWidth(),
-        backgroundColor = FpmGoldSubtle,
-        borderColor = FpmGoldMuted.copy(alpha = 0.4f),
+        backgroundColor = if (isDark) FpmSurfaceTonalDark else FpmGoldSubtle,
+        borderColor = if (isDark) FpmGold.copy(alpha = 0.3f) else FpmGoldMuted.copy(alpha = 0.4f),
         contentPadding = 18.dp
     ) {
         Row(
@@ -1533,7 +1677,7 @@ fun FpmDevotionalCard(
                     text = kicker.uppercase(),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = FpmGoldDark,
+                    color = if (isDark) FpmGoldLight else FpmGoldDark,
                     letterSpacing = 1.sp
                 )
             }
@@ -1545,7 +1689,7 @@ fun FpmDevotionalCard(
                     text = reference,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = FpmGoldDark,
+                    color = if (isDark) FpmGoldLight else FpmGoldDark,
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                 )
             }
@@ -1558,7 +1702,7 @@ fun FpmDevotionalCard(
             style = ScriptureTextStyle,
             fontSize = 14.sp,
             fontStyle = FontStyle.Italic,
-            color = FpmTextPrimary,
+            color = FpmTheme.textPrimary,
             lineHeight = 21.sp
         )
     }
@@ -1575,6 +1719,7 @@ fun FpmPillChip(
     modifier: Modifier = Modifier,
     count: Int? = null
 ) {
+    val isDark = FpmTheme.isDark
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -1589,10 +1734,10 @@ fun FpmPillChip(
             .clip(RoundedCornerShape(20.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = if (isSelected) FpmNavyDark else FpmSurfaceWhite,
+        color = if (isSelected) (if (isDark) FpmGold else FpmNavyDark) else (if (isDark) FpmSurfaceTonalDark else FpmSurfaceWhite),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = if (isSelected) FpmNavyDark else FpmCardBorder
+            color = if (isSelected) (if (isDark) FpmGold else FpmNavyDark) else (if (isDark) FpmCardBorderDark else FpmCardBorder)
         ),
         shadowElevation = if (isSelected) 2.dp else 0.dp
     ) {
@@ -1605,18 +1750,18 @@ fun FpmPillChip(
                 text = text,
                 fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) FpmGoldLight else FpmTextSecondary
+                color = if (isSelected) (if (isDark) FpmNavyDeep else FpmGoldLight) else FpmTheme.textSecondary
             )
             if (count != null) {
                 Surface(
-                    color = if (isSelected) FpmGold.copy(alpha = 0.25f) else FpmSurfaceTonal,
+                    color = if (isSelected) (if (isDark) FpmNavyDeep.copy(alpha = 0.2f) else FpmGold.copy(alpha = 0.25f)) else (if (isDark) FpmSurfaceMutedDark else FpmSurfaceTonal),
                     shape = CircleShape
                 ) {
                     Text(
                         text = "$count",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) FpmGoldLight else FpmTextMuted,
+                        color = if (isSelected) (if (isDark) FpmNavyDeep else FpmGoldLight) else FpmTheme.textMuted,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                     )
                 }
@@ -1863,7 +2008,7 @@ fun FpmSectionHeader(
                 text = title,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
             )
         }
 
@@ -1961,7 +2106,7 @@ fun Modifier.shimmerEffect(): Modifier = composed {
 fun FpmCardSkeleton(modifier: Modifier = Modifier) {
     FpmCard(
         modifier = modifier.fillMaxWidth(),
-        backgroundColor = FpmSurfaceWhite
+        backgroundColor = FpmTheme.cardBackground
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2021,13 +2166,14 @@ fun LoadingSpinner(
     modifier: Modifier = Modifier.fillMaxSize(),
     message: String = "Loading..."
 ) {
+    val isDark = FpmTheme.isDark
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            CircularProgressIndicator(color = FpmNavyDark, strokeWidth = 3.dp)
-            Text(text = message, color = FpmTextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            CircularProgressIndicator(color = if (isDark) FpmGold else FpmNavyDark, strokeWidth = 3.dp)
+            Text(text = message, color = FpmTheme.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -2044,6 +2190,7 @@ fun EmptyStateView(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
 ) {
+    val isDark = FpmTheme.isDark
     Box(
         modifier = modifier.fillMaxWidth().padding(32.dp),
         contentAlignment = Alignment.Center
@@ -2057,13 +2204,13 @@ fun EmptyStateView(
                     modifier = Modifier
                         .size(68.dp)
                         .clip(CircleShape)
-                        .background(FpmNavyDark.copy(alpha = 0.06f)),
+                        .background(if (isDark) FpmSurfaceTonalDark else FpmNavyDark.copy(alpha = 0.06f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = FpmNavyDark,
+                        tint = if (isDark) FpmGold else FpmNavyDark,
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -2072,13 +2219,13 @@ fun EmptyStateView(
                 text = title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary,
+                color = FpmTheme.textPrimary,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = subtitle,
                 fontSize = 13.sp,
-                color = FpmTextSecondary,
+                color = FpmTheme.textSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 18.sp
             )
@@ -2102,6 +2249,7 @@ fun FpmErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = FpmTheme.isDark
     Box(
         modifier = modifier.fillMaxWidth().padding(24.dp),
         contentAlignment = Alignment.Center
@@ -2114,7 +2262,7 @@ fun FpmErrorState(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(FpmErrorBg),
+                    .background(if (isDark) FpmErrorBgDark else FpmErrorBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.WarningAmber, contentDescription = null, tint = FpmError, modifier = Modifier.size(28.dp))
@@ -2123,19 +2271,20 @@ fun FpmErrorState(
                 text = "Something went wrong",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = FpmTextPrimary
+                color = FpmTheme.textPrimary
             )
             Text(
                 text = message,
                 fontSize = 12.sp,
-                color = FpmTextSecondary,
+                color = FpmTheme.textSecondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             FpmButton(
                 text = "Retry",
                 onClick = onRetry,
-                containerColor = FpmNavyDark
+                containerColor = if (isDark) FpmGold else FpmNavyDark,
+                contentColor = if (isDark) FpmNavyDeep else FpmSurfaceWhite
             )
         }
     }

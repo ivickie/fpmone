@@ -417,7 +417,7 @@ export class MemberService {
   /**
    * Update Member Account Status (Suspend, Activate, Archive)
    */
-  public static updateAccountStatus(
+  public static async updateAccountStatus(
     userId: string,
     newStatus: AccountStatus,
     adminId: string,
@@ -428,10 +428,16 @@ export class MemberService {
       throw new Error('Administrators cannot suspend or deactivate their own account.');
     }
 
-    const user = db.users.find(u => u.id === userId);
+    let user = db.users.find(u => u.id === userId);
+    let member = db.members.find(m => m.userId === userId);
+    if (!user) {
+      member = db.members.find(m => m.id === userId);
+      if (member) {
+        user = db.users.find(u => u.id === member?.userId);
+      }
+    }
     if (!user) throw new Error('User not found.');
 
-    const member = db.members.find(m => m.userId === userId);
     const memberRole = member ? db.ministryRoles.find(r => r.id === member.primaryRoleId) : undefined;
     const isTargetAdmin = user.adminLevel === 'super_admin' || memberRole?.code === 'SUPER_ADMIN' || memberRole?.name === 'Administrator' || memberRole?.id === IDS.ROLE_SUPER_ADMIN;
 
@@ -441,7 +447,7 @@ export class MemberService {
     }
 
     if (isTargetAdmin && (newStatus === 'suspended' || newStatus === 'archived' || newStatus === 'rejected')) {
-      const otherActiveAdmins = db.users.filter(u => u.adminLevel === 'super_admin' && u.accountStatus === 'active' && u.id !== userId);
+      const otherActiveAdmins = db.users.filter(u => u.adminLevel === 'super_admin' && u.accountStatus === 'active' && u.id !== user.id);
       if (otherActiveAdmins.length === 0) {
         throw new Error('Operation blocked: Cannot suspend or archive the sole active Administrator of the organization.');
       }
@@ -456,14 +462,18 @@ export class MemberService {
     const prevState = { accountStatus: user.accountStatus };
     user.accountStatus = newStatus;
     user.updatedAt = new Date().toISOString();
-    persistUser(user).catch(() => {});
+    try {
+      await persistUser(user);
+    } catch (dbErr: any) {
+      console.warn('[UPDATE ACCOUNT STATUS DB PERSIST ERROR]', dbErr.message);
+    }
 
     AuditService.log(
       adminName,
       'admin',
       `MEMBER_STATUS_${newStatus.toUpperCase()}`,
       'user',
-      userId,
+      user.id,
       adminId,
       prevState,
       { accountStatus: newStatus }
@@ -475,7 +485,7 @@ export class MemberService {
   /**
    * Update Member Church Details (Branch, Role, Department)
    */
-  public static updateChurchAssignment(
+  public static async updateChurchAssignment(
     memberId: string,
     data: { branchId?: string; roleId?: string; departmentId?: string; positionName?: string; isWorker?: boolean },
     adminId: string,
@@ -555,13 +565,13 @@ export class MemberService {
           updatedAt: new Date().toISOString()
         };
         db.workers.push(workerRecord);
-        persistWorker(workerRecord).catch(() => {});
+        await persistWorker(workerRecord).catch(() => {});
       }
     } else if (member.isWorker && workerRecord) {
       if (data.departmentId) workerRecord.departmentId = data.departmentId;
       if (data.positionName) workerRecord.positionName = data.positionName;
       workerRecord.updatedAt = new Date().toISOString();
-      persistWorker(workerRecord).catch(() => {});
+      await persistWorker(workerRecord).catch(() => {});
     }
 
     // Single HOD enforcement: If assigning HOD position or role, demote any other HOD in that department
@@ -576,17 +586,18 @@ export class MemberService {
             dept.hodId = member.userId;
             dept.hodName = `${member.firstName} ${member.lastName}`;
             dept.updatedAt = new Date().toISOString();
-            persistDepartment(dept).catch(() => {});
+            await persistDepartment(dept).catch(() => {});
 
             // Demote any other worker in this department who was HOD
-            db.workers.filter(w => w.departmentId === effectiveDeptId && w.id !== workerRecord?.id).forEach(otherW => {
+            const demotions = db.workers.filter(w => w.departmentId === effectiveDeptId && w.id !== workerRecord?.id).map(async otherW => {
               const otherPos = (otherW.positionName || '').toLowerCase();
               if (otherPos.includes('head') || otherPos.includes('hod') || otherPos.includes('director')) {
                 otherW.positionName = 'Worker';
                 otherW.updatedAt = new Date().toISOString();
-                persistWorker(otherW).catch(() => {});
+                await persistWorker(otherW).catch(() => {});
               }
             });
+            await Promise.all(demotions);
           }
         }
       }
@@ -597,20 +608,20 @@ export class MemberService {
       if (targetNewRole && (targetNewRole.code === 'SUPER_ADMIN' || targetNewRole.id === IDS.ROLE_SUPER_ADMIN)) {
         targetUser.isAdmin = true;
         targetUser.adminLevel = 'super_admin';
-        persistUser(targetUser).catch(() => {});
+        await persistUser(targetUser).catch(() => {});
       } else if (targetNewRole && (targetNewRole.code === 'BRANCH_ADMIN' || targetNewRole.id === IDS.ROLE_BRANCH_ADMIN)) {
         targetUser.isAdmin = true;
         targetUser.adminLevel = 'branch_admin';
-        persistUser(targetUser).catch(() => {});
+        await persistUser(targetUser).catch(() => {});
       } else if (isTargetAdmin) {
         targetUser.isAdmin = false;
         targetUser.adminLevel = 'none';
-        persistUser(targetUser).catch(() => {});
+        await persistUser(targetUser).catch(() => {});
       }
     }
 
     member.updatedAt = new Date().toISOString();
-    persistMember(member).catch(() => {});
+    await persistMember(member).catch(() => {});
 
     AuditService.log(
       adminName,

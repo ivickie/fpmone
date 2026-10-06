@@ -131,6 +131,17 @@ export const MembersPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const handleMutation = (e: any) => {
+      if (
+        e?.detail?.entityType?.includes('member') ||
+        e?.detail?.entityType?.includes('worker') ||
+        e?.detail?.entityType?.includes('approval')
+      ) {
+        fetchData();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [branchFilter, roleFilter, deptFilter, statusFilter]);
 
   const openAddMember = () => {
@@ -254,10 +265,14 @@ export const MembersPage: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
+    const targetId = deleteTarget.id;
     setActionLoading(true);
     try {
-      await api.deleteMember(deleteTarget.id);
+      await api.deleteMember(targetId);
       setConfirmDeleteOpen(false);
+      // Immediately reflect deletion in local state
+      setMembers(prev => prev.filter(m => m.id !== targetId));
+      setWorkers(prev => prev.filter(w => w.memberId !== targetId));
       toast.success(`Member record for '${deleteTarget.name}' has been deleted.`);
       await fetchData();
     } catch (err: any) {
@@ -269,11 +284,14 @@ export const MembersPage: React.FC = () => {
 
   const handleConfirmStatusChange = async () => {
     if (!statusTarget) return;
+    const { userId, status } = statusTarget;
     setActionLoading(true);
     try {
-      await api.updateMemberStatus(statusTarget.userId, statusTarget.status);
+      await api.updateMemberStatus(userId, status);
       setConfirmStatusOpen(false);
-      toast.success(`Member status updated to ${statusTarget.status}`);
+      // Immediately reflect status update in local state
+      setMembers(prev => prev.map(m => (m.userId === userId ? { ...m, status } : m)));
+      toast.success(`Member status updated to ${status}`);
       await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update member account status');
@@ -285,10 +303,13 @@ export const MembersPage: React.FC = () => {
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
+    const targetId = selectedMember.id;
     setActionLoading(true);
     try {
-      await api.updateMember(selectedMember.id, profileForm);
+      const res = await api.updateMember(targetId, profileForm);
       setEditProfileOpen(false);
+      // Immediately reflect profile update in local state
+      setMembers(prev => prev.map(m => (m.id === targetId ? { ...m, ...profileForm, ...(res?.member || {}) } : m)));
       toast.success('Member profile updated successfully');
       await fetchData();
     } catch (err: any) {
@@ -301,10 +322,13 @@ export const MembersPage: React.FC = () => {
   const handleAssignmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
+    const targetId = selectedMember.id;
     setActionLoading(true);
     try {
-      await api.updateMemberAssignment(selectedMember.id, assignmentForm);
+      await api.updateMemberAssignment(targetId, assignmentForm);
       setEditAssignmentOpen(false);
+      // Immediately reflect assignment update in local state
+      setMembers(prev => prev.map(m => (m.id === targetId ? { ...m, ...assignmentForm } : m)));
       toast.success('Member assignments updated successfully');
       await fetchData();
     } catch (err: any) {
@@ -317,10 +341,13 @@ export const MembersPage: React.FC = () => {
   const handleWorkerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWorker) return;
+    const targetId = selectedWorker.id;
     setActionLoading(true);
     try {
-      await api.updateWorker(selectedWorker.id, workerForm);
+      await api.updateWorker(targetId, workerForm);
       setEditWorkerOpen(false);
+      // Immediately reflect worker update in local state
+      setWorkers(prev => prev.map(w => (w.id === targetId ? { ...w, ...workerForm } : w)));
       toast.success('Worker details updated successfully');
       await fetchData();
     } catch (err: any) {

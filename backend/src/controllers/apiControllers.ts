@@ -65,7 +65,7 @@ export const getProfileHandler = (req: Request, res: Response) => {
   return res.json(req.user);
 };
 
-export const updateProfileHandler = (req: Request, res: Response) => {
+export const updateProfileHandler = async (req: Request, res: Response) => {
   try {
     const { phone, residentialAddress, emergencyContactName, emergencyContactPhone, profilePictureUrl } = req.body;
     const member = db.members.find(m => m.id === req.user?.memberId || m.userId === req.user?.userId);
@@ -76,7 +76,7 @@ export const updateProfileHandler = (req: Request, res: Response) => {
       if (user) {
         user.phone = phone;
         user.updatedAt = new Date().toISOString();
-        persistUser(user).catch(() => {});
+        await persistUser(user).catch(err => console.warn('[PERSIST USER ERROR]', err.message));
       }
     }
     if (residentialAddress !== undefined) member.residentialAddress = residentialAddress;
@@ -84,7 +84,7 @@ export const updateProfileHandler = (req: Request, res: Response) => {
     if (emergencyContactPhone !== undefined) member.emergencyContactPhone = emergencyContactPhone;
     if (profilePictureUrl !== undefined) member.profilePictureUrl = profilePictureUrl;
     member.updatedAt = new Date().toISOString();
-    persistMember(member).catch(() => {});
+    await persistMember(member).catch(err => console.warn('[PERSIST MEMBER ERROR]', err.message));
 
     return res.json({ success: true, member });
   } catch (err: any) {
@@ -184,7 +184,7 @@ export const getBranchesHandler = (req: Request, res: Response) => {
   return res.json(db.branches);
 };
 
-export const createBranchHandler = (req: Request, res: Response) => {
+export const createBranchHandler = async (req: Request, res: Response) => {
   try {
     if (req.user?.adminLevel !== 'super_admin') {
       return res.status(403).json({ success: false, error: 'Super Administrator privileges required to create branches.' });
@@ -214,7 +214,7 @@ export const createBranchHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.branches.push(newBranch);
-    persistBranch(newBranch).catch(() => {});
+    await persistBranch(newBranch).catch(err => console.warn('[PERSIST BRANCH ERROR]', err.message));
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'BRANCH_CREATED', 'branch', newBranch.id, req.user?.userId, null, newBranch);
     return res.status(201).json(newBranch);
   } catch (err: any) {
@@ -222,7 +222,7 @@ export const createBranchHandler = (req: Request, res: Response) => {
   }
 };
 
-export const updateBranchHandler = (req: Request, res: Response) => {
+export const updateBranchHandler = async (req: Request, res: Response) => {
   const isSuperAdmin = req.user?.adminLevel === 'super_admin';
   const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
 
@@ -263,12 +263,12 @@ export const updateBranchHandler = (req: Request, res: Response) => {
   }
 
   branch.updatedAt = new Date().toISOString();
-  persistBranch(branch).catch(() => {});
+  await persistBranch(branch).catch(err => console.warn('[PERSIST BRANCH ERROR]', err.message));
   AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'BRANCH_UPDATED', 'branch', branch.id, req.user?.userId, null, branch);
   return res.json(branch);
 };
 
-export const deleteBranchHandler = (req: Request, res: Response) => {
+export const deleteBranchHandler = async (req: Request, res: Response) => {
   try {
     if (req.user?.adminLevel !== 'super_admin') {
       return res.status(403).json({ success: false, error: 'Super Administrator privileges required to manage branches.' });
@@ -291,7 +291,7 @@ export const deleteBranchHandler = (req: Request, res: Response) => {
     if (hasDependencies) {
       branch.status = 'archived';
       branch.updatedAt = new Date().toISOString();
-      persistBranch(branch).catch(() => {});
+      await persistBranch(branch).catch(err => console.warn('[PERSIST BRANCH ERROR]', err.message));
       AuditService.log(
         req.user?.fullName || 'Admin',
         req.user?.roleName || 'admin',
@@ -312,7 +312,7 @@ export const deleteBranchHandler = (req: Request, res: Response) => {
 
     const idx = db.branches.findIndex(b => b.id === id);
     db.branches.splice(idx, 1);
-    persistDelete('branches', id).catch(() => {});
+    await persistDelete('branches', id).catch(err => console.warn('[DELETE BRANCH ERROR]', err.message));
     AuditService.log(
       req.user?.fullName || 'Admin',
       req.user?.roleName || 'admin',
@@ -340,7 +340,7 @@ export const deleteBranchHandler = (req: Request, res: Response) => {
  * 2. ANY OTHER worker in this department who previously held an HOD position is reset to 'Worker'.
  * 3. Department hodId and hodName are updated and persisted.
  */
-export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: string, newHodName?: string): void {
+export async function enforceSingleDepartmentHod(departmentId: string, newHodUserId: string, newHodName?: string): Promise<void> {
   const dept = db.departments.find(d => d.id === departmentId);
   if (!dept) return;
 
@@ -348,6 +348,8 @@ export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: s
   if (newHodName) dept.hodName = newHodName;
   const user = db.users.find(u => u.id === newHodUserId);
   if (user) dept.hodEmail = user.email;
+
+  const promises: Promise<any>[] = [];
 
   // 1. Ensure the new HOD's worker record (if exists) is linked to this department and has HOD position
   const targetMember = db.members.find(m => m.userId === newHodUserId);
@@ -359,7 +361,7 @@ export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: s
       hodWorker.departmentId = departmentId;
       hodWorker.positionName = 'Head of Department';
       hodWorker.updatedAt = new Date().toISOString();
-      persistWorker(hodWorker).catch(() => {});
+      promises.push(persistWorker(hodWorker).catch(err => console.warn('[PERSIST WORKER ERROR]', err.message)));
     }
   }
 
@@ -372,7 +374,7 @@ export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: s
     if (member && member.userId === newHodUserId) {
       w.positionName = 'Head of Department';
       w.updatedAt = new Date().toISOString();
-      persistWorker(w).catch(() => {});
+      promises.push(persistWorker(w).catch(err => console.warn('[PERSIST WORKER ERROR]', err.message)));
       return;
     }
 
@@ -380,15 +382,16 @@ export function enforceSingleDepartmentHod(departmentId: string, newHodUserId: s
     if (pos.includes('head') || pos.includes('hod') || pos.includes('director')) {
       w.positionName = 'Worker';
       w.updatedAt = new Date().toISOString();
-      persistWorker(w).catch(() => {});
+      promises.push(persistWorker(w).catch(err => console.warn('[PERSIST WORKER ERROR]', err.message)));
     }
   });
 
   dept.updatedAt = new Date().toISOString();
-  persistDepartment(dept).catch(() => {});
+  promises.push(persistDepartment(dept).catch(err => console.warn('[PERSIST DEPT ERROR]', err.message)));
+  await Promise.all(promises);
 }
 
-export function clearDepartmentHod(departmentId: string): void {
+export async function clearDepartmentHod(departmentId: string): Promise<void> {
   const dept = db.departments.find(d => d.id === departmentId);
   if (!dept) return;
 
@@ -396,18 +399,20 @@ export function clearDepartmentHod(departmentId: string): void {
   dept.hodName = undefined;
   dept.hodEmail = undefined;
 
+  const promises: Promise<any>[] = [];
   const deptWorkers = db.workers.filter(w => w.departmentId === departmentId);
   deptWorkers.forEach(w => {
     const pos = (w.positionName || '').toLowerCase();
     if (pos.includes('head') || pos.includes('hod') || pos.includes('director')) {
       w.positionName = 'Worker';
       w.updatedAt = new Date().toISOString();
-      persistWorker(w).catch(() => {});
+      promises.push(persistWorker(w).catch(err => console.warn('[PERSIST WORKER ERROR]', err.message)));
     }
   });
 
   dept.updatedAt = new Date().toISOString();
-  persistDepartment(dept).catch(() => {});
+  promises.push(persistDepartment(dept).catch(err => console.warn('[PERSIST DEPT ERROR]', err.message)));
+  await Promise.all(promises);
 }
 
 export interface HodResolutionResult {
@@ -680,7 +685,7 @@ export const getEligibleHodsHandler = (req: Request, res: Response) => {
   }
 };
 
-export const createDepartmentHandler = (req: Request, res: Response) => {
+export const createDepartmentHandler = async (req: Request, res: Response) => {
   const isSuperAdmin = req.user?.adminLevel === 'super_admin';
   const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
 
@@ -735,11 +740,11 @@ export const createDepartmentHandler = (req: Request, res: Response) => {
   };
 
   db.departments.push(newDept);
-  persistDepartment(newDept).catch(() => {});
+  await persistDepartment(newDept).catch(err => console.warn('[PERSIST DEPT ERROR]', err.message));
 
   // Single HOD enforcement if hodId resolved
   if (resolvedHodId) {
-    enforceSingleDepartmentHod(newDeptId, resolvedHodId, resolvedHodName);
+    await enforceSingleDepartmentHod(newDeptId, resolvedHodId, resolvedHodName);
   }
 
   AuditService.log(
@@ -755,7 +760,7 @@ export const createDepartmentHandler = (req: Request, res: Response) => {
   return res.status(201).json(newDept);
 };
 
-export const updateDepartmentHandler = (req: Request, res: Response) => {
+export const updateDepartmentHandler = async (req: Request, res: Response) => {
   try {
     const dept = db.departments.find(d => d.id === req.params.id);
     if (!dept) return res.status(404).json({ success: false, error: 'Department not found.' });
@@ -816,7 +821,7 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
           dept.hodId = undefined;
           dept.hodName = undefined;
           dept.hodEmail = undefined;
-          clearDepartmentHod(dept.id);
+          await clearDepartmentHod(dept.id);
         } else {
           const validation = validateAndResolveHod(hodEmail, dept.branchId, req.user);
           if (!validation.isValid) {
@@ -828,7 +833,7 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
           dept.hodId = validation.hodUserId;
           dept.hodName = validation.hodName;
           dept.hodEmail = validation.hodEmail;
-          enforceSingleDepartmentHod(dept.id, validation.hodUserId!, validation.hodName);
+          await enforceSingleDepartmentHod(dept.id, validation.hodUserId!, validation.hodName);
         }
       } else if (hodId !== undefined) {
         if (hodId) {
@@ -840,12 +845,12 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
           dept.hodId = hodId;
           dept.hodName = resolvedName;
           dept.hodEmail = u?.email;
-          enforceSingleDepartmentHod(dept.id, hodId, resolvedName);
+          await enforceSingleDepartmentHod(dept.id, hodId, resolvedName);
         } else {
           dept.hodId = undefined;
           dept.hodName = undefined;
           dept.hodEmail = undefined;
-          clearDepartmentHod(dept.id);
+          await clearDepartmentHod(dept.id);
         }
       } else if (hodName !== undefined) {
         dept.hodName = hodName;
@@ -854,7 +859,7 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
 
     if (status && (isSuperAdmin || isBranchAdmin)) dept.status = status;
     dept.updatedAt = new Date().toISOString();
-    persistDepartment(dept).catch(() => {});
+    await persistDepartment(dept).catch(err => console.warn('[PERSIST DEPT ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -873,7 +878,7 @@ export const updateDepartmentHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteDepartmentHandler = (req: Request, res: Response) => {
+export const deleteDepartmentHandler = async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user?.adminLevel === 'super_admin';
     const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
@@ -897,7 +902,7 @@ export const deleteDepartmentHandler = (req: Request, res: Response) => {
     if (hasWorkers) {
       dept.status = 'archived';
       dept.updatedAt = new Date().toISOString();
-      persistDepartment(dept).catch(() => {});
+      await persistDepartment(dept).catch(err => console.warn('[PERSIST DEPT ERROR]', err.message));
       AuditService.log(
         req.user?.fullName || 'Admin',
         req.user?.roleName || 'admin',
@@ -918,7 +923,7 @@ export const deleteDepartmentHandler = (req: Request, res: Response) => {
 
     const idx = db.departments.findIndex(d => d.id === req.params.id);
     db.departments.splice(idx, 1);
-    persistDelete('departments', req.params.id).catch(() => {});
+    await persistDelete('departments', req.params.id).catch(err => console.warn('[DELETE DEPT ERROR]', err.message));
     AuditService.log(
       req.user?.fullName || 'Admin',
       req.user?.roleName || 'admin',
@@ -940,7 +945,7 @@ export const getDepartmentPositionsHandler = (req: Request, res: Response) => {
   return res.json(positions);
 };
 
-export const createPositionHandler = (req: Request, res: Response) => {
+export const createPositionHandler = async (req: Request, res: Response) => {
   try {
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ success: false, error: 'Position name is required.' });
@@ -960,7 +965,7 @@ export const createPositionHandler = (req: Request, res: Response) => {
       createdAt: new Date().toISOString()
     };
     db.departmentPositions.push(newPos);
-    persistDepartmentPosition(newPos).catch(() => {});
+    await persistDepartmentPosition(newPos).catch(err => console.warn('[PERSIST POS ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -979,7 +984,7 @@ export const createPositionHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deletePositionHandler = (req: Request, res: Response) => {
+export const deletePositionHandler = async (req: Request, res: Response) => {
   try {
     const pos = db.departmentPositions.find(p => p.id === req.params.positionId);
     if (!pos) return res.status(404).json({ success: false, error: 'Position not found.' });
@@ -996,7 +1001,7 @@ export const deletePositionHandler = (req: Request, res: Response) => {
 
     const idx = db.departmentPositions.findIndex(p => p.id === pos.id);
     db.departmentPositions.splice(idx, 1);
-    persistDelete('department_positions', pos.id).catch(() => {});
+    await persistDelete('department_positions', pos.id).catch(err => console.warn('[DELETE POS ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1023,7 +1028,7 @@ export const getRolesHandler = (req: Request, res: Response) => {
   return res.json(db.ministryRoles);
 };
 
-export const createRoleHandler = (req: Request, res: Response) => {
+export const createRoleHandler = async (req: Request, res: Response) => {
   try {
     if (req.user?.adminLevel !== 'super_admin') {
       return res.status(403).json({ success: false, error: 'Only Super Administrators can create ministry roles.' });
@@ -1049,7 +1054,7 @@ export const createRoleHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.ministryRoles.push(newRole);
-    persistRole(newRole).catch(() => {});
+    await persistRole(newRole).catch(err => console.warn('[PERSIST ROLE ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1068,7 +1073,7 @@ export const createRoleHandler = (req: Request, res: Response) => {
   }
 };
 
-export const updateRoleHandler = (req: Request, res: Response) => {
+export const updateRoleHandler = async (req: Request, res: Response) => {
   try {
     if (req.user?.adminLevel !== 'super_admin') {
       return res.status(403).json({ success: false, error: 'Only Super Administrators can update ministry roles.' });
@@ -1091,7 +1096,7 @@ export const updateRoleHandler = (req: Request, res: Response) => {
     if (permissions !== undefined) role.permissions = permissions;
     if (isActive !== undefined) role.isActive = !!isActive;
     role.updatedAt = new Date().toISOString();
-    persistRole(role).catch(() => {});
+    await persistRole(role).catch(err => console.warn('[PERSIST ROLE ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1110,7 +1115,7 @@ export const updateRoleHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteRoleHandler = (req: Request, res: Response) => {
+export const deleteRoleHandler = async (req: Request, res: Response) => {
   try {
     if (req.user?.adminLevel !== 'super_admin') {
       return res.status(403).json({ success: false, error: 'Only Super Administrators can delete ministry roles.' });
@@ -1129,7 +1134,7 @@ export const deleteRoleHandler = (req: Request, res: Response) => {
 
     const idx = db.ministryRoles.findIndex(r => r.id === req.params.id);
     db.ministryRoles.splice(idx, 1);
-    persistDelete('ministry_roles', role.id).catch(() => {});
+    await persistDelete('ministry_roles', role.id).catch(err => console.warn('[DELETE ROLE ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1236,25 +1241,25 @@ export const createMemberHandler = async (req: Request, res: Response) => {
   }
 };
 
-export const updateMemberStatusHandler = (req: Request, res: Response) => {
+export const updateMemberStatusHandler = async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
     const adminId = req.user?.userId || IDS.USER_ADMIN;
     const adminName = req.user?.fullName || 'Administrator';
     const adminScope = req.user ? { adminLevel: req.user.adminLevel, branchId: req.user.branchId } : undefined;
-    const result = MemberService.updateAccountStatus(req.params.id, status, adminId, adminName, adminScope);
+    const result = await MemberService.updateAccountStatus(req.params.id, status, adminId, adminName, adminScope);
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
   }
 };
 
-export const updateMemberAssignmentHandler = (req: Request, res: Response) => {
+export const updateMemberAssignmentHandler = async (req: Request, res: Response) => {
   try {
     const adminId = req.user?.userId || IDS.USER_ADMIN;
     const adminName = req.user?.fullName || 'Administrator';
     const adminScope = req.user ? { adminLevel: req.user.adminLevel, branchId: req.user.branchId } : undefined;
-    const result = MemberService.updateChurchAssignment(req.params.id, req.body, adminId, adminName, adminScope);
+    const result = await MemberService.updateChurchAssignment(req.params.id, req.body, adminId, adminName, adminScope);
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
@@ -1293,7 +1298,7 @@ export const getMemberByIdHandler = (req: Request, res: Response) => {
   });
 };
 
-export const updateMemberHandler = (req: Request, res: Response) => {
+export const updateMemberHandler = async (req: Request, res: Response) => {
   try {
     const member = db.members.find(m => m.id === req.params.id);
     if (!member) return res.status(404).json({ success: false, error: 'Member not found.' });
@@ -1328,13 +1333,13 @@ export const updateMemberHandler = (req: Request, res: Response) => {
     if (emergencyContactPhone !== undefined) member.emergencyContactPhone = emergencyContactPhone;
     if (profilePictureUrl !== undefined) member.profilePictureUrl = profilePictureUrl;
     member.updatedAt = new Date().toISOString();
-    persistMember(member).catch(() => {});
+    await persistMember(member).catch(err => console.warn('[PERSIST MEMBER ERROR]', err.message));
 
     if (user) {
       if (email) user.email = email;
       if (phone) user.phone = phone;
       user.updatedAt = new Date().toISOString();
-      persistUser(user).catch(() => {});
+      await persistUser(user).catch(err => console.warn('[PERSIST USER ERROR]', err.message));
     }
 
     AuditService.log(
@@ -1354,7 +1359,7 @@ export const updateMemberHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteMemberHandler = (req: Request, res: Response) => {
+export const deleteMemberHandler = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
     let member = db.members.find(m => m.id === id);
@@ -1390,20 +1395,23 @@ export const deleteMemberHandler = (req: Request, res: Response) => {
       return res.status(403).json({ success: false, error: 'Branch isolation violation: Cannot delete members of other branches.' });
     }
 
+    const deletePromises: Promise<any>[] = [];
+
     // Delete associated worker record
     if (member) {
       const workerIdx = db.workers.findIndex(w => w.memberId === member.id);
       if (workerIdx !== -1) {
         const worker = db.workers[workerIdx];
         db.workers.splice(workerIdx, 1);
-        persistDelete('workers', worker.id).catch(() => {});
+        deletePromises.push(persistDelete('workers', worker.id));
       }
 
       // Delete member record
       const memberIdx = db.members.findIndex(m => m.id === member.id);
       if (memberIdx !== -1) {
+        const member = db.members[memberIdx];
         db.members.splice(memberIdx, 1);
-        persistDelete('members', member.id).catch(() => {});
+        deletePromises.push(persistDelete('members', member.id));
       }
     }
 
@@ -1411,10 +1419,13 @@ export const deleteMemberHandler = (req: Request, res: Response) => {
     if (user) {
       const userIdx = db.users.findIndex(u => u.id === user.id);
       if (userIdx !== -1) {
+        const user = db.users[userIdx];
         db.users.splice(userIdx, 1);
-        persistDelete('users', user.id).catch(() => {});
+        deletePromises.push(persistDelete('users', user.id));
       }
     }
+
+    await Promise.all(deletePromises).catch(err => console.warn('[DELETE MEMBER DB ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1509,7 +1520,7 @@ export const getWorkerByIdHandler = (req: Request, res: Response) => {
   });
 };
 
-export const updateWorkerHandler = (req: Request, res: Response) => {
+export const updateWorkerHandler = async (req: Request, res: Response) => {
   try {
     const worker = db.workers.find(w => w.id === req.params.id);
     if (!worker) return res.status(404).json({ success: false, error: 'Worker not found.' });
@@ -1534,13 +1545,13 @@ export const updateWorkerHandler = (req: Request, res: Response) => {
       const posLower = positionName.toLowerCase();
       if (posLower.includes('head') || posLower.includes('hod')) {
         if (member) {
-          enforceSingleDepartmentHod(targetDeptId, member.userId, `${member.firstName} ${member.lastName}`);
+          await enforceSingleDepartmentHod(targetDeptId, member.userId, `${member.firstName} ${member.lastName}`);
         }
       }
     }
     if (workerStatus) worker.workerStatus = workerStatus;
     worker.updatedAt = new Date().toISOString();
-    persistWorker(worker).catch(() => {});
+    await persistWorker(worker).catch(err => console.warn('[PERSIST WORKER ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1723,7 +1734,7 @@ export const getServicesHandler = (req: Request, res: Response) => {
   return res.json(services);
 };
 
-export const createServiceHandler = (req: Request, res: Response) => {
+export const createServiceHandler = async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user?.adminLevel === 'super_admin';
     const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
@@ -1764,7 +1775,7 @@ export const createServiceHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.services.push(newService);
-    persistService(newService);
+    await persistService(newService).catch(err => console.warn('[PERSIST SERVICE ERROR]', err.message));
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'SERVICE_CREATED', 'service', newService.id, req.user?.userId, null, newService);
     return res.status(201).json(newService);
   } catch (err: any) {
@@ -1772,7 +1783,7 @@ export const createServiceHandler = (req: Request, res: Response) => {
   }
 };
 
-export const updateServiceHandler = (req: Request, res: Response) => {
+export const updateServiceHandler = async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user?.adminLevel === 'super_admin';
     const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
@@ -1804,7 +1815,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
     if (imageUrl !== undefined) service.imageUrl = imageUrl ? imageUrl.trim() : undefined;
     if (status) service.status = status;
     service.updatedAt = new Date().toISOString();
-    persistService(service).catch(() => {});
+    await persistService(service).catch(err => console.warn('[PERSIST SERVICE ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -1823,7 +1834,7 @@ export const updateServiceHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteServiceHandler = (req: Request, res: Response) => {
+export const deleteServiceHandler = async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user?.adminLevel === 'super_admin';
     const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
@@ -1846,7 +1857,7 @@ export const deleteServiceHandler = (req: Request, res: Response) => {
     if (hasAttendance) {
       service.status = 'archived';
       service.updatedAt = new Date().toISOString();
-      persistService(service).catch(() => {});
+      await persistService(service).catch(err => console.warn('[PERSIST SERVICE ERROR]', err.message));
       AuditService.log(
         req.user?.fullName || 'Admin',
         req.user?.roleName || 'admin',
@@ -1867,7 +1878,7 @@ export const deleteServiceHandler = (req: Request, res: Response) => {
 
     const idx = db.services.findIndex(s => s.id === req.params.id);
     db.services.splice(idx, 1);
-    persistDelete('services', req.params.id).catch(() => {});
+    await persistDelete('services', req.params.id).catch(err => console.warn('[DELETE SERVICE ERROR]', err.message));
     AuditService.log(
       req.user?.fullName || 'Admin',
       req.user?.roleName || 'admin',
@@ -1917,7 +1928,7 @@ export const getEventByIdHandler = (req: Request, res: Response) => {
   return res.json({ ...event, isUserRegistered: isRegistered });
 };
 
-export const createEventHandler = (req: Request, res: Response) => {
+export const createEventHandler = async (req: Request, res: Response) => {
   try {
     const { title, description, bannerUrl, startDatetime, endDatetime, location, speaker, category, registrationRequired, registrationCapacity, branchId } = req.body;
     if (!title || !description || !startDatetime || !endDatetime || !location || !category) {
@@ -1950,7 +1961,7 @@ export const createEventHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.events.push(newEvent);
-    persistEvent(newEvent).catch(() => {});
+    await persistEvent(newEvent).catch(err => console.warn('[PERSIST EVENT ERROR]', err.message));
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'EVENT_CREATED', 'event', newEvent.id, req.user?.userId, null, newEvent);
     return res.status(201).json(newEvent);
   } catch (err: any) {
@@ -1958,7 +1969,7 @@ export const createEventHandler = (req: Request, res: Response) => {
   }
 };
 
-export const updateEventHandler = (req: Request, res: Response) => {
+export const updateEventHandler = async (req: Request, res: Response) => {
   try {
     const event = db.events.find(e => e.id === req.params.id);
     if (!event) return res.status(404).json({ success: false, error: 'Event not found.' });
@@ -1984,7 +1995,7 @@ export const updateEventHandler = (req: Request, res: Response) => {
     if (registrationCapacity !== undefined) event.registrationCapacity = Number(registrationCapacity);
     if (status) event.status = status;
     event.updatedAt = new Date().toISOString();
-    persistEvent(event).catch(() => {});
+    await persistEvent(event).catch(err => console.warn('[PERSIST EVENT ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2003,7 +2014,7 @@ export const updateEventHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteEventHandler = (req: Request, res: Response) => {
+export const deleteEventHandler = async (req: Request, res: Response) => {
   try {
     const event = db.events.find(e => e.id === req.params.id);
     if (!event) return res.status(404).json({ success: false, error: 'Event not found.' });
@@ -2014,7 +2025,7 @@ export const deleteEventHandler = (req: Request, res: Response) => {
 
     event.status = 'archived';
     event.updatedAt = new Date().toISOString();
-    persistEvent(event).catch(() => {});
+    await persistEvent(event).catch(err => console.warn('[PERSIST EVENT ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2120,7 +2131,7 @@ export const getFeedHandler = (req: Request, res: Response) => {
   return res.json(posts);
 };
 
-export const createPostHandler = (req: Request, res: Response) => {
+export const createPostHandler = async (req: Request, res: Response) => {
   try {
     const { title, content, scriptureReference, postType, visibility, branchId, mediaUrls, allowComments } = req.body;
     if (!content) return res.status(400).json({ error: 'Content is required.' });
@@ -2151,7 +2162,7 @@ export const createPostHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.posts.unshift(newPost);
-    persistPost(newPost).catch(() => {});
+    await persistPost(newPost).catch(err => console.warn('[PERSIST POST ERROR]', err.message));
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'POST_CREATED', 'post', newPost.id, req.user?.userId, null, newPost);
     return res.status(201).json(newPost);
   } catch (err: any) {
@@ -2159,7 +2170,7 @@ export const createPostHandler = (req: Request, res: Response) => {
   }
 };
 
-export const updatePostHandler = (req: Request, res: Response) => {
+export const updatePostHandler = async (req: Request, res: Response) => {
   try {
     const post = db.posts.find(p => p.id === req.params.id);
     if (!post) return res.status(404).json({ error: 'Post not found.' });
@@ -2181,7 +2192,7 @@ export const updatePostHandler = (req: Request, res: Response) => {
       post.allowComments = post.postType === 'announcement' ? false : !!allowComments;
     }
     post.updatedAt = new Date().toISOString();
-    persistPost(post).catch(() => {});
+    await persistPost(post).catch(err => console.warn('[PERSIST POST ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -2200,7 +2211,7 @@ export const updatePostHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deletePostHandler = (req: Request, res: Response) => {
+export const deletePostHandler = async (req: Request, res: Response) => {
   try {
     const post = db.posts.find(p => p.id === req.params.id);
     if (!post) return res.status(404).json({ error: 'Post not found.' });
@@ -2213,7 +2224,7 @@ export const deletePostHandler = (req: Request, res: Response) => {
 
     post.status = 'archived';
     post.updatedAt = new Date().toISOString();
-    persistPost(post).catch(() => {});
+    await persistPost(post).catch(err => console.warn('[PERSIST POST ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -2306,7 +2317,7 @@ export const getHighlightsHandler = (req: Request, res: Response) => {
   return res.json(db.serviceHighlights.filter(h => h.isPublished));
 };
 
-export const createHighlightHandler = (req: Request, res: Response) => {
+export const createHighlightHandler = async (req: Request, res: Response) => {
   try {
     const { branchId, title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl } = req.body;
     const finalSpeaker = speaker || req.body.preacher;
@@ -2338,7 +2349,7 @@ export const createHighlightHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.serviceHighlights.unshift(newHighlight);
-    persistServiceHighlight(newHighlight).catch(() => {});
+    await persistServiceHighlight(newHighlight).catch(err => console.warn('[PERSIST HIGHLIGHT ERROR]', err.message));
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'HIGHLIGHT_CREATED', 'highlight', newHighlight.id, req.user?.userId, null, newHighlight);
     return res.status(201).json(newHighlight);
   } catch (err: any) {
@@ -2346,7 +2357,7 @@ export const createHighlightHandler = (req: Request, res: Response) => {
   }
 };
 
-export const updateHighlightHandler = (req: Request, res: Response) => {
+export const updateHighlightHandler = async (req: Request, res: Response) => {
   try {
     const highlight = db.serviceHighlights.find(h => h.id === req.params.id);
     if (!highlight) return res.status(404).json({ error: 'Highlight not found.' });
@@ -2377,7 +2388,7 @@ export const updateHighlightHandler = (req: Request, res: Response) => {
     if (videoUrl !== undefined) highlight.videoUrl = typeof videoUrl === 'string' ? videoUrl : undefined;
     if (isPublished !== undefined) highlight.isPublished = !!isPublished;
     highlight.updatedAt = new Date().toISOString();
-    persistServiceHighlight(highlight).catch(() => {});
+    await persistServiceHighlight(highlight).catch(err => console.warn('[PERSIST HIGHLIGHT ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2396,7 +2407,7 @@ export const updateHighlightHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteHighlightHandler = (req: Request, res: Response) => {
+export const deleteHighlightHandler = async (req: Request, res: Response) => {
   try {
     const highlight = db.serviceHighlights.find(h => h.id === req.params.id);
     if (!highlight) return res.status(404).json({ error: 'Highlight not found.' });
@@ -2407,7 +2418,7 @@ export const deleteHighlightHandler = (req: Request, res: Response) => {
 
     const idx = db.serviceHighlights.findIndex(h => h.id === req.params.id);
     db.serviceHighlights.splice(idx, 1);
-    persistDelete('service_highlights', req.params.id).catch(() => {});
+    await persistDelete('service_highlights', req.params.id).catch(err => console.warn('[DELETE HIGHLIGHT ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2438,7 +2449,7 @@ export const getTestimoniesQueueHandler = (req: Request, res: Response) => {
   return res.json(db.testimonies);
 };
 
-export const submitTestimonyHandler = (req: Request, res: Response) => {
+export const submitTestimonyHandler = async (req: Request, res: Response) => {
   try {
     const generalSettings = SettingsService.getSettings();
     if (!generalSettings.registration.allowTestimonies || !generalSettings.media.allowMemberTestimonies) {
@@ -2469,7 +2480,7 @@ export const submitTestimonyHandler = (req: Request, res: Response) => {
       updatedAt: new Date().toISOString()
     };
     db.testimonies.unshift(newTestimony);
-    persistTestimony(newTestimony).catch(() => {});
+    await persistTestimony(newTestimony).catch(err => console.warn('[PERSIST TESTIMONY ERROR]', err.message));
     return res.status(201).json({
       success: true,
       message: 'Your testimony has been submitted and is awaiting pastoral review.',
@@ -2480,7 +2491,7 @@ export const submitTestimonyHandler = (req: Request, res: Response) => {
   }
 };
 
-export const reviewTestimonyHandler = (req: Request, res: Response) => {
+export const reviewTestimonyHandler = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, rejectionReason, requestChangesNotes, isFeaturedOnFeed } = req.body;
@@ -2494,7 +2505,7 @@ export const reviewTestimonyHandler = (req: Request, res: Response) => {
     testimony.reviewedBy = req.user?.userId || IDS.USER_ADMIN;
     testimony.reviewedAt = new Date().toISOString();
     testimony.updatedAt = new Date().toISOString();
-    persistTestimony(testimony).catch(() => {});
+    await persistTestimony(testimony).catch(err => console.warn('[PERSIST TESTIMONY ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2513,7 +2524,7 @@ export const reviewTestimonyHandler = (req: Request, res: Response) => {
   }
 };
 
-export const deleteTestimonyHandler = (req: Request, res: Response) => {
+export const deleteTestimonyHandler = async (req: Request, res: Response) => {
   try {
     const testimony = db.testimonies.find(t => t.id === req.params.id);
     if (!testimony) return res.status(404).json({ error: 'Testimony not found.' });
@@ -2531,7 +2542,7 @@ export const deleteTestimonyHandler = (req: Request, res: Response) => {
 
     const idx = db.testimonies.findIndex(t => t.id === req.params.id);
     db.testimonies.splice(idx, 1);
-    persistDelete('testimonies', req.params.id).catch(() => {});
+    await persistDelete('testimonies', req.params.id).catch(err => console.warn('[DELETE TESTIMONY ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -2580,7 +2591,7 @@ export const getNotificationsHandler = (req: Request, res: Response) => {
   return res.json(relevant);
 };
 
-export const broadcastNotificationHandler = (req: Request, res: Response) => {
+export const broadcastNotificationHandler = async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user?.adminLevel === 'super_admin';
     const isBranchAdmin = req.user?.adminLevel === 'branch_admin';
@@ -2606,7 +2617,7 @@ export const broadcastNotificationHandler = (req: Request, res: Response) => {
       createdAt: new Date().toISOString()
     };
     db.notifications.unshift(newNotification);
-    persistNotification(newNotification).catch(() => {});
+    await persistNotification(newNotification).catch(err => console.warn('[PERSIST NOTIFICATION ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2634,14 +2645,14 @@ export const markNotificationReadHandler = (req: Request, res: Response) => {
   return res.json({ success: true });
 };
 
-export const deleteNotificationHandler = (req: Request, res: Response) => {
+export const deleteNotificationHandler = async (req: Request, res: Response) => {
   try {
     const notif = db.notifications.find(n => n.id === req.params.id);
     if (!notif) return res.status(404).json({ error: 'Notification not found.' });
 
     const idx = db.notifications.findIndex(n => n.id === req.params.id);
     db.notifications.splice(idx, 1);
-    persistDelete('notifications', req.params.id).catch(() => {});
+    await persistDelete('notifications', req.params.id).catch(err => console.warn('[DELETE NOTIFICATION ERROR]', err.message));
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -3508,7 +3519,7 @@ export const getFinanceTransactionByIdHandler = (req: Request, res: Response) =>
   }
 };
 
-export const createFinanceTransactionHandler = (req: Request, res: Response) => {
+export const createFinanceTransactionHandler = async (req: Request, res: Response) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
@@ -3516,7 +3527,7 @@ export const createFinanceTransactionHandler = (req: Request, res: Response) => 
       return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to record financial transactions.' });
     }
 
-    const tx = FinanceService.createTransaction(req.body, user);
+    const tx = await FinanceService.createTransaction(req.body, user);
     return res.status(201).json({ success: true, transaction: tx });
   } catch (err: any) {
     const statusCode = err.message?.includes('Forbidden') ? 403 : 400;
@@ -3524,7 +3535,7 @@ export const createFinanceTransactionHandler = (req: Request, res: Response) => 
   }
 };
 
-export const updateFinanceTransactionHandler = (req: Request, res: Response) => {
+export const updateFinanceTransactionHandler = async (req: Request, res: Response) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
@@ -3532,7 +3543,7 @@ export const updateFinanceTransactionHandler = (req: Request, res: Response) => 
       return res.status(403).json({ success: false, error: 'Forbidden: Insufficient privileges to edit financial transactions.' });
     }
 
-    const tx = FinanceService.updateTransaction(req.params.id, req.body, user);
+    const tx = await FinanceService.updateTransaction(req.params.id, req.body, user);
     return res.json({ success: true, transaction: tx });
   } catch (err: any) {
     const statusCode = err.message?.includes('Forbidden') ? 403 : err.message?.includes('not found') ? 404 : 400;
@@ -3540,7 +3551,7 @@ export const updateFinanceTransactionHandler = (req: Request, res: Response) => 
   }
 };
 
-export const voidFinanceTransactionHandler = (req: Request, res: Response) => {
+export const voidFinanceTransactionHandler = async (req: Request, res: Response) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
@@ -3553,7 +3564,7 @@ export const voidFinanceTransactionHandler = (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Void reason is required.' });
     }
 
-    const tx = FinanceService.voidTransaction(req.params.id, reason, user);
+    const tx = await FinanceService.voidTransaction(req.params.id, reason, user);
     return res.json({ success: true, transaction: tx });
   } catch (err: any) {
     const statusCode = err.message?.includes('Forbidden') ? 403 : err.message?.includes('not found') ? 404 : 400;
@@ -3582,7 +3593,7 @@ export const getFinanceOpeningBalanceHandler = (req: Request, res: Response) => 
   }
 };
 
-export const setFinanceOpeningBalanceHandler = (req: Request, res: Response) => {
+export const setFinanceOpeningBalanceHandler = async (req: Request, res: Response) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
@@ -3595,7 +3606,7 @@ export const setFinanceOpeningBalanceHandler = (req: Request, res: Response) => 
       return res.status(400).json({ success: false, error: 'branchId, year, month, and amount are required.' });
     }
 
-    const record = FinanceService.setInitialOpeningBalance(
+    const record = await FinanceService.setInitialOpeningBalance(
       branchId,
       parseInt(year, 10),
       parseInt(month, 10),

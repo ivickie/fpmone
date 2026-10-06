@@ -290,7 +290,7 @@ async function runTests() {
     let pastorEscalationBlocked = false;
     try {
       // Branch pastor tries to elevate a member to Super Admin
-      MemberService.updateChurchAssignment(
+      await MemberService.updateChurchAssignment(
         attackerMember!.id,
         { roleId: IDS.ROLE_SUPER_ADMIN },
         IDS.USER_PASTOR,
@@ -305,7 +305,7 @@ async function runTests() {
     // TEST 21: Cross-Branch Transfer Blocked for Branch Admins
     let crossBranchTransferBlocked = false;
     try {
-      MemberService.updateChurchAssignment(
+      await MemberService.updateChurchAssignment(
         attackerMember!.id,
         { branchId: IDS.BRANCH_LONDON },
         IDS.USER_PASTOR,
@@ -352,7 +352,7 @@ async function runTests() {
     const graceMember = db.members.find(m => m.id === IDS.MEMBER_GRACE);
     assert(graceMember?.isWorker === false, 'Grace Bello starts as an active non-worker member');
 
-    const workerPromotionResult = MemberService.updateChurchAssignment(
+    const workerPromotionResult = await MemberService.updateChurchAssignment(
       IDS.MEMBER_GRACE,
       {
         isWorker: true,
@@ -1081,7 +1081,7 @@ async function runTests() {
       body: { phone: '+2348009999999' },
       user: hodUser
     });
-    updateBranchHandler(branchEditAttempt.req, branchEditAttempt.res);
+    await updateBranchHandler(branchEditAttempt.req, branchEditAttempt.res);
     assert(branchEditAttempt.getStatus() === 403, 'HOD is forbidden from editing Church branch (returns 403)');
     assert(Boolean(branchEditAttempt.getData()?.error?.includes('Heads of Department cannot edit branch settings')), 'Branch edit rejection informs user of HOD restriction');
 
@@ -1095,7 +1095,7 @@ async function runTests() {
       body: { phone: '+2348001112233' },
       user: hodWithBranchAdmin
     });
-    updateBranchHandler(branchEditAllowed.req, branchEditAllowed.res);
+    await updateBranchHandler(branchEditAllowed.req, branchEditAllowed.res);
     assert(branchEditAllowed.getStatus() === 200, 'HOD who is also a Branch Administrator CAN edit church branch (returns 200)');
 
     // TEST 118: HOD cannot create or add a new department (403 Forbidden)
@@ -1103,7 +1103,7 @@ async function runTests() {
       body: { name: 'Evangelism & Outreach', code: 'EVANGELISM' },
       user: hodUser
     });
-    createDepartmentHandler(createDeptAttempt.req, createDeptAttempt.res);
+    await createDepartmentHandler(createDeptAttempt.req, createDeptAttempt.res);
     assert(createDeptAttempt.getStatus() === 403, 'HOD is forbidden from adding a department (returns 403)');
     assert(Boolean(createDeptAttempt.getData()?.error?.includes('Heads of Department cannot add departments')), 'Department create rejection explains HOD restriction');
 
@@ -1112,7 +1112,7 @@ async function runTests() {
       body: { name: 'Special Projects', code: 'PROJ' },
       user: hodWithBranchAdmin
     });
-    createDepartmentHandler(createDeptAllowed.req, createDeptAllowed.res);
+    await createDepartmentHandler(createDeptAllowed.req, createDeptAllowed.res);
     assert(createDeptAllowed.getStatus() === 201, 'HOD who is also a Branch Administrator CAN create a department (returns 201)');
     // Clean up created department
     const projDeptIdx = db.departments.findIndex(d => d.code === 'PROJ');
@@ -1124,7 +1124,7 @@ async function runTests() {
       body: { name: 'Unauthorized Media Edit' },
       user: hodUser
     });
-    updateDepartmentHandler(editOtherDeptAttempt.req, editOtherDeptAttempt.res);
+    await updateDepartmentHandler(editOtherDeptAttempt.req, editOtherDeptAttempt.res);
     assert(editOtherDeptAttempt.getStatus() === 403, 'HOD is forbidden from editing another department (returns 403)');
     assert(Boolean(editOtherDeptAttempt.getData()?.error?.includes('can only edit your own assigned department')), 'Cross-department edit rejection explains restriction');
 
@@ -1134,7 +1134,7 @@ async function runTests() {
       body: { description: 'Choir Department - Voices of Praise and Joy' },
       user: hodUser
     });
-    updateDepartmentHandler(editOwnDeptAllowed.req, editOwnDeptAllowed.res);
+    await updateDepartmentHandler(editOwnDeptAllowed.req, editOwnDeptAllowed.res);
     assert(editOwnDeptAllowed.getStatus() === 200, 'HOD CAN edit their own assigned department description (returns 200)');
     const choirAfterEdit = db.departments.find(d => d.id === IDS.DEPT_CHOIR);
     assert(choirAfterEdit?.description === 'Choir Department - Voices of Praise and Joy', 'Own department description updated in database');
@@ -1145,7 +1145,7 @@ async function runTests() {
       body: { hodId: IDS.USER_JOHN },
       user: hodUser
     });
-    updateDepartmentHandler(reassignHodAttempt.req, reassignHodAttempt.res);
+    await updateDepartmentHandler(reassignHodAttempt.req, reassignHodAttempt.res);
     assert(reassignHodAttempt.getStatus() === 403, 'HOD is forbidden from appointing or reassigning department HOD (returns 403)');
 
     // TEST 123: Single HOD Enforcement - Appointing new HOD demotes incumbent
@@ -1171,7 +1171,7 @@ async function runTests() {
     assert(choirHodCount === 1, 'Strict Single HOD Guarantee: Exactly 1 HOD exists in Choir department');
 
     // TEST 124: Single HOD Enforcement via MemberService.updateChurchAssignment
-    MemberService.updateChurchAssignment(
+    await MemberService.updateChurchAssignment(
       IDS.MEMBER_HOD,
       {
         departmentId: IDS.DEPT_CHOIR,
@@ -1212,7 +1212,7 @@ async function runTests() {
       },
       user: hodUser
     });
-    createServiceHandler(createServiceAttempt.req, createServiceAttempt.res);
+    await createServiceHandler(createServiceAttempt.req, createServiceAttempt.res);
     assert(createServiceAttempt.getStatus() === 403, 'HOD is forbidden from creating a service schedule (returns 403)');
     assert(Boolean(createServiceAttempt.getData()?.error?.includes('Heads of Department cannot add services')), 'Service creation rejection explains HOD restriction');
 
@@ -1222,7 +1222,7 @@ async function runTests() {
       body: { name: 'HOD Attempted Service Rename' },
       user: hodUser
     });
-    updateServiceHandler(editServiceAttempt.req, editServiceAttempt.res);
+    await updateServiceHandler(editServiceAttempt.req, editServiceAttempt.res);
     assert(editServiceAttempt.getStatus() === 403, 'HOD is forbidden from editing a service schedule (returns 403)');
     assert(Boolean(editServiceAttempt.getData()?.error?.includes('Heads of Department cannot edit services')), 'Service update rejection explains HOD restriction');
 
@@ -1231,7 +1231,7 @@ async function runTests() {
       params: { id: IDS.SERVICE_SUN_1 },
       user: hodUser
     });
-    deleteServiceHandler(deleteServiceAttempt.req, deleteServiceAttempt.res);
+    await deleteServiceHandler(deleteServiceAttempt.req, deleteServiceAttempt.res);
     assert(deleteServiceAttempt.getStatus() === 403, 'HOD is forbidden from deleting a service schedule (returns 403)');
     assert(Boolean(deleteServiceAttempt.getData()?.error?.includes('Heads of Department cannot delete services')), 'Service deletion rejection explains HOD restriction');
 
@@ -1246,7 +1246,7 @@ async function runTests() {
       },
       user: hodWithBranchAdmin
     });
-    createServiceHandler(createServiceAllowed.req, createServiceAllowed.res);
+    await createServiceHandler(createServiceAllowed.req, createServiceAllowed.res);
     assert(createServiceAllowed.getStatus() === 201, 'HOD who is also a Branch Admin CAN create a service schedule (returns 201)');
     const createdService = createServiceAllowed.getData();
 
@@ -1255,7 +1255,7 @@ async function runTests() {
       body: { name: 'Thursday Communion Service' },
       user: hodWithBranchAdmin
     });
-    updateServiceHandler(editServiceAllowed.req, editServiceAllowed.res);
+    await updateServiceHandler(editServiceAllowed.req, editServiceAllowed.res);
     assert(editServiceAllowed.getStatus() === 200, 'HOD who is also a Branch Admin CAN edit a service schedule (returns 200)');
     // Clean up created service
     const cleanSvcIdx = db.services.findIndex(s => s.id === createdService?.id);
@@ -1286,7 +1286,7 @@ async function runTests() {
       },
       user: hodUser
     });
-    broadcastNotificationHandler(broadcastAttempt.req, broadcastAttempt.res);
+    await broadcastNotificationHandler(broadcastAttempt.req, broadcastAttempt.res);
     assert(broadcastAttempt.getStatus() === 403, 'HOD is forbidden from broadcasting push notifications (returns 403)');
     assert(Boolean(broadcastAttempt.getData()?.error?.includes('Heads of Department cannot broadcast notifications')), 'Broadcast rejection explains HOD restriction');
 
@@ -1300,7 +1300,7 @@ async function runTests() {
       },
       user: hodWithBranchAdmin
     });
-    broadcastNotificationHandler(broadcastAllowed.req, broadcastAllowed.res);
+    await broadcastNotificationHandler(broadcastAllowed.req, broadcastAllowed.res);
     assert(broadcastAllowed.getStatus() === 201, 'HOD who is also a Branch Admin CAN broadcast push notifications (returns 201)');
     const createdNotif = broadcastAllowed.getData();
     // Clean up created notification
@@ -1392,7 +1392,7 @@ async function runTests() {
       },
       user: adminUser
     });
-    createServiceHandler(createLiveSvc.req, createLiveSvc.res);
+    await createServiceHandler(createLiveSvc.req, createLiveSvc.res);
     assert(createLiveSvc.getStatus() === 201, 'Service with liveStreamUrl created successfully');
     const liveSvc = createLiveSvc.getData();
     assert(liveSvc?.liveStreamUrl === 'https://youtube.com/live/miraclenight', 'liveStreamUrl correctly populated on created service');
@@ -1403,7 +1403,7 @@ async function runTests() {
       body: { liveStreamUrl: 'https://facebook.com/fpm/videos/123456' },
       user: adminUser
     });
-    updateServiceHandler(updateLiveSvc.req, updateLiveSvc.res);
+    await updateServiceHandler(updateLiveSvc.req, updateLiveSvc.res);
     assert(updateLiveSvc.getStatus() === 200, 'Service updated with new liveStreamUrl');
     assert(updateLiveSvc.getData()?.liveStreamUrl === 'https://facebook.com/fpm/videos/123456', 'Service liveStreamUrl correctly updated to Facebook URL');
 
@@ -1417,7 +1417,7 @@ async function runTests() {
       },
       user: adminUser
     });
-    createPostHandler(createAnnouncement.req, createAnnouncement.res);
+    await createPostHandler(createAnnouncement.req, createAnnouncement.res);
     assert(createAnnouncement.getStatus() === 201, 'Announcement created successfully');
     const announcementPost = createAnnouncement.getData();
     assert(announcementPost?.allowComments === false, 'Official Announcement strictly sets allowComments to false');
@@ -1461,7 +1461,7 @@ async function runTests() {
       },
       user: adminUser
     });
-    createPostHandler(createGeneralPostAllowed.req, createGeneralPostAllowed.res);
+    await createPostHandler(createGeneralPostAllowed.req, createGeneralPostAllowed.res);
     assert(createGeneralPostAllowed.getStatus() === 201, 'General post created with allowComments = true');
     const generalPostAllowed = createGeneralPostAllowed.getData();
 
@@ -1483,7 +1483,7 @@ async function runTests() {
       },
       user: adminUser
     });
-    createPostHandler(createGeneralPostDisabled.req, createGeneralPostDisabled.res);
+    await createPostHandler(createGeneralPostDisabled.req, createGeneralPostDisabled.res);
     assert(createGeneralPostDisabled.getStatus() === 201, 'General post created with allowComments = false');
     const generalPostDisabled = createGeneralPostDisabled.getData();
 
@@ -1515,7 +1515,7 @@ async function runTests() {
       body: { coverImageUrl: 'http://localhost:5000/uploads/fpm-media/branch-assets/b1111111/cover/cathedral-hq.webp' },
       user: adminUser
     });
-    updateBranchHandler(updateBranchCover.req, updateBranchCover.res);
+    await updateBranchHandler(updateBranchCover.req, updateBranchCover.res);
     assert(updateBranchCover.getStatus() === 200, 'Admin can update branch cover image');
     assert(db.branches.find(b => b.id === IDS.BRANCH_HQ)?.coverImageUrl?.includes('cathedral-hq.webp') === true, 'Branch coverImageUrl updated in database');
 
@@ -1525,7 +1525,7 @@ async function runTests() {
       body: { coverImageUrl: 'http://evil.com/fake.jpg' },
       user: { userId: IDS.USER_SARAH, fullName: 'Sarah Worker', adminLevel: 'none', roleName: 'Worker', branchId: IDS.BRANCH_HQ }
     });
-    updateBranchHandler(memberEditBranch.req, memberEditBranch.res);
+    await updateBranchHandler(memberEditBranch.req, memberEditBranch.res);
     assert(memberEditBranch.getStatus() === 403, 'Unauthorized user cannot modify branch cover image (403)');
 
     // Test 3: Member of Branch HQ can upload Sunday Moment for Branch HQ
@@ -1676,7 +1676,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    setFinanceOpeningBalanceHandler(setBaselineReq.req, setBaselineReq.res);
+    await setFinanceOpeningBalanceHandler(setBaselineReq.req, setBaselineReq.res);
     assert(setBaselineReq.getStatus() === 200, 'Initial opening balance established successfully');
     const baselineRecord = setBaselineReq.getData()?.openingBalance;
     assert(baselineRecord?.amount === 500000, 'Baseline amount is 500,000');
@@ -1697,7 +1697,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    createFinanceTransactionHandler(invalidAmountReq.req, invalidAmountReq.res);
+    await createFinanceTransactionHandler(invalidAmountReq.req, invalidAmountReq.res);
     assert(invalidAmountReq.getStatus() === 400, 'Negative amount rejected with 400');
 
     // TEST 144: Transaction validation - rejects invalid date
@@ -1711,7 +1711,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    createFinanceTransactionHandler(invalidDateReq.req, invalidDateReq.res);
+    await createFinanceTransactionHandler(invalidDateReq.req, invalidDateReq.res);
     assert(invalidDateReq.getStatus() === 400, 'Invalid transaction date rejected with 400');
 
     // TEST 145: Create Month 1 Income Transaction (Tithe: ₦250,000)
@@ -1728,7 +1728,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    createFinanceTransactionHandler(createIncome1.req, createIncome1.res);
+    await createFinanceTransactionHandler(createIncome1.req, createIncome1.res);
     assert(createIncome1.getStatus() === 201, 'Month 1 Tithe income created successfully (201)');
     const txIncome1 = createIncome1.getData()?.transaction;
     assert(txIncome1?.amount === 250000, 'Income amount recorded as 250,000');
@@ -1748,7 +1748,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    createFinanceTransactionHandler(createExpense1.req, createExpense1.res);
+    await createFinanceTransactionHandler(createExpense1.req, createExpense1.res);
     assert(createExpense1.getStatus() === 201, 'Month 1 Salaries expense created successfully (201)');
     const txExpense1 = createExpense1.getData()?.transaction;
     assert(txExpense1?.amount === 100000, 'Expense amount recorded as 100,000');
@@ -1786,7 +1786,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    createFinanceTransactionHandler(createIncomeFeb.req, createIncomeFeb.res);
+    await createFinanceTransactionHandler(createIncomeFeb.req, createIncomeFeb.res);
     assert(createIncomeFeb.getStatus() === 201, 'February offering created');
 
     const createExpenseFeb = mockReqRes({
@@ -1801,7 +1801,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    createFinanceTransactionHandler(createExpenseFeb.req, createExpenseFeb.res);
+    await createFinanceTransactionHandler(createExpenseFeb.req, createExpenseFeb.res);
     assert(createExpenseFeb.getStatus() === 201, 'February utilities expense created');
 
     const febStmt = FinanceService.getMonthlyStatement(IDS.BRANCH_HQ, 2026, 2, superAdminUser as any);
@@ -1820,7 +1820,7 @@ async function runTests() {
       body: { amount: 300000 },
       user: superAdminUser
     });
-    updateFinanceTransactionHandler(editWithoutReason.req, editWithoutReason.res);
+    await updateFinanceTransactionHandler(editWithoutReason.req, editWithoutReason.res);
     assert(editWithoutReason.getStatus() === 400, 'Updating transaction without editReason is rejected (400)');
 
     // TEST 152: Updating January transaction with audit reason dynamically updates February and March balances
@@ -1836,7 +1836,7 @@ async function runTests() {
       },
       user: superAdminUser
     });
-    updateFinanceTransactionHandler(editWithReason.req, editWithReason.res);
+    await updateFinanceTransactionHandler(editWithReason.req, editWithReason.res);
     assert(editWithReason.getStatus() === 200, 'Updating transaction with audit reason succeeds (200)');
     assert(editWithReason.getData()?.transaction?.amount === 300000, 'Updated transaction amount is 300,000');
 
@@ -1855,7 +1855,7 @@ async function runTests() {
       body: { amount: 400000, editReason: 'Unauthorized cross-branch update' },
       user: branchPastorUser
     });
-    updateFinanceTransactionHandler(bpCrossBranchEdit.req, bpCrossBranchEdit.res);
+    await updateFinanceTransactionHandler(bpCrossBranchEdit.req, bpCrossBranchEdit.res);
     assert(bpCrossBranchEdit.getStatus() === 403, 'Cross-branch edit strictly blocked with 403');
 
     // TEST 154: Branch BOLA Protection - Branch Pastor creating transaction for HQ is forced to their assigned branch
@@ -1870,7 +1870,7 @@ async function runTests() {
       },
       user: branchPastorUser
     });
-    createFinanceTransactionHandler(bpSpoofedCreate.req, bpSpoofedCreate.res);
+    await createFinanceTransactionHandler(bpSpoofedCreate.req, bpSpoofedCreate.res);
     assert(bpSpoofedCreate.getStatus() === 201, 'Branch pastor transaction created');
     const createdLekkiTx = bpSpoofedCreate.getData()?.transaction;
     assert(createdLekkiTx?.branchId === IDS.BRANCH_LEKKI, 'BOLA Protection: Branch ID was forced to Lekki branch');
@@ -1881,7 +1881,7 @@ async function runTests() {
       body: {},
       user: branchPastorUser
     });
-    voidFinanceTransactionHandler(voidWithoutReason.req, voidWithoutReason.res);
+    await voidFinanceTransactionHandler(voidWithoutReason.req, voidWithoutReason.res);
     assert(voidWithoutReason.getStatus() === 400, 'Voiding without reason rejected (400)');
 
     // TEST 156: Voiding transaction with reason marks status as voided and excludes from totals
@@ -1890,7 +1890,7 @@ async function runTests() {
       body: { reason: 'Duplicate entry entered in error' },
       user: branchPastorUser
     });
-    voidFinanceTransactionHandler(voidWithReason.req, voidWithReason.res);
+    await voidFinanceTransactionHandler(voidWithReason.req, voidWithReason.res);
     assert(voidWithReason.getStatus() === 200, 'Voiding with reason succeeds (200)');
     const voidedTx = voidWithReason.getData()?.transaction;
     assert(voidedTx?.status === 'voided', 'Transaction status is voided');
@@ -2247,7 +2247,7 @@ async function runTests() {
     const mockBranchRes: any = {
       json: (data: any) => { branchUpdateRes = data; return mockBranchRes; }
     };
-    updateBranchHandler(mockBranchReq, mockBranchRes);
+    await updateBranchHandler(mockBranchReq, mockBranchRes);
     assert(testBranch.id === originalBranchId, 'Branch ID cannot be overwritten via mass assignment (SEC-06)');
     assert(testBranch.isHeadquarters === originalHq, 'Branch Admin cannot modify isHeadquarters via mass assignment (SEC-06)');
     assert(testBranch.name === 'Updated Branch Name', 'Whitelisted field name was updated cleanly');

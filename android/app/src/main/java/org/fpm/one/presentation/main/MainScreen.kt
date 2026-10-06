@@ -81,14 +81,15 @@ fun MainScreen(
       }
       else -> {
         Scaffold(
+          containerColor = FpmTheme.canvasBackground,
           bottomBar = {
             Surface(
-              color = FpmSurfaceWhite,
+              color = FpmTheme.bottomNavBackground,
               shadowElevation = 8.dp,
-              border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmBorderSubtle)
+              border = androidx.compose.foundation.BorderStroke(0.5.dp, FpmTheme.cardBorder)
             ) {
               NavigationBar(
-                containerColor = FpmSurfaceWhite,
+                containerColor = FpmTheme.bottomNavBackground,
                 tonalElevation = 0.dp,
                 modifier = Modifier
                   .height(72.dp)
@@ -96,12 +97,14 @@ fun MainScreen(
               ) {
                 tabs.forEach { tab ->
                   val isSelected = selectedTab == tab
+                  val activeColor = if (FpmTheme.isDark) FpmGold else FpmNavyDark
+                  val inactiveColor = FpmTheme.textMuted
                   NavigationBarItem(
                     icon = {
                       Icon(
                         imageVector = tab.icon,
                         contentDescription = tab.title,
-                        tint = if (isSelected) FpmNavyDark else FpmTextMuted
+                        tint = if (isSelected) activeColor else inactiveColor
                       )
                     },
                     label = {
@@ -109,17 +112,17 @@ fun MainScreen(
                         text = tab.title,
                         fontSize = 10.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) FpmNavyDark else FpmTextMuted
+                        color = if (isSelected) activeColor else inactiveColor
                       )
                     },
                     selected = isSelected,
                     onClick = { selectedTab = tab },
                     colors = NavigationBarItemDefaults.colors(
-                      indicatorColor = FpmGoldSubtle,
-                      selectedIconColor = FpmNavyDark,
-                      selectedTextColor = FpmNavyDark,
-                      unselectedIconColor = FpmTextMuted,
-                      unselectedTextColor = FpmTextMuted
+                      indicatorColor = if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle,
+                      selectedIconColor = activeColor,
+                      selectedTextColor = activeColor,
+                      unselectedIconColor = inactiveColor,
+                      unselectedTextColor = inactiveColor
                     )
                   )
                 }

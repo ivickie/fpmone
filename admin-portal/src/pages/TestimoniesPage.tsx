@@ -30,12 +30,21 @@ export const TestimoniesPage: React.FC = () => {
 
   useEffect(() => {
     fetchTestimonies();
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('testimon')) {
+        fetchTestimonies();
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, []);
 
   const handleReview = async (id: string, status: string, isFeaturedOnFeed = false) => {
     setActionLoading(true);
     try {
       await api.reviewTestimony(id, { status, isFeaturedOnFeed });
+      // Immediately reflect review status change in local state
+      setTestimonies(prev => prev.map(t => (t.id === id ? { ...t, status, isFeaturedOnFeed } : t)));
       toast.success(`Testimony marked as ${status.replace('_', ' ')}`);
       await fetchTestimonies();
     } catch (err: any) {
@@ -47,11 +56,14 @@ export const TestimoniesPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedTestimony) return;
+    const targetId = selectedTestimony.id;
     setActionLoading(true);
     try {
-      await api.deleteTestimony(selectedTestimony.id);
+      await api.deleteTestimony(targetId);
       setConfirmDeleteOpen(false);
       setSelectedTestimony(null);
+      // Immediately reflect deletion in local state
+      setTestimonies(prev => prev.filter(t => t.id !== targetId));
       toast.success('Testimony deleted successfully');
       await fetchTestimonies();
     } catch (err: any) {

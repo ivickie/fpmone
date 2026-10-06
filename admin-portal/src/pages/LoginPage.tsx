@@ -410,29 +410,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </button>
             </form>
 
-            {/* Sign Up Link */}
-            <div className="pt-5 mt-5 border-t border-slate-100 text-center">
-              <p className="text-xs text-slate-500 font-medium">
-                Don't have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSignUpFirstName('');
-                    setSignUpLastName('');
-                    setSignUpEmail(email || '');
-                    setSignUpPhone('');
-                    setSignUpPassword('');
-                    setSignUpAgreedPrivacy(false);
-                    setSignUpError(null);
-                    setSignUpSuccess(null);
-                    setShowSignUpModal(true);
-                  }}
-                  className="font-bold text-[#0B1528] hover:text-[#C59B27] underline-offset-4 hover:underline transition cursor-pointer"
-                >
-                  Sign up
-                </button>
-              </p>
-            </div>
+            
           </div>
         </div>
 

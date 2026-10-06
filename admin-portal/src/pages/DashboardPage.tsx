@@ -49,6 +49,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     };
 
     loadDashboard();
+
+    const handleDataMutation = () => {
+      loadDashboard();
+    };
+    window.addEventListener('fpm:data-mutation', handleDataMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleDataMutation);
   }, [selectedBranchId]);
 
   if (loading) {

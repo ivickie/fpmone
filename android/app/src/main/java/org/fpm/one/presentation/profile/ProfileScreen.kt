@@ -61,7 +61,7 @@ fun ProfileScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(paddingValues)
-        .background(FpmIvoryBg),
+        .background(FpmTheme.canvasBackground),
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -70,7 +70,12 @@ fun ProfileScreen(
         ProfileHeaderCard(user = user)
       }
 
-      // 2. Worker Hub Quick Access (for workers or pastors)
+      // 2. App Theme & Display Appearance Switcher
+      item {
+        ThemeAppearanceCard()
+      }
+
+      // 3. Worker Hub Quick Access (for workers or pastors)
       if (user?.isWorker == true || user?.isAdmin == true) {
         item {
           WorkerHubEntryBanner(
@@ -81,12 +86,12 @@ fun ProfileScreen(
         }
       }
 
-      // 3. Ministry Details Card
+      // 4. Ministry Details Card
       item {
         MinistryDetailsCard(user = user)
       }
 
-      // 4. General Options & Quick Navigation
+      // 5. General Options & Quick Navigation
       item {
         OptionsGroupCard(
           items = listOf(
@@ -167,13 +172,13 @@ fun ProfileScreen(
             text = "FAITH PREACHERS MINISTRIES INT'L",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = FpmTextPrimary,
+            color = FpmTheme.textPrimary,
             letterSpacing = 0.5.sp
           )
           Text(
             text = "Jeremiah 1:8 • FPM Global Platform v${org.fpm.one.BuildConfig.VERSION_NAME}",
             fontSize = 10.sp,
-            color = FpmTextMuted
+            color = FpmTheme.textMuted
           )
           Spacer(modifier = Modifier.height(16.dp))
         }
@@ -184,10 +189,10 @@ fun ProfileScreen(
   if (showLogoutConfirm) {
     AlertDialog(
       onDismissRequest = { showLogoutConfirm = false },
-      containerColor = FpmSurfaceWhite,
+      containerColor = FpmTheme.dialogBackground,
       shape = RoundedCornerShape(18.dp),
-      title = { Text("Confirm Sign Out", fontWeight = FontWeight.Bold) },
-      text = { Text("Are you sure you want to log out of your FPM Global account on this device?") },
+      title = { Text("Confirm Sign Out", fontWeight = FontWeight.Bold, color = FpmTheme.textPrimary) },
+      text = { Text("Are you sure you want to log out of your FPM Global account on this device?", color = FpmTheme.textSecondary) },
       confirmButton = {
         Button(
           onClick = {
@@ -203,7 +208,7 @@ fun ProfileScreen(
       },
       dismissButton = {
         TextButton(onClick = { showLogoutConfirm = false }) {
-          Text("Cancel", color = FpmTextSecondary)
+          Text("Cancel", color = FpmTheme.textSecondary)
         }
       }
     )
@@ -212,14 +217,15 @@ fun ProfileScreen(
   if (showDeleteAccountConfirm) {
     AlertDialog(
       onDismissRequest = { showDeleteAccountConfirm = false },
-      containerColor = FpmSurfaceWhite,
+      containerColor = FpmTheme.dialogBackground,
       shape = RoundedCornerShape(18.dp),
       title = { Text("Request Account Deletion", fontWeight = FontWeight.Bold, color = FpmError) },
       text = {
         Text(
           "In accordance with Google Play policies and data protection regulations, you can permanently delete your FPM Global account and associated data.\n\n" +
           "Deleting your account will remove your personal profile, ministry assignments, and attendance logs.\n\n" +
-          "Would you like to open the account deletion portal to complete this request?"
+          "Would you like to open the account deletion portal to complete this request?",
+          color = FpmTheme.textSecondary
         )
       },
       confirmButton = {
@@ -237,7 +243,7 @@ fun ProfileScreen(
       },
       dismissButton = {
         TextButton(onClick = { showDeleteAccountConfirm = false }) {
-          Text("Cancel", color = FpmTextSecondary)
+          Text("Cancel", color = FpmTheme.textSecondary)
         }
       }
     )
@@ -246,40 +252,41 @@ fun ProfileScreen(
   if (showAboutDialog) {
     AlertDialog(
       onDismissRequest = { showAboutDialog = false },
-      containerColor = FpmSurfaceWhite,
+      containerColor = FpmTheme.dialogBackground,
       shape = RoundedCornerShape(18.dp),
-      title = { Text("About FPM Global", fontWeight = FontWeight.Bold) },
+      title = { Text("About FPM Global", fontWeight = FontWeight.Bold, color = FpmTheme.textPrimary) },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(
             "Faith Preachers Ministries International",
             fontWeight = FontWeight.Bold,
-            color = FpmNavyDark
+            color = if (FpmTheme.isDark) FpmGold else FpmNavyDark
           )
           Text(
             "“Be not afraid of their faces: for I am with thee to deliver thee, saith the Lord.” — Jeremiah 1:8",
             style = MaterialTheme.typography.bodySmall,
-            color = FpmTextSecondary
+            color = FpmTheme.textSecondary
           )
-          HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = FpmCardBorder)
+          HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = FpmTheme.cardBorder)
           Text(
             "The FPM Global mobile app connects church members, workers, and ministers globally for services, testimonies, notifications, and ministry work.",
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            color = FpmTheme.textPrimary
           )
           Text(
             "Version ${org.fpm.one.BuildConfig.VERSION_NAME} (Release)\nWeb: https://www.fpmglobal.online",
             style = MaterialTheme.typography.bodySmall,
-            color = FpmTextMuted
+            color = FpmTheme.textMuted
           )
         }
       },
       confirmButton = {
         Button(
           onClick = { showAboutDialog = false },
-          colors = ButtonDefaults.buttonColors(containerColor = FpmNavyDark),
+          colors = ButtonDefaults.buttonColors(containerColor = if (FpmTheme.isDark) FpmNavySurface else FpmNavyDark),
           shape = RoundedCornerShape(10.dp)
         ) {
-          Text("Close")
+          Text("Close", color = if (FpmTheme.isDark) FpmGold else FpmSurfaceWhite)
         }
       }
     )
@@ -422,7 +429,7 @@ fun ProfileHeaderCard(user: UserSession?) {
           text = user?.fullName ?: "Faith Preachers Member",
           fontSize = 17.sp,
           fontWeight = FontWeight.Black,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -430,12 +437,12 @@ fun ProfileHeaderCard(user: UserSession?) {
         Text(
           text = user?.email ?: "",
           fontSize = 12.sp,
-          color = FpmTextSecondary
+          color = FpmTheme.textSecondary
         )
         Text(
           text = user?.phone ?: "",
           fontSize = 12.sp,
-          color = FpmTextMuted
+          color = FpmTheme.textMuted
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -532,29 +539,29 @@ fun MinistryDetailsCard(user: UserSession?) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
       ) {
-        Icon(Icons.Default.Church, contentDescription = null, tint = FpmRoyalBlue, modifier = Modifier.size(18.dp))
+        Icon(Icons.Default.Church, contentDescription = null, tint = FpmTheme.royalBlue, modifier = Modifier.size(18.dp))
         Text(
           text = "Ministry Assignment",
           fontSize = 15.sp,
           fontWeight = FontWeight.Bold,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
       }
 
       Spacer(modifier = Modifier.height(12.dp))
 
       MinistryDetailRow(label = "Church Branch", value = user?.branchName ?: "Lagos Cathedral HQ")
-      HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+      HorizontalDivider(color = FpmTheme.cardBorder, modifier = Modifier.padding(vertical = 8.dp))
 
       MinistryDetailRow(label = "Ministry Role", value = user?.roleName ?: "Member")
-      HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+      HorizontalDivider(color = FpmTheme.cardBorder, modifier = Modifier.padding(vertical = 8.dp))
 
       if (user?.isWorker == true) {
         MinistryDetailRow(label = "Department", value = user.workerDetails?.departmentName ?: "Worker")
-        HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(color = FpmTheme.cardBorder, modifier = Modifier.padding(vertical = 8.dp))
 
         MinistryDetailRow(label = "Position", value = user.workerDetails?.positionName ?: "Member")
-        HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(color = FpmTheme.cardBorder, modifier = Modifier.padding(vertical = 8.dp))
 
         MinistryDetailRow(label = "Worker ID Code", value = user.workerDetails?.workerCode ?: "FPM-0001")
       } else {
@@ -574,13 +581,13 @@ fun MinistryDetailRow(label: String, value: String) {
     Text(
       text = label,
       fontSize = 12.sp,
-      color = FpmTextSecondary
+      color = FpmTheme.textSecondary
     )
     Text(
       text = value,
       fontSize = 13.sp,
       fontWeight = FontWeight.Bold,
-      color = FpmTextPrimary
+      color = FpmTheme.textPrimary
     )
   }
 }
@@ -608,10 +615,10 @@ fun OptionsGroupCard(items: List<ProfileOptionItem>) {
             modifier = Modifier
               .size(38.dp)
               .clip(CircleShape)
-              .background(FpmSlateBg),
+              .background(FpmTheme.surfaceTonal),
             contentAlignment = Alignment.Center
           ) {
-            Icon(item.icon, contentDescription = null, tint = FpmRoyalBlue, modifier = Modifier.size(20.dp))
+            Icon(item.icon, contentDescription = null, tint = FpmTheme.royalBlue, modifier = Modifier.size(20.dp))
           }
 
           Spacer(modifier = Modifier.width(14.dp))
@@ -621,22 +628,141 @@ fun OptionsGroupCard(items: List<ProfileOptionItem>) {
               text = item.title,
               fontSize = 13.sp,
               fontWeight = FontWeight.Bold,
-              color = FpmTextPrimary
+              color = FpmTheme.textPrimary
             )
             Text(
               text = item.subtitle,
               fontSize = 11.sp,
-              color = FpmTextSecondary
+              color = FpmTheme.textSecondary
             )
           }
 
-          Icon(Icons.Default.ChevronRight, contentDescription = null, tint = FpmTextMuted)
+          Icon(Icons.Default.ChevronRight, contentDescription = null, tint = FpmTheme.textMuted)
         }
 
         if (index < items.size - 1) {
-          HorizontalDivider(color = FpmBorderLight, modifier = Modifier.padding(vertical = 4.dp))
+          HorizontalDivider(color = FpmTheme.cardBorder, modifier = Modifier.padding(vertical = 4.dp))
         }
       }
     }
   }
 }
+
+@Composable
+fun ThemeAppearanceCard() {
+  val currentMode by ThemeManager.themeMode.collectAsState()
+
+  FpmCard(modifier = Modifier.fillMaxWidth()) {
+    Column {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        Box(
+          modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(if (FpmTheme.isDark) FpmGold.copy(alpha = 0.2f) else FpmRoyalBlue.copy(alpha = 0.12f)),
+          contentAlignment = Alignment.Center
+        ) {
+          Icon(
+            imageVector = if (FpmTheme.isDark) Icons.Default.DarkMode else Icons.Default.LightMode,
+            contentDescription = null,
+            tint = if (FpmTheme.isDark) FpmGold else FpmRoyalBlue,
+            modifier = Modifier.size(20.dp)
+          )
+        }
+        Column {
+          Text(
+            text = "App Theme & Appearance",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = FpmTheme.textPrimary
+          )
+          Text(
+            text = "Switch between Dark Mode, Light Mode, or Device System",
+            fontSize = 11.sp,
+            color = FpmTheme.textSecondary
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(14.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        ThemeOptionButton(
+          title = "System",
+          icon = Icons.Default.BrightnessAuto,
+          isSelected = currentMode == ThemeMode.SYSTEM,
+          modifier = Modifier.weight(1f),
+          onClick = { ThemeManager.setThemeMode(ThemeMode.SYSTEM) }
+        )
+        ThemeOptionButton(
+          title = "Light",
+          icon = Icons.Default.LightMode,
+          isSelected = currentMode == ThemeMode.LIGHT,
+          modifier = Modifier.weight(1f),
+          onClick = { ThemeManager.setThemeMode(ThemeMode.LIGHT) }
+        )
+        ThemeOptionButton(
+          title = "Dark",
+          icon = Icons.Default.DarkMode,
+          isSelected = currentMode == ThemeMode.DARK,
+          modifier = Modifier.weight(1f),
+          onClick = { ThemeManager.setThemeMode(ThemeMode.DARK) }
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun ThemeOptionButton(
+  title: String,
+  icon: ImageVector,
+  isSelected: Boolean,
+  modifier: Modifier = Modifier,
+  onClick: () -> Unit
+) {
+  val isDark = FpmTheme.isDark
+  val selectedBg = if (isDark) FpmGold else FpmNavyDark
+  val selectedContent = if (isDark) FpmNavyDeep else FpmSurfaceWhite
+  val unselectedBg = FpmTheme.surfaceTonal
+  val unselectedContent = FpmTheme.textSecondary
+
+  Surface(
+    modifier = modifier
+      .clip(RoundedCornerShape(12.dp))
+      .clickable(onClick = onClick),
+    shape = RoundedCornerShape(12.dp),
+    color = if (isSelected) selectedBg else unselectedBg,
+    border = androidx.compose.foundation.BorderStroke(
+      1.dp,
+      if (isSelected) (if (isDark) FpmGold else FpmNavyDark) else FpmTheme.borderLight
+    )
+  ) {
+    Column(
+      modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center
+    ) {
+      Icon(
+        imageVector = icon,
+        contentDescription = title,
+        tint = if (isSelected) selectedContent else unselectedContent,
+        modifier = Modifier.size(20.dp)
+      )
+      Spacer(modifier = Modifier.height(6.dp))
+      Text(
+        text = title,
+        fontSize = 12.sp,
+        fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
+        color = if (isSelected) selectedContent else unselectedContent
+      )
+    }
+  }
+}
+

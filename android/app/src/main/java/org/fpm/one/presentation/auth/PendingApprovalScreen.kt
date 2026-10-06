@@ -26,7 +26,7 @@ fun PendingApprovalScreen(
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .background(FpmSlateBg)
+      .background(FpmTheme.canvasBackground)
       .padding(24.dp),
     contentAlignment = Alignment.Center
   ) {
@@ -42,7 +42,7 @@ fun PendingApprovalScreen(
         Box(
           modifier = Modifier
             .size(72.dp)
-            .background(FpmAmberLight, CircleShape),
+            .background(if (FpmTheme.isDark) FpmAmberContainerDark else FpmAmberLight, CircleShape),
           contentAlignment = Alignment.Center
         ) {
           Icon(
@@ -57,21 +57,21 @@ fun PendingApprovalScreen(
           text = "Pending Approval",
           fontSize = 20.sp,
           fontWeight = FontWeight.Black,
-          color = FpmTextPrimary
+          color = FpmTheme.textPrimary
         )
 
         Text(
           text = "Your registration has been submitted and is awaiting approval.",
           fontSize = 14.sp,
           fontWeight = FontWeight.SemiBold,
-          color = FpmRoyalBlue,
+          color = if (FpmTheme.isDark) FpmGold else FpmRoyalBlue,
           textAlign = TextAlign.Center
         )
 
         Text(
           text = "Faith Preachers Ministries Int'l branch administrators and pastors review each member and worker enlistment to preserve ministry integrity. You will receive full access immediately once approved.",
           fontSize = 12.sp,
-          color = FpmTextSecondary,
+          color = FpmTheme.textSecondary,
           textAlign = TextAlign.Center,
           lineHeight = 18.sp
         )

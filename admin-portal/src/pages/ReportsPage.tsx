@@ -139,6 +139,18 @@ export const ReportsPage: React.FC = () => {
     } else {
       fetchMatrix();
     }
+
+    const handleMutation = (e: any) => {
+      if (e?.detail?.entityType?.includes('report')) {
+        if (activeTab === 'department_reports') {
+          fetchReports();
+        } else {
+          fetchMatrix();
+        }
+      }
+    };
+    window.addEventListener('fpm:data-mutation', handleMutation);
+    return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, [activeTab, selectedBranchId, selectedDeptFilter, selectedStatusFilter, selectedTypeFilter, month]);
 
   // Handle Export CSV
@@ -156,7 +168,7 @@ export const ReportsPage: React.FC = () => {
     }
     setIsSubmitting(true);
     try {
-      await api.createDepartmentReport({
+      const res = await api.createDepartmentReport({
         departmentId: newReport.departmentId || departments[0]?.id,
         title: newReport.title.trim(),
         reportType: newReport.reportType,
@@ -169,6 +181,10 @@ export const ReportsPage: React.FC = () => {
         budgetNotes: newReport.budgetNotes.trim() || undefined
       });
       setIsSubmitModalOpen(false);
+      // Immediately reflect creation in local state
+      if (res?.report) {
+        setReports(prev => [res.report, ...prev]);
+      }
       setNewReport({
         departmentId: departments[0]?.id || '',
         title: '',
@@ -194,14 +210,17 @@ export const ReportsPage: React.FC = () => {
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewingReport) return;
+    const targetId = reviewingReport.id;
     setIsSubmittingReview(true);
     try {
-      await api.reviewDepartmentReport(reviewingReport.id, {
+      const res = await api.reviewDepartmentReport(targetId, {
         status: reviewStatus,
         reviewNotes: reviewNotes.trim() || undefined
       });
       setReviewingReport(null);
       setReviewNotes('');
+      // Immediately reflect review status change in local state
+      setReports(prev => prev.map(r => (r.id === targetId ? { ...r, status: reviewStatus, reviewNotes: reviewNotes.trim(), ...(res?.report || {}) } : r)));
       toast.success('Pastoral review saved successfully');
       await fetchReports();
     } catch (err: any) {
@@ -216,6 +235,8 @@ export const ReportsPage: React.FC = () => {
     if (!confirm(`Are you sure you want to delete report "${title}"?`)) return;
     try {
       await api.deleteDepartmentReport(id);
+      // Immediately reflect deletion in local state
+      setReports(prev => prev.filter(r => r.id !== id));
       toast.success('Report deleted successfully');
       await fetchReports();
     } catch (err: any) {
