@@ -18,6 +18,7 @@ export interface User {
   isAdmin: boolean;
   adminLevel: AdminLevel;
   lastLoginAt?: string;
+  hasChangedDefaultPassword?: boolean;
   createdAt: string;
   updatedAt: string;
 }

