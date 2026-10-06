@@ -3,18 +3,26 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem,
-  DepartmentReport, FinanceTransaction, FinanceOpeningBalance
+  DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment
 } from '../types';
 
 export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
   if (!url) return undefined;
-  if (/https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/i.test(url)) {
-    return url.replace(
-      /https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/gi,
+  const trimmed = url.trim();
+  // Rewrite localhost / LAN / relative uploads paths to Supabase Storage public CDN
+  if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/i.test(trimmed)) {
+    return trimmed.replace(
+      /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5000\/uploads\/(fpm-media\/)?/i,
       'https://ykibiaaohlodgcxpyfdm.supabase.co/storage/v1/object/public/fpm-media/'
     );
   }
-  return url;
+  if (/^\/?uploads\/(fpm-media\/)?/i.test(trimmed)) {
+    return trimmed.replace(
+      /^\/?uploads\/(fpm-media\/)?/i,
+      'https://ykibiaaohlodgcxpyfdm.supabase.co/storage/v1/object/public/fpm-media/'
+    );
+  }
+  return trimmed;
 };
 
 /**
@@ -27,6 +35,27 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       ALTER TABLE services ADD COLUMN IF NOT EXISTS live_stream_url TEXT;
       ALTER TABLE services ADD COLUMN IF NOT EXISTS image_url TEXT;
       ALTER TABLE posts ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN DEFAULT TRUE;
+
+      ALTER TABLE branches ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+      ALTER TABLE branches ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+      CREATE TABLE IF NOT EXISTS sunday_moments (
+        id UUID PRIMARY KEY,
+        branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+        uploaded_by UUID NOT NULL,
+        uploaded_by_name VARCHAR(255),
+        uploaded_by_role VARCHAR(100),
+        media_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        caption TEXT,
+        sunday_date DATE NOT NULL,
+        status VARCHAR(50) DEFAULT 'approved',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_sunday_moments_branch ON sunday_moments(branch_id);
+      CREATE INDEX IF NOT EXISTS idx_sunday_moments_date ON sunday_moments(sunday_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_sunday_moments_created ON sunday_moments(created_at DESC);
 
       CREATE TABLE IF NOT EXISTS finance_transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -89,7 +118,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       mediaRes,
       deptReportsRes,
       financeTxRes,
-      financeBalancesRes
+      financeBalancesRes,
+      sundayMomentsRes
     ] = await Promise.all([
       query('SELECT * FROM branches ORDER BY name ASC'),
       query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC'),
@@ -110,7 +140,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       query('SELECT * FROM media_items ORDER BY created_at DESC'),
       query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] })),
       query('SELECT * FROM finance_transactions ORDER BY transaction_date DESC, created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] }))
+      query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] })),
+      query('SELECT * FROM sunday_moments ORDER BY created_at DESC').catch(() => ({ rows: [] }))
     ]);
 
     if (branchesRes.rows.length > 0) {
@@ -127,7 +158,9 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         email: r.email || undefined,
         branchPastorName: r.branch_pastor_name || undefined,
         branchPastorId: r.branch_pastor_id || undefined,
-        logoUrl: r.logo_url || undefined,
+        logoUrl: sanitizeMediaUrl(r.logo_url) || r.logo_url || undefined,
+        coverImageUrl: sanitizeMediaUrl(r.cover_image_url || r.image_url),
+        imageUrl: sanitizeMediaUrl(r.image_url || r.cover_image_url),
         status: r.status,
         isHeadquarters: !!r.is_headquarters,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
@@ -422,6 +455,13 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
             t.photoUrl = m.publicUrl;
           }
         }
+        if (!m.isArchived && (m.entityType === 'church-asset' || m.entityType === 'branch') && m.branchId) {
+          const b = store.branches.find((br: Branch) => br.id === m.branchId);
+          if (b && (!b.coverImageUrl || b.coverImageUrl === '')) {
+            b.coverImageUrl = m.publicUrl;
+            b.imageUrl = m.publicUrl;
+          }
+        }
       }
     }
 
@@ -509,7 +549,26 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs.`);
+    if (sundayMomentsRes && sundayMomentsRes.rows && sundayMomentsRes.rows.length > 0) {
+      store.sundayMoments = sundayMomentsRes.rows.map((r: any): SundayMoment => ({
+        id: r.id,
+        branchId: r.branch_id,
+        uploadedBy: r.uploaded_by,
+        uploadedByName: r.uploaded_by_name || 'Church Member',
+        uploadedByRole: r.uploaded_by_role || 'Member',
+        mediaUrl: sanitizeMediaUrl(r.media_url) || r.media_url,
+        thumbnailUrl: sanitizeMediaUrl(r.thumbnail_url || r.media_url),
+        caption: r.caption || undefined,
+        sundayDate: r.sunday_date ? new Date(r.sunday_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        status: r.status || 'approved',
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    } else if (!store.sundayMoments) {
+      store.sundayMoments = [];
+    }
+
+    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs, ${store.sundayMoments?.length || 0} moments.`);
     return true;
   } catch (err: any) {
     console.error('[DATABASE] Hydration from Supabase encountered an issue, falling back to local seed state:', err.message);
@@ -679,8 +738,8 @@ export async function persistBranch(branch: Branch): Promise<void> {
     const orgId = isUuid(branch.organizationId) ? branch.organizationId : '00000000-0000-0000-0000-000000000001';
     const pastorId = isUuid(branch.branchPastorId) ? branch.branchPastorId : null;
     await query(`
-      INSERT INTO branches (id, organization_id, name, branch_code, address, city, state, country, phone, email, branch_pastor_name, branch_pastor_id, logo_url, status, is_headquarters, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      INSERT INTO branches (id, organization_id, name, branch_code, address, city, state, country, phone, email, branch_pastor_name, branch_pastor_id, logo_url, cover_image_url, image_url, status, is_headquarters, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         branch_code = EXCLUDED.branch_code,
@@ -693,6 +752,8 @@ export async function persistBranch(branch: Branch): Promise<void> {
         branch_pastor_name = EXCLUDED.branch_pastor_name,
         branch_pastor_id = EXCLUDED.branch_pastor_id,
         logo_url = EXCLUDED.logo_url,
+        cover_image_url = EXCLUDED.cover_image_url,
+        image_url = EXCLUDED.image_url,
         status = EXCLUDED.status,
         is_headquarters = EXCLUDED.is_headquarters,
         updated_at = EXCLUDED.updated_at
@@ -700,7 +761,8 @@ export async function persistBranch(branch: Branch): Promise<void> {
       branch.id, orgId, branch.name, branch.branchCode,
       branch.address, branch.city, branch.state || null, branch.country,
       branch.phone || null, branch.email || null, branch.branchPastorName || null,
-      pastorId, branch.logoUrl || null, branch.status,
+      pastorId, branch.logoUrl || null, branch.coverImageUrl || branch.imageUrl || null,
+      branch.imageUrl || branch.coverImageUrl || null, branch.status,
       branch.isHeadquarters, branch.createdAt, branch.updatedAt
     ]);
   } catch (err: any) {
@@ -1138,6 +1200,45 @@ export async function persistFinanceOpeningBalance(ob: FinanceOpeningBalance): P
   }
 }
 
+export async function persistSundayMoment(moment: SundayMoment): Promise<void> {
+  if (!isUuid(moment.id)) return;
+  const branchId = isUuid(moment.branchId) ? moment.branchId : 'b1111111-1111-1111-1111-111111111111';
+  const uploadedBy = isUuid(moment.uploadedBy) ? moment.uploadedBy : 'c1111111-1111-1111-1111-111111111111';
+  try {
+    await query(`
+      INSERT INTO sunday_moments (
+        id, branch_id, uploaded_by, uploaded_by_name, uploaded_by_role,
+        media_url, thumbnail_url, caption, sunday_date, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (id) DO UPDATE SET
+        branch_id = EXCLUDED.branch_id,
+        media_url = EXCLUDED.media_url,
+        thumbnail_url = EXCLUDED.thumbnail_url,
+        caption = EXCLUDED.caption,
+        sunday_date = EXCLUDED.sunday_date,
+        status = EXCLUDED.status,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      moment.id, branchId, uploadedBy,
+      moment.uploadedByName || 'Church Member',
+      moment.uploadedByRole || 'Member',
+      sanitizeMediaUrl(moment.mediaUrl) || moment.mediaUrl,
+      sanitizeMediaUrl(moment.thumbnailUrl || moment.mediaUrl),
+      moment.caption || null,
+      moment.sundayDate,
+      moment.status || 'approved',
+      moment.createdAt,
+      moment.updatedAt || moment.createdAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: sunday_moments] ${err.message}`);
+  }
+}
+
+export async function deleteSundayMomentFromDb(momentId: string): Promise<void> {
+  return persistDelete('sunday_moments', momentId);
+}
+
 export async function persistDelete(table: string, id: string): Promise<void> {
   if (!isUuid(id)) return;
   try {
@@ -1147,7 +1248,7 @@ export async function persistDelete(table: string, id: string): Promise<void> {
       'users', 'members', 'workers', 'services', 'attendance_records',
       'events', 'posts', 'comments', 'reactions', 'service_highlights',
       'testimonies', 'notifications', 'media_items', 'department_reports',
-      'finance_transactions', 'finance_opening_balances'
+      'finance_transactions', 'finance_opening_balances', 'sunday_moments'
     ];
     if (!safeTables.includes(table)) {
       throw new Error(`Invalid table name for persistDelete: ${table}`);

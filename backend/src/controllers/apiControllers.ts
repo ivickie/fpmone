@@ -17,7 +17,8 @@ import {
   persistService, persistDepartmentReport, persistDelete, persistDepartment,
   persistWorker, persistBranch, persistDepartmentPosition, persistRole,
   persistMember, persistUser, persistEvent, persistPost,
-  persistServiceHighlight, persistTestimony, persistNotification
+  persistServiceHighlight, persistTestimony, persistNotification,
+  persistSundayMoment, deleteSundayMomentFromDb, sanitizeMediaUrl
 } from '../db/sync';
 
 // =============================================================================
@@ -181,7 +182,13 @@ export const deleteAccountRequestHandler = async (req: Request, res: Response) =
 // BRANCHES CONTROLLER
 // =============================================================================
 export const getBranchesHandler = (req: Request, res: Response) => {
-  return res.json(db.branches);
+  const branches = (db.branches || []).map(b => ({
+    ...b,
+    logoUrl: sanitizeMediaUrl(b.logoUrl) || b.logoUrl,
+    coverImageUrl: sanitizeMediaUrl(b.coverImageUrl || b.imageUrl),
+    imageUrl: sanitizeMediaUrl(b.imageUrl || b.coverImageUrl)
+  }));
+  return res.json(branches);
 };
 
 export const createBranchHandler = async (req: Request, res: Response) => {
@@ -193,6 +200,8 @@ export const createBranchHandler = async (req: Request, res: Response) => {
     if (!name || !branchCode || !address || !city) {
       return res.status(400).json({ success: false, error: 'Name, branch code, address, and city are required.' });
     }
+    const sanitizedCover = sanitizeMediaUrl(coverImageUrl || imageUrl);
+    const sanitizedLogo = sanitizeMediaUrl(logoUrl) || logoUrl;
     const newBranch: Branch = {
       id: uuidv4(),
       organizationId: 'org-fpm-global',
@@ -205,9 +214,9 @@ export const createBranchHandler = async (req: Request, res: Response) => {
       phone,
       email,
       branchPastorName,
-      logoUrl,
-      coverImageUrl: coverImageUrl || imageUrl,
-      imageUrl: imageUrl || coverImageUrl,
+      logoUrl: sanitizedLogo,
+      coverImageUrl: sanitizedCover,
+      imageUrl: sanitizedCover,
       status: 'active',
       isHeadquarters: false,
       createdAt: new Date().toISOString(),
@@ -252,9 +261,12 @@ export const updateBranchHandler = async (req: Request, res: Response) => {
   if (email !== undefined) branch.email = String(email).trim().toLowerCase();
   if (branchPastorName !== undefined || pastorName !== undefined) branch.branchPastorName = String(branchPastorName || pastorName).trim();
   if (branchPastorId !== undefined) branch.branchPastorId = String(branchPastorId).trim();
-  if (logoUrl !== undefined) branch.logoUrl = logoUrl;
-  if (coverImageUrl !== undefined) branch.coverImageUrl = coverImageUrl;
-  if (imageUrl !== undefined) branch.imageUrl = imageUrl;
+  if (logoUrl !== undefined) branch.logoUrl = sanitizeMediaUrl(logoUrl) || logoUrl;
+  if (coverImageUrl !== undefined || imageUrl !== undefined) {
+    const newCover = sanitizeMediaUrl(coverImageUrl ?? imageUrl);
+    branch.coverImageUrl = newCover;
+    branch.imageUrl = newCover;
+  }
   if (status !== undefined) branch.status = status;
 
   // Only Super Admin can change headquarters status
@@ -3311,7 +3323,13 @@ export const getSundayMomentsHandler = (req: Request, res: Response) => {
     // Sort by createdAt descending
     moments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    return res.json(moments);
+    const sanitized = moments.map(m => ({
+      ...m,
+      mediaUrl: sanitizeMediaUrl(m.mediaUrl) || m.mediaUrl,
+      thumbnailUrl: sanitizeMediaUrl(m.thumbnailUrl || m.mediaUrl) || m.thumbnailUrl || m.mediaUrl
+    }));
+
+    return res.json(sanitized);
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -3349,24 +3367,30 @@ export const createSundayMomentHandler = async (req: Request, res: Response) => 
       calculatedSunday = recentSunday.toISOString().split('T')[0];
     }
 
+    const sanitizedMedia = sanitizeMediaUrl(mediaUrl) || mediaUrl;
+    const sanitizedThumb = sanitizeMediaUrl(thumbnailUrl || mediaUrl) || sanitizedMedia;
+
     const newMoment: SundayMoment = {
       id: uuidv4(),
       branchId,
       uploadedBy: user.userId,
       uploadedByName: user.fullName || 'Church Member',
       uploadedByRole: user.roleName || 'Member',
-      mediaUrl,
-      thumbnailUrl: thumbnailUrl || mediaUrl,
+      mediaUrl: sanitizedMedia,
+      thumbnailUrl: sanitizedThumb,
       caption: caption ? String(caption).trim() : undefined,
       sundayDate: calculatedSunday,
       status: 'approved',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     if (!db.sundayMoments) {
       db.sundayMoments = [];
     }
     db.sundayMoments.unshift(newMoment);
+
+    await persistSundayMoment(newMoment).catch(err => console.warn('[PERSIST SUNDAY MOMENT ERROR]', err.message));
 
     AuditService.log(
       user.fullName,
@@ -3409,6 +3433,7 @@ export const deleteSundayMomentHandler = async (req: Request, res: Response) => 
     }
 
     db.sundayMoments.splice(momentIndex, 1);
+    await deleteSundayMomentFromDb(id).catch(err => console.warn('[DELETE SUNDAY MOMENT ERROR]', err.message));
 
     AuditService.log(
       user.fullName,

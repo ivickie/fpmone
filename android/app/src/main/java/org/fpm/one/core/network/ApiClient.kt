@@ -185,12 +185,60 @@ object ApiClient {
 
   fun resolveMediaUrl(url: String?): String? {
     if (url.isNullOrBlank()) return null
-    val serverBase = baseUrl.removeSuffix("/api")
-    if (url.contains("/uploads/")) {
-      val uploadsIndex = url.indexOf("/uploads/")
-      return "$serverBase${url.substring(uploadsIndex)}"
+    val trimmed = url.trim()
+
+    val supabaseStorageBase = "https://ykibiaaohlodgcxpyfdm.supabase.co/storage/v1/object/public/fpm-media"
+
+    // 1. If it's already a full Supabase storage or external HTTPS URL, return as-is
+    if (trimmed.startsWith("https://") && !trimmed.contains("localhost") && !trimmed.contains("127.0.0.1")) {
+      return trimmed
     }
-    return url
+
+    // 2. If it contains /uploads/fpm-media/ or starts with uploads/fpm-media/
+    val fpmMediaIndex = trimmed.indexOf("/uploads/fpm-media/")
+    if (fpmMediaIndex != -1) {
+      val filename = trimmed.substring(fpmMediaIndex + "/uploads/fpm-media/".length)
+      return "$supabaseStorageBase/$filename"
+    }
+    if (trimmed.startsWith("uploads/fpm-media/")) {
+      val filename = trimmed.removePrefix("uploads/fpm-media/")
+      return "$supabaseStorageBase/$filename"
+    }
+
+    // 3. If it contains /uploads/ or starts with uploads/
+    val uploadsIndex = trimmed.indexOf("/uploads/")
+    if (uploadsIndex != -1) {
+      val filename = trimmed.substring(uploadsIndex + "/uploads/".length)
+      val cleanFile = if (filename.startsWith("fpm-media/")) filename.removePrefix("fpm-media/") else filename
+      return "$supabaseStorageBase/$cleanFile"
+    }
+    if (trimmed.startsWith("uploads/")) {
+      val filename = trimmed.removePrefix("uploads/")
+      val cleanFile = if (filename.startsWith("fpm-media/")) filename.removePrefix("fpm-media/") else filename
+      return "$supabaseStorageBase/$cleanFile"
+    }
+
+    // 4. If it's an HTTP URL pointing to local server for media upload path, rewrite to Supabase CDN
+    if (trimmed.contains(":5000/") && (trimmed.contains("localhost") || trimmed.contains("10.0.2.2") || trimmed.contains("127.0.0.1"))) {
+      val pathAfterPort = trimmed.substringAfter(":5000/")
+      if (pathAfterPort.startsWith("uploads/")) {
+        val rel = pathAfterPort.removePrefix("uploads/").removePrefix("fpm-media/")
+        return "$supabaseStorageBase/$rel"
+      }
+    }
+
+    // 5. If relative path starting with '/', resolve against server base
+    if (trimmed.startsWith("/")) {
+      val serverBase = baseUrl.removeSuffix("/api")
+      return "$serverBase$trimmed"
+    }
+
+    // 6. Upgrade insecure http:// to https:// if external
+    if (trimmed.startsWith("http://") && !trimmed.contains("10.0.2.2") && !trimmed.contains("localhost") && !trimmed.contains("127.0.0.1")) {
+      return trimmed.replaceFirst("http://", "https://")
+    }
+
+    return trimmed
   }
 
   suspend fun updateProfilePicture(
