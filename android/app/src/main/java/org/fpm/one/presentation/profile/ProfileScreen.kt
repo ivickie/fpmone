@@ -171,7 +171,7 @@ fun ProfileScreen(
             letterSpacing = 0.5.sp
           )
           Text(
-            text = "Jeremiah 1:8 • FPM Global Platform v1.0.0",
+            text = "Jeremiah 1:8 • FPM Global Platform v${org.fpm.one.BuildConfig.VERSION_NAME}",
             fontSize = 10.sp,
             color = FpmTextMuted
           )
@@ -267,7 +267,7 @@ fun ProfileScreen(
             style = MaterialTheme.typography.bodyMedium
           )
           Text(
-            "Version 1.0.0 (Release)\nWeb: https://www.fpmglobal.online",
+            "Version ${org.fpm.one.BuildConfig.VERSION_NAME} (Release)\nWeb: https://www.fpmglobal.online",
             style = MaterialTheme.typography.bodySmall,
             color = FpmTextMuted
           )
