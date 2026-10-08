@@ -18,11 +18,14 @@ export const ApprovalsPage: React.FC = () => {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const fetchSeqRef = React.useRef(0);
 
   const fetchApprovals = async () => {
+    const seq = ++fetchSeqRef.current;
     setLoading(true);
     try {
       const data = await api.getApprovals(selectedBranchId);
+      if (seq !== fetchSeqRef.current) return;
       setApprovals(data || []);
       if (data && data.length > 0) {
         setSelectedApplicant(data[0]);
@@ -30,9 +33,12 @@ export const ApprovalsPage: React.FC = () => {
         setSelectedApplicant(null);
       }
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       console.error('Failed to fetch approvals:', err);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 

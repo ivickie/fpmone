@@ -121,7 +121,7 @@ async function runTests() {
     assert(newlyRegisteredUser?.accountStatus === 'pending', 'Newly registered account is pending approval');
 
     // TEST 5: Approvals Queue
-    const pendingList = MemberService.getPendingApprovals();
+    const pendingList = await MemberService.getPendingApprovals();
     assert(pendingList.some(p => p.userId === regResult.userId), 'New applicant appears in pending approvals queue');
 
     // TEST 6: Admin Approval & Worker Code Generation

@@ -95,7 +95,9 @@ export const MembersPage: React.FC = () => {
     workerStatus: 'active'
   });
 
+  const fetchSeqRef = React.useRef(0);
   const fetchData = async () => {
+    const seq = ++fetchSeqRef.current;
     setLoading(true);
     try {
       const activeBranch = branchFilter || undefined;
@@ -117,15 +119,19 @@ export const MembersPage: React.FC = () => {
         api.getRoles(),
         api.getDepartments(activeBranch)
       ]);
+      if (seq !== fetchSeqRef.current) return;
       setMembers(mems || []);
       setWorkers(wrks || []);
       setBranches(brs || []);
       setRoles(rols || []);
       setDepartments(depts || []);
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       console.error('Failed to load members or workers:', err);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 

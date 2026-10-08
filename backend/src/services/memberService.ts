@@ -3,13 +3,65 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, IDS } from '../data/mockDb';
 import { Member, User, Worker, AccountStatus, NotificationItem } from '../types';
 import { AuditService } from './auditService';
-import { persistUser, persistMember, persistWorker, persistNotification, persistDepartment } from '../db/sync';
+import { persistUser, persistMember, persistWorker, persistNotification, persistDepartment, sanitizeMediaUrl } from '../db/sync';
+import { query } from '../db/index';
 
 export class MemberService {
   /**
    * Fetch All Pending Member Approvals
    */
-  public static getPendingApprovals(branchId?: string) {
+  public static async getPendingApprovals(branchId?: string) {
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      try {
+        let sql = `
+          SELECT 
+            u.id as user_id, u.email, u.phone, u.created_at, u.account_status, u.request_changes_notes,
+            m.id as member_id, m.first_name, m.middle_name, m.last_name, m.gender, m.date_of_birth,
+            m.residential_address, m.profile_picture_url, m.emergency_contact_name, m.emergency_contact_phone,
+            m.is_worker, m.primary_branch_id as branch_id, b.name as branch_name,
+            m.primary_role_id as role_id, r.name as role_name
+          FROM users u
+          LEFT JOIN members m ON m.user_id = u.id
+          LEFT JOIN branches b ON b.id = m.primary_branch_id
+          LEFT JOIN ministry_roles r ON r.id = m.primary_role_id
+          WHERE u.account_status = 'pending'
+        `;
+        const params: any[] = [];
+        if (branchId) {
+          sql += ` AND (m.primary_branch_id = $1 OR m.primary_branch_id IS NULL)`;
+          params.push(branchId);
+        }
+        sql += ` ORDER BY u.created_at DESC`;
+        const res = await query(sql, params);
+        return res.rows.map((r: any) => ({
+          userId: r.user_id,
+          email: r.email,
+          phone: r.phone,
+          registrationDate: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          accountStatus: r.account_status,
+          requestChangesNotes: r.request_changes_notes,
+          memberId: r.member_id,
+          firstName: r.first_name || '',
+          middleName: r.middle_name || '',
+          lastName: r.last_name || '',
+          fullName: (r.first_name || r.last_name) ? `${r.first_name || ''} ${r.last_name || ''}`.trim() : 'Unknown',
+          gender: r.gender,
+          dateOfBirth: r.date_of_birth,
+          residentialAddress: r.residential_address,
+          profilePictureUrl: sanitizeMediaUrl(r.profile_picture_url) || r.profile_picture_url,
+          emergencyContactName: r.emergency_contact_name,
+          emergencyContactPhone: r.emergency_contact_phone,
+          isWorker: !!r.is_worker,
+          branchId: r.branch_id,
+          branchName: r.branch_name || 'HQ',
+          roleId: r.role_id,
+          roleName: r.role_name || 'Member'
+        }));
+      } catch (err: any) {
+        console.warn('[MEMBER SERVICE] Direct Postgres query for pending approvals failed, falling back to cache:', err.message);
+      }
+    }
+
     const pendingUsers = db.users.filter(u => u.accountStatus === 'pending');
     return pendingUsers.map(u => {
       let member = db.members.find(m => m.userId === u.id);

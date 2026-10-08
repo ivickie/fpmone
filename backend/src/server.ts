@@ -9,7 +9,7 @@ import { AttendanceService } from './services/attendanceService';
 import { DiscoveryService } from './services/discoveryService';
 import { StorageService } from './services/storageService';
 import { db } from './data/mockDb';
-import { checkConnection } from './db';
+import { checkConnection, query } from './db';
 import { generalApiRateLimiter } from './middleware/rateLimitMiddleware';
 
 dotenv.config();
@@ -282,14 +282,31 @@ if (!process.env.VERCEL && require.main === module) {
 let dbHydrationPromise: Promise<boolean> | null = null;
 let lastHydratedAt = 0;
 
-export const ensureDbHydrated = (force: boolean = false): Promise<boolean> => {
+export const ensureDbHydrated = async (force: boolean = false): Promise<boolean> => {
   if (process.env.HYDRATE_DB === 'false' || !process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') {
-    return Promise.resolve(false);
+    return false;
   }
 
   const now = Date.now();
-  // If already hydrated within the last 60 seconds, return existing promise
-  if (dbHydrationPromise && !force && (now - lastHydratedAt < 60_000)) {
+  let needsRefresh = force;
+
+  // Cross-instance mutation detection: check PostgreSQL for any recent mutations across all Vercel instances
+  if (!needsRefresh && lastHydratedAt > 0) {
+    try {
+      const res = await query('SELECT mutated_at FROM system_mutations WHERE id = 1');
+      if (res && res.rows && res.rows[0]?.mutated_at) {
+        const mutatedTime = new Date(res.rows[0].mutated_at).getTime();
+        if (mutatedTime > lastHydratedAt) {
+          needsRefresh = true;
+        }
+      }
+    } catch {
+      // In case table is still migrating or transient check failure, continue
+    }
+  }
+
+  // If no mutation has occurred and we hydrated within the last 10 seconds, reuse existing state
+  if (!needsRefresh && dbHydrationPromise && (now - lastHydratedAt < 10_000)) {
     return dbHydrationPromise;
   }
 

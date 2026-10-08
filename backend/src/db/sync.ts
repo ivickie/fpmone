@@ -25,78 +25,115 @@ export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
   return trimmed;
 };
 
+let schemaMigrationsDone = false;
+let schemaMigrationsPromise: Promise<void> | null = null;
+
+export async function runSchemaMigrationsOnce(): Promise<void> {
+  if (schemaMigrationsDone) return;
+  if (schemaMigrationsPromise) return schemaMigrationsPromise;
+
+  schemaMigrationsPromise = (async () => {
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS system_mutations (
+          id INT PRIMARY KEY,
+          mutated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          entity_type TEXT
+        );
+
+        ALTER TABLE services ADD COLUMN IF NOT EXISTS live_stream_url TEXT;
+        ALTER TABLE services ADD COLUMN IF NOT EXISTS image_url TEXT;
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN DEFAULT TRUE;
+
+        ALTER TABLE branches ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+        ALTER TABLE branches ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+        CREATE TABLE IF NOT EXISTS sunday_moments (
+          id UUID PRIMARY KEY,
+          branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          uploaded_by UUID NOT NULL,
+          uploaded_by_name VARCHAR(255),
+          uploaded_by_role VARCHAR(100),
+          media_url TEXT NOT NULL,
+          thumbnail_url TEXT,
+          caption TEXT,
+          sunday_date DATE NOT NULL,
+          status VARCHAR(50) DEFAULT 'approved',
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_sunday_moments_branch ON sunday_moments(branch_id);
+        CREATE INDEX IF NOT EXISTS idx_sunday_moments_date ON sunday_moments(sunday_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_sunday_moments_created ON sunday_moments(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS finance_transactions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('income', 'expense')),
+          category VARCHAR(100) NOT NULL,
+          amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+          transaction_date DATE NOT NULL,
+          description TEXT NOT NULL,
+          reference_number VARCHAR(100),
+          payment_method VARCHAR(50) NOT NULL DEFAULT 'Bank Transfer',
+          status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'voided')),
+          void_reason TEXT,
+          created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_by_name VARCHAR(255) NOT NULL,
+          updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+          updated_by_name VARCHAR(255),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_finance_tx_branch ON finance_transactions(branch_id);
+        CREATE INDEX IF NOT EXISTS idx_finance_tx_date ON finance_transactions(transaction_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_finance_tx_type ON finance_transactions(transaction_type);
+        CREATE INDEX IF NOT EXISTS idx_finance_tx_status ON finance_transactions(status);
+
+        CREATE TABLE IF NOT EXISTS finance_opening_balances (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          year INT NOT NULL,
+          month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
+          amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
+          is_initial BOOLEAN NOT NULL DEFAULT FALSE,
+          notes TEXT,
+          established_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          established_by_name VARCHAR(255) NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT uq_branch_year_month UNIQUE(branch_id, year, month)
+        );
+        CREATE INDEX IF NOT EXISTS idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
+      `);
+      schemaMigrationsDone = true;
+    } catch (err: any) {
+      console.warn('[DB SCHEMA MIGRATION]', err.message);
+    }
+  })();
+  return schemaMigrationsPromise;
+}
+
+export async function recordSystemMutation(entityType: string = 'general'): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO system_mutations (id, mutated_at, entity_type)
+      VALUES (1, NOW(), $1)
+      ON CONFLICT (id) DO UPDATE SET mutated_at = NOW(), entity_type = EXCLUDED.entity_type
+    `, [entityType]);
+  } catch (err: any) {
+    // Non-blocking mutation notification
+  }
+}
+
 /**
  * Hydrates in-memory DatabaseStore with live records from Supabase PostgreSQL.
  */
 export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
   try {
-    // Non-destructive schema migrations for newly introduced fields
-    await query(`
-      ALTER TABLE services ADD COLUMN IF NOT EXISTS live_stream_url TEXT;
-      ALTER TABLE services ADD COLUMN IF NOT EXISTS image_url TEXT;
-      ALTER TABLE posts ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN DEFAULT TRUE;
-
-      ALTER TABLE branches ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
-      ALTER TABLE branches ADD COLUMN IF NOT EXISTS image_url TEXT;
-
-      CREATE TABLE IF NOT EXISTS sunday_moments (
-        id UUID PRIMARY KEY,
-        branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-        uploaded_by UUID NOT NULL,
-        uploaded_by_name VARCHAR(255),
-        uploaded_by_role VARCHAR(100),
-        media_url TEXT NOT NULL,
-        thumbnail_url TEXT,
-        caption TEXT,
-        sunday_date DATE NOT NULL,
-        status VARCHAR(50) DEFAULT 'approved',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_sunday_moments_branch ON sunday_moments(branch_id);
-      CREATE INDEX IF NOT EXISTS idx_sunday_moments_date ON sunday_moments(sunday_date DESC);
-      CREATE INDEX IF NOT EXISTS idx_sunday_moments_created ON sunday_moments(created_at DESC);
-
-      CREATE TABLE IF NOT EXISTS finance_transactions (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-        transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('income', 'expense')),
-        category VARCHAR(100) NOT NULL,
-        amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
-        transaction_date DATE NOT NULL,
-        description TEXT NOT NULL,
-        reference_number VARCHAR(100),
-        payment_method VARCHAR(50) NOT NULL DEFAULT 'Bank Transfer',
-        status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'voided')),
-        void_reason TEXT,
-        created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        created_by_name VARCHAR(255) NOT NULL,
-        updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-        updated_by_name VARCHAR(255),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_finance_tx_branch ON finance_transactions(branch_id);
-      CREATE INDEX IF NOT EXISTS idx_finance_tx_date ON finance_transactions(transaction_date DESC);
-      CREATE INDEX IF NOT EXISTS idx_finance_tx_type ON finance_transactions(transaction_type);
-      CREATE INDEX IF NOT EXISTS idx_finance_tx_status ON finance_transactions(status);
-
-      CREATE TABLE IF NOT EXISTS finance_opening_balances (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-        year INT NOT NULL,
-        month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
-        amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
-        is_initial BOOLEAN NOT NULL DEFAULT FALSE,
-        notes TEXT,
-        established_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        established_by_name VARCHAR(255) NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        CONSTRAINT uq_branch_year_month UNIQUE(branch_id, year, month)
-      );
-      CREATE INDEX IF NOT EXISTS idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
-    `).catch((err: any) => console.warn('[DB SCHEMA MIGRATION]', err.message));
+    // Run one-time non-destructive schema migrations
+    await runSchemaMigrationsOnce();
 
     const [
       branchesRes,
@@ -630,6 +667,7 @@ export async function persistUser(user: User): Promise<void> {
         user.createdAt, user.updatedAt
       ]);
     }
+    await recordSystemMutation('users');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: users] ${err.message}`);
     throw err;
@@ -700,6 +738,7 @@ export async function persistMember(member: Member): Promise<void> {
         member.createdAt, member.updatedAt
       ]);
     }
+    await recordSystemMutation('members');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: members] ${err.message}`);
     throw err;
@@ -727,6 +766,7 @@ export async function persistWorker(worker: Worker): Promise<void> {
       worker.dateStartedServing, worker.workerStatus, worker.qrCodeToken,
       worker.biometricEnabled, worker.createdAt, worker.updatedAt
     ]);
+    await recordSystemMutation('workers');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: workers] ${err.message}`);
   }
@@ -765,6 +805,7 @@ export async function persistBranch(branch: Branch): Promise<void> {
       branch.imageUrl || branch.coverImageUrl || null, branch.status,
       branch.isHeadquarters, branch.createdAt, branch.updatedAt
     ]);
+    await recordSystemMutation('branches');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: branches] ${err.message}`);
   }
@@ -792,6 +833,7 @@ export async function persistDepartment(dept: Department): Promise<void> {
       dept.description || null, dept.hodName || null, hodId,
       dept.status, dept.createdAt, dept.updatedAt
     ]);
+    await recordSystemMutation('departments');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: departments] ${err.message}`);
   }
@@ -807,6 +849,7 @@ export async function persistDepartmentPosition(pos: DepartmentPosition): Promis
         name = EXCLUDED.name,
         description = EXCLUDED.description
     `, [pos.id, pos.departmentId, pos.name, pos.description || null, pos.createdAt]);
+    await recordSystemMutation('department_positions');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: department_positions] ${err.message}`);
   }
@@ -831,6 +874,7 @@ export async function persistRole(role: MinistryRole): Promise<void> {
       role.hierarchyLevel, JSON.stringify(role.permissions || []),
       role.isSystemRole, role.isActive, role.createdAt, role.updatedAt
     ]);
+    await recordSystemMutation('ministry_roles');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: ministry_roles] ${err.message}`);
   }
@@ -860,6 +904,7 @@ export async function persistService(service: ServiceSchedule): Promise<void> {
       service.earliestClockInMinutes, service.attendanceDurationHours,
       service.liveStreamUrl || null, service.imageUrl || null, service.status, service.createdAt, service.updatedAt
     ]);
+    await recordSystemMutation('services');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: services] ${err.message}`);
   }
@@ -892,6 +937,7 @@ export async function persistAttendanceRecord(record: AttendanceRecord): Promise
       record.excuseReason || null, record.excusedBy || null, record.excusedAt || null,
       record.notes || null, record.createdAt, record.updatedAt
     ]);
+    await recordSystemMutation('attendance_records');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: attendance_records] ${err.message}`);
   }
@@ -928,6 +974,7 @@ export async function persistEvent(event: EventItem): Promise<void> {
       event.currentRegistrationsCount, event.targetScope, event.status,
       event.createdAt, event.updatedAt
     ]);
+    await recordSystemMutation('events');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: events] ${err.message}`);
   }
@@ -964,6 +1011,7 @@ export async function persistPost(post: PostItem): Promise<void> {
       post.isPinned, post.likesCount, post.commentsCount,
       allowComments, mediaUrls, post.createdAt, post.updatedAt
     ]);
+    await recordSystemMutation('posts');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: posts] ${err.message}`);
   }
@@ -998,6 +1046,7 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
       JSON.stringify(highlight.photos || []), highlight.videoUrl || null,
       highlight.isPublished, highlight.createdAt, highlight.updatedAt
     ]);
+    await recordSystemMutation('service_highlights');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: service_highlights] ${err.message}`);
   }
@@ -1035,6 +1084,7 @@ export async function persistTestimony(testimony: TestimonyItem): Promise<void> 
       reviewedBy, testimony.reviewedAt || null,
       testimony.isFeaturedOnFeed, testimony.createdAt, testimony.updatedAt
     ]);
+    await recordSystemMutation('testimonies');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: testimonies] ${err.message}`);
   }
@@ -1061,6 +1111,7 @@ export async function persistNotification(notif: NotificationItem): Promise<void
       targetScope, targetId, notif.actionUrl || null,
       notif.createdAt
     ]);
+    await recordSystemMutation('notifications');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: notifications] ${err.message}`);
   }
@@ -1081,6 +1132,7 @@ export async function persistMediaItem(media: MediaItem): Promise<void> {
       media.mimeType, media.fileSize, media.isArchived,
       media.createdAt, media.updatedAt
     ]);
+    await recordSystemMutation('media_items');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: media_items] ${err.message}`);
   }
@@ -1100,6 +1152,7 @@ export async function persistAuditLog(log: AuditLogItem): Promise<void> {
       log.newState ? JSON.stringify(log.newState) : null,
       log.ipAddress || null, log.userAgent || null, log.createdAt
     ]);
+    await recordSystemMutation('audit_logs');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: audit_logs] ${err.message}`);
   }
@@ -1139,6 +1192,7 @@ export async function persistDepartmentReport(report: DepartmentReport): Promise
       report.reviewedBy || null, report.reviewedAt || null,
       report.reviewNotes || null, report.createdAt, report.updatedAt
     ]);
+    await recordSystemMutation('department_reports');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: department_reports] ${err.message}`);
   }
@@ -1171,6 +1225,7 @@ export async function persistFinanceTransaction(tx: FinanceTransaction): Promise
       tx.description, tx.referenceNumber || null, tx.paymentMethod, tx.status, tx.voidReason || null,
       tx.createdBy, tx.createdByName, updatedBy, tx.updatedByName || null, tx.createdAt, tx.updatedAt
     ]);
+    await recordSystemMutation('finance_transactions');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: finance_transactions] ${err.message}`);
   }
@@ -1195,6 +1250,7 @@ export async function persistFinanceOpeningBalance(ob: FinanceOpeningBalance): P
       ob.id, ob.branchId, ob.year, ob.month, ob.amount, ob.isInitial, ob.notes || null,
       ob.establishedBy, ob.establishedByName, ob.createdAt, ob.updatedAt
     ]);
+    await recordSystemMutation('finance_opening_balances');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: finance_opening_balances] ${err.message}`);
   }
@@ -1230,6 +1286,7 @@ export async function persistSundayMoment(moment: SundayMoment): Promise<void> {
       moment.createdAt,
       moment.updatedAt || moment.createdAt
     ]);
+    await recordSystemMutation('sunday_moments');
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: sunday_moments] ${err.message}`);
   }
@@ -1254,6 +1311,7 @@ export async function persistDelete(table: string, id: string): Promise<void> {
       throw new Error(`Invalid table name for persistDelete: ${table}`);
     }
     await query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+    await recordSystemMutation(table);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST DELETE ERROR: ${table}] ${err.message}`);
   }

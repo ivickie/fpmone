@@ -1168,9 +1168,9 @@ export const deleteRoleHandler = async (req: Request, res: Response) => {
 // =============================================================================
 // APPROVALS & MEMBERS CONTROLLER
 // =============================================================================
-export const getPendingApprovalsHandler = (req: Request, res: Response) => {
+export const getPendingApprovalsHandler = async (req: Request, res: Response) => {
   const branchId = req.user?.adminLevel === 'super_admin' ? (req.query.branchId as string) : req.user?.branchId;
-  const approvals = MemberService.getPendingApprovals(branchId);
+  const approvals = await MemberService.getPendingApprovals(branchId);
   return res.json(approvals);
 };
 
