@@ -1760,7 +1760,7 @@ export class DatabaseStore {
 
   public testimonies: TestimonyItem[] = [
     {
-      id: 't-1',
+      id: 'de6300dc-a8b7-4e5d-a4c6-09e466d7373b',
       memberId: IDS.MEMBER_GRACE,
       authorName: 'Grace Oluwaseun Bello',
       branchId: IDS.BRANCH_HQ,
@@ -1778,7 +1778,7 @@ export class DatabaseStore {
       updatedAt: '2026-09-07T10:00:00Z'
     },
     {
-      id: 't-2',
+      id: 'b5393d0e-16f9-4bd7-8c2a-6aaab37402ef',
       memberId: IDS.MEMBER_SARAH,
       authorName: 'Sarah Blessing Williams',
       branchId: IDS.BRANCH_HQ,
@@ -1794,21 +1794,6 @@ export class DatabaseStore {
       isFeaturedOnFeed: true,
       createdAt: '2026-09-07T09:00:00Z',
       updatedAt: '2026-09-07T11:00:00Z'
-    },
-    {
-      id: 't-3',
-      memberId: IDS.MEMBER_PENDING,
-      authorName: 'Daniel Emeka Nwosu',
-      branchId: IDS.BRANCH_HQ,
-      branchName: 'Cathedral of Grace (HQ)',
-      title: 'Safe Delivery of Twins Against Medical Odds',
-      content: "Specialists had warned of extreme complications during labor, but through the continuous prayer intercession of Faith Preachers Ministries Int'l, my wife delivered both twins safely with zero surgery!",
-      category: 'Childbirth',
-      allowPublish: true,
-      status: 'pending_review',
-      isFeaturedOnFeed: false,
-      createdAt: '2026-09-08T15:30:00Z',
-      updatedAt: '2026-09-08T15:30:00Z'
     }
   ];
 

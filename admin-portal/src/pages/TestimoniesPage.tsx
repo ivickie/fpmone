@@ -15,24 +15,31 @@ export const TestimoniesPage: React.FC = () => {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [selectedTestimony, setSelectedTestimony] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const fetchSeqRef = React.useRef(0);
 
-  const fetchTestimonies = async () => {
-    setLoading(true);
+  const fetchTestimonies = async (showLoading = false) => {
+    const seq = ++fetchSeqRef.current;
+    if (showLoading) setLoading(true);
     try {
       const data = await api.getTestimoniesQueue();
-      setTestimonies(data || []);
+      if (seq === fetchSeqRef.current) {
+        setTestimonies(data || []);
+      }
     } catch (err) {
       console.error('Failed to load testimonies:', err);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current && showLoading) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchTestimonies();
+    fetchTestimonies(true);
     const handleMutation = (e: any) => {
-      if (e?.detail?.entityType?.includes('testimon')) {
-        fetchTestimonies();
+      const detail = e?.detail;
+      if (!detail || detail.entityType?.includes('testimon') || detail.endpoint?.includes('testimon')) {
+        fetchTestimonies(false);
       }
     };
     window.addEventListener('fpm:data-mutation', handleMutation);
@@ -42,13 +49,14 @@ export const TestimoniesPage: React.FC = () => {
   const handleReview = async (id: string, status: string, isFeaturedOnFeed = false) => {
     setActionLoading(true);
     try {
-      await api.reviewTestimony(id, { status, isFeaturedOnFeed });
       // Immediately reflect review status change in local state
       setTestimonies(prev => prev.map(t => (t.id === id ? { ...t, status, isFeaturedOnFeed } : t)));
+      await api.reviewTestimony(id, { status, isFeaturedOnFeed });
       toast.success(`Testimony marked as ${status.replace('_', ' ')}`);
-      await fetchTestimonies();
+      await fetchTestimonies(false);
     } catch (err: any) {
       toast.error(err.message || 'Review action failed');
+      await fetchTestimonies(false);
     } finally {
       setActionLoading(false);
     }
@@ -59,15 +67,16 @@ export const TestimoniesPage: React.FC = () => {
     const targetId = selectedTestimony.id;
     setActionLoading(true);
     try {
-      await api.deleteTestimony(targetId);
-      setConfirmDeleteOpen(false);
-      setSelectedTestimony(null);
       // Immediately reflect deletion in local state
       setTestimonies(prev => prev.filter(t => t.id !== targetId));
+      setConfirmDeleteOpen(false);
+      setSelectedTestimony(null);
+      await api.deleteTestimony(targetId);
       toast.success('Testimony deleted successfully');
-      await fetchTestimonies();
+      await fetchTestimonies(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete testimony');
+      await fetchTestimonies(false);
     } finally {
       setActionLoading(false);
     }

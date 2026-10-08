@@ -18,8 +18,10 @@ import {
   persistWorker, persistBranch, persistDepartmentPosition, persistRole,
   persistMember, persistUser, persistEvent, persistPost,
   persistServiceHighlight, persistTestimony, persistNotification,
-  persistSundayMoment, deleteSundayMomentFromDb, sanitizeMediaUrl
+  persistSundayMoment, deleteSundayMomentFromDb, sanitizeMediaUrl,
+  resolveTestimonyId, recordSystemMutation, isUuid
 } from '../db/sync';
+import { query } from '../db';
 
 // =============================================================================
 // AUTH CONTROLLER
@@ -2452,13 +2454,93 @@ export const deleteHighlightHandler = async (req: Request, res: Response) => {
 // =============================================================================
 // TESTIMONIES CONTROLLER
 // =============================================================================
-export const getApprovedTestimoniesHandler = (req: Request, res: Response) => {
-  const approved = db.testimonies.filter(t => t.status === 'approved' && t.allowPublish);
-  return res.json(approved);
+export const getApprovedTestimoniesHandler = async (req: Request, res: Response) => {
+  try {
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      const pgRes = await query(`
+        SELECT 
+          t.id,
+          t.member_id as "memberId",
+          COALESCE(m.first_name || ' ' || m.last_name, 'Church Member') as "authorName",
+          t.branch_id as "branchId",
+          COALESCE(b.name, 'Cathedral of Grace (HQ)') as "branchName",
+          t.title,
+          t.content,
+          t.category,
+          t.photo_url as "photoUrl",
+          t.video_url as "videoUrl",
+          t.allow_publish as "allowPublish",
+          t.status,
+          t.rejection_reason as "rejectionReason",
+          t.request_changes_notes as "requestChangesNotes",
+          t.reviewed_by as "reviewedBy",
+          t.reviewed_at as "reviewedAt",
+          t.is_featured_on_feed as "isFeaturedOnFeed",
+          t.created_at as "createdAt",
+          t.updated_at as "updatedAt"
+        FROM testimonies t
+        LEFT JOIN members m ON m.id = t.member_id
+        LEFT JOIN branches b ON b.id = t.branch_id
+        WHERE t.status = 'approved' AND t.allow_publish = true
+        ORDER BY t.created_at DESC
+      `);
+      if (pgRes && Array.isArray(pgRes.rows)) {
+        return res.json(pgRes.rows.map(r => ({
+          ...r,
+          photoUrl: sanitizeMediaUrl(r.photoUrl),
+          videoUrl: sanitizeMediaUrl(r.videoUrl)
+        })));
+      }
+    }
+    const approved = db.testimonies.filter(t => t.status === 'approved' && t.allowPublish);
+    return res.json(approved);
+  } catch (err: any) {
+    const approved = db.testimonies.filter(t => t.status === 'approved' && t.allowPublish);
+    return res.json(approved);
+  }
 };
 
-export const getTestimoniesQueueHandler = (req: Request, res: Response) => {
-  return res.json(db.testimonies);
+export const getTestimoniesQueueHandler = async (req: Request, res: Response) => {
+  try {
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      const pgRes = await query(`
+        SELECT 
+          t.id,
+          t.member_id as "memberId",
+          COALESCE(m.first_name || ' ' || m.last_name, 'Church Member') as "authorName",
+          t.branch_id as "branchId",
+          COALESCE(b.name, 'Cathedral of Grace (HQ)') as "branchName",
+          t.title,
+          t.content,
+          t.category,
+          t.photo_url as "photoUrl",
+          t.video_url as "videoUrl",
+          t.allow_publish as "allowPublish",
+          t.status,
+          t.rejection_reason as "rejectionReason",
+          t.request_changes_notes as "requestChangesNotes",
+          t.reviewed_by as "reviewedBy",
+          t.reviewed_at as "reviewedAt",
+          t.is_featured_on_feed as "isFeaturedOnFeed",
+          t.created_at as "createdAt",
+          t.updated_at as "updatedAt"
+        FROM testimonies t
+        LEFT JOIN members m ON m.id = t.member_id
+        LEFT JOIN branches b ON b.id = t.branch_id
+        ORDER BY t.created_at DESC
+      `);
+      if (pgRes && Array.isArray(pgRes.rows)) {
+        return res.json(pgRes.rows.map(r => ({
+          ...r,
+          photoUrl: sanitizeMediaUrl(r.photoUrl),
+          videoUrl: sanitizeMediaUrl(r.videoUrl)
+        })));
+      }
+    }
+    return res.json(db.testimonies);
+  } catch (err: any) {
+    return res.json(db.testimonies);
+  }
 };
 
 export const submitTestimonyHandler = async (req: Request, res: Response) => {
@@ -2505,11 +2587,44 @@ export const submitTestimonyHandler = async (req: Request, res: Response) => {
 
 export const reviewTestimonyHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const rawId = req.params.id;
+    const resolvedId = resolveTestimonyId(rawId);
     const { status, rejectionReason, requestChangesNotes, isFeaturedOnFeed } = req.body;
-    const testimony = db.testimonies.find(t => t.id === id);
+    let testimony = db.testimonies.find(t => t.id === resolvedId || t.id === rawId);
+
+    // If not in memory store, check PostgreSQL
+    if (!testimony && process.env.DATABASE_URL && isUuid(resolvedId)) {
+      const pgRes = await query('SELECT * FROM testimonies WHERE id = $1', [resolvedId]);
+      if (pgRes && pgRes.rows.length > 0) {
+        const r = pgRes.rows[0];
+        testimony = {
+          id: r.id,
+          memberId: r.member_id,
+          authorName: 'Church Member',
+          branchId: r.branch_id,
+          branchName: 'Cathedral of Grace (HQ)',
+          title: r.title,
+          content: r.content,
+          category: r.category,
+          photoUrl: sanitizeMediaUrl(r.photo_url),
+          videoUrl: sanitizeMediaUrl(r.video_url),
+          allowPublish: !!r.allow_publish,
+          status: r.status,
+          rejectionReason: r.rejection_reason || undefined,
+          requestChangesNotes: r.request_changes_notes || undefined,
+          reviewedBy: r.reviewed_by || undefined,
+          reviewedAt: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : undefined,
+          isFeaturedOnFeed: !!r.is_featured_on_feed,
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+        };
+        db.testimonies.push(testimony);
+      }
+    }
+
     if (!testimony) return res.status(404).json({ error: 'Testimony not found.' });
 
+    testimony.id = resolvedId;
     testimony.status = status;
     testimony.rejectionReason = rejectionReason;
     testimony.requestChangesNotes = requestChangesNotes;
@@ -2518,13 +2633,14 @@ export const reviewTestimonyHandler = async (req: Request, res: Response) => {
     testimony.reviewedAt = new Date().toISOString();
     testimony.updatedAt = new Date().toISOString();
     await persistTestimony(testimony).catch(err => console.warn('[PERSIST TESTIMONY ERROR]', err.message));
+    await recordSystemMutation('testimonies');
 
     AuditService.log(
       req.user?.fullName || 'Admin',
       'admin',
       `TESTIMONY_${status.toUpperCase()}`,
       'testimony',
-      id,
+      resolvedId,
       req.user?.userId,
       null,
       { status, isFeaturedOnFeed }
@@ -2538,32 +2654,39 @@ export const reviewTestimonyHandler = async (req: Request, res: Response) => {
 
 export const deleteTestimonyHandler = async (req: Request, res: Response) => {
   try {
-    const testimony = db.testimonies.find(t => t.id === req.params.id);
-    if (!testimony) return res.status(404).json({ error: 'Testimony not found.' });
+    const rawId = req.params.id;
+    const resolvedId = resolveTestimonyId(rawId);
+    const testimony = db.testimonies.find(t => t.id === resolvedId || t.id === rawId);
 
-    const isAuthor = testimony.memberId === req.user?.memberId;
-    const isAdmin = req.user?.isAdmin;
+    if (testimony) {
+      const isAuthor = testimony.memberId === req.user?.memberId;
+      const isAdmin = req.user?.isAdmin;
 
-    if (!isAuthor && !isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized to delete this testimony.' });
+      if (!isAuthor && !isAdmin) {
+        return res.status(403).json({ error: 'Unauthorized to delete this testimony.' });
+      }
+
+      if (isAdmin && req.user?.adminLevel !== 'super_admin' && !isAuthor && req.user?.branchId !== testimony.branchId) {
+        return res.status(403).json({ error: 'Branch isolation violation: Cannot delete testimony from another branch.' });
+      }
+
+      const idx = db.testimonies.findIndex(t => t.id === resolvedId || t.id === rawId);
+      if (idx !== -1) {
+        db.testimonies.splice(idx, 1);
+      }
     }
 
-    if (isAdmin && req.user?.adminLevel !== 'super_admin' && !isAuthor && req.user?.branchId !== testimony.branchId) {
-      return res.status(403).json({ error: 'Branch isolation violation: Cannot delete testimony from another branch.' });
-    }
-
-    const idx = db.testimonies.findIndex(t => t.id === req.params.id);
-    db.testimonies.splice(idx, 1);
-    await persistDelete('testimonies', req.params.id).catch(err => console.warn('[DELETE TESTIMONY ERROR]', err.message));
+    await persistDelete('testimonies', resolvedId).catch(err => console.warn('[DELETE TESTIMONY ERROR]', err.message));
+    await recordSystemMutation('testimonies');
 
     AuditService.log(
       req.user?.fullName || 'User',
       req.user?.roleName || 'member',
       'TESTIMONY_DELETED',
       'testimony',
-      testimony.id,
+      resolvedId,
       req.user?.userId,
-      testimony,
+      testimony || null,
       null
     );
 

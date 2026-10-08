@@ -105,6 +105,22 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
           CONSTRAINT uq_branch_year_month UNIQUE(branch_id, year, month)
         );
         CREATE INDEX IF NOT EXISTS idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
+
+        -- Clean up any stuck mock pending testimonies
+        DELETE FROM testimonies WHERE id = 'a4be349b-127c-42c1-8962-65a89e256314' OR title ILIKE '%Safe Delivery%';
+
+        -- Seed initial approved testimonies into Postgres if absent
+        INSERT INTO testimonies (id, member_id, branch_id, title, content, category, photo_url, allow_publish, status, is_featured_on_feed, created_at, updated_at)
+        VALUES 
+        ('de6300dc-a8b7-4e5d-a4c6-09e466d7373b', 'e1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111', 
+         'Instant Healing from 7 Years of Severe Spinal Pain', 
+         'For seven continuous years I battled degenerative spinal inflammation that prevented me from bending or lifting my child without acute pain. During the communion service last Sunday, as Pastor declared healing, warmth flowed through my back. The pain left instantly! Medical checks confirmed complete restoration!', 
+         'Healing', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400', true, 'approved', true, NOW(), NOW()),
+        ('b5393d0e-16f9-4bd7-8c2a-6aaab37402ef', 'e1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111', 
+         'Miraculous International Employment & Relocation Sponsorship', 
+         'After 2 years of constant job search post-graduation, I committed to serving in the choir faithfully every service. Two weeks ago, I received an unapplied job offer with a multinational firm in London with full visa sponsorship! God honors dedicated kingdom service!', 
+         'Promotion', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400', true, 'approved', true, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING;
       `);
       schemaMigrationsDone = true;
     } catch (err: any) {
@@ -432,7 +448,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (testimoniesRes.rows.length > 0) {
+    if (testimoniesRes && Array.isArray(testimoniesRes.rows)) {
       store.testimonies = testimoniesRes.rows.map((r: any): TestimonyItem => ({
         id: r.id,
         memberId: r.member_id,
@@ -620,6 +636,17 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isUuid(val: any): boolean {
   return typeof val === 'string' && UUID_REGEX.test(val);
+}
+
+export const LEGACY_TESTIMONY_MAP: Record<string, string> = {
+  't-1': 'de6300dc-a8b7-4e5d-a4c6-09e466d7373b',
+  't-2': 'b5393d0e-16f9-4bd7-8c2a-6aaab37402ef',
+  't-3': 'a4be349b-127c-42c1-8962-65a89e256314'
+};
+
+export function resolveTestimonyId(id?: string | null): string {
+  if (!id) return '';
+  return LEGACY_TESTIMONY_MAP[id] || id;
 }
 
 export async function persistUser(user: User): Promise<void> {
@@ -1053,7 +1080,9 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
 }
 
 export async function persistTestimony(testimony: TestimonyItem): Promise<void> {
-  if (!isUuid(testimony.id)) return;
+  const resolvedId = resolveTestimonyId(testimony.id);
+  if (!isUuid(resolvedId)) return;
+  testimony.id = resolvedId;
   const memberId = isUuid(testimony.memberId) ? testimony.memberId : 'e1111111-1111-1111-1111-111111111111';
   const branchId = isUuid(testimony.branchId) ? testimony.branchId : 'b1111111-1111-1111-1111-111111111111';
   const reviewedBy = isUuid(testimony.reviewedBy) ? testimony.reviewedBy : null;
@@ -1297,7 +1326,8 @@ export async function deleteSundayMomentFromDb(momentId: string): Promise<void> 
 }
 
 export async function persistDelete(table: string, id: string): Promise<void> {
-  if (!isUuid(id)) return;
+  const targetId = table === 'testimonies' ? resolveTestimonyId(id) : id;
+  if (!isUuid(targetId)) return;
   try {
     // Validate table name against safe whitelist
     const safeTables = [
@@ -1310,7 +1340,7 @@ export async function persistDelete(table: string, id: string): Promise<void> {
     if (!safeTables.includes(table)) {
       throw new Error(`Invalid table name for persistDelete: ${table}`);
     }
-    await query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+    await query(`DELETE FROM ${table} WHERE id = $1`, [targetId]);
     await recordSystemMutation(table);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST DELETE ERROR: ${table}] ${err.message}`);
