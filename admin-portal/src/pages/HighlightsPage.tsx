@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Plus, Quote, BookOpen, User, CheckCircle2, Edit2, Trash2, Image as ImageIcon, X } from 'lucide-react';
+import { Sparkles, Plus, Quote, BookOpen, User, CheckCircle2, Edit2, Trash2, Image as ImageIcon, X, Camera } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ImageUpload } from '../components/ImageUpload';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { SundayMomentsAdminTab } from '../components/SundayMomentsAdminTab';
 
 export const HighlightsPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
@@ -18,6 +19,7 @@ export const HighlightsPage: React.FC = () => {
   const [selectedHighlight, setSelectedHighlight] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
+  const [activeMainTab, setActiveMainTab] = useState<'highlights' | 'moments'>('highlights');
 
   // Form State
   const [title, setTitle] = useState('');
@@ -223,21 +225,57 @@ export const HighlightsPage: React.FC = () => {
 
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Post-Service Sermon Highlights</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Recap spiritual messages, scripture references, prophetic declarations, sermon quotes, and media.
-          </p>
+      {/* Top Navigation Tabs */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Service Highlights & Moments</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Recap sermon messages, scripture references, prophetic notes, and curate Sunday Moments stories.
+            </p>
+          </div>
+          {activeMainTab === 'highlights' && (
+            <button
+              onClick={openCreateModal}
+              className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center space-x-2 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Publish Service Highlight</span>
+            </button>
+          )}
         </div>
-        <button
-          onClick={openCreateModal}
-          className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center space-x-2 transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Publish Service Highlight</span>
-        </button>
+
+        {/* Tab Buttons */}
+        <div className="flex border-b border-slate-200 gap-1 sm:gap-2">
+          <button
+            onClick={() => setActiveMainTab('highlights')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+              activeMainTab === 'highlights'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-t-lg'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Service Highlights</span>
+          </button>
+          <button
+            onClick={() => setActiveMainTab('moments')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+              activeMainTab === 'moments'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-t-lg'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            <span>Sunday Moments</span>
+          </button>
+        </div>
       </div>
+
+      {activeMainTab === 'moments' ? (
+        <SundayMomentsAdminTab />
+      ) : (
+        <>
 
       {loading ? (
         <div className="p-8 text-center text-slate-400">Loading highlights...</div>
@@ -428,6 +466,8 @@ export const HighlightsPage: React.FC = () => {
             );
           })}
         </div>
+      )}
+      </>
       )}
 
       {/* Publish Highlight Modal */}

@@ -220,6 +220,24 @@ export const api = {
   updateHighlight: (id: string, data: any) => apiRequest(`/highlights/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteHighlight: (id: string) => apiRequest(`/highlights/${id}`, { method: 'DELETE' }),
 
+  // Sunday Moments
+  getSundayMoments: (params?: { branchId?: string; status?: string; sundayDate?: string; includeExpired?: boolean; allBranches?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.branchId) query.append('branchId', params.branchId);
+    if (params?.status) query.append('status', params.status);
+    if (params?.sundayDate) query.append('sundayDate', params.sundayDate);
+    if (params?.includeExpired) query.append('includeExpired', 'true');
+    if (params?.allBranches) query.append('allBranches', 'true');
+    const qs = query.toString();
+    return apiRequest(`/sunday-moments${qs ? `?${qs}` : ''}`);
+  },
+  createSundayMoment: (data: any) => apiRequest('/sunday-moments', { method: 'POST', body: JSON.stringify(data) }),
+  approveSundayMoment: (id: string) => apiRequest(`/sunday-moments/${id}/approve`, { method: 'PUT' }),
+  rejectSundayMoment: (id: string, reason?: string) => apiRequest(`/sunday-moments/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
+  deleteSundayMoment: (id: string) => apiRequest(`/sunday-moments/${id}`, { method: 'DELETE' }),
+  likeSundayMoment: (id: string) => apiRequest(`/sunday-moments/${id}/like`, { method: 'POST' }),
+  unlikeSundayMoment: (id: string) => apiRequest(`/sunday-moments/${id}/unlike`, { method: 'POST' }),
+
   // Testimonies
   getTestimoniesQueue: () => apiRequest('/testimonies/queue'),
   reviewTestimony: (id: string, data: any) =>

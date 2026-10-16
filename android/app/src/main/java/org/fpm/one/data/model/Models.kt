@@ -99,7 +99,23 @@ data class SundayMomentItem(
     val caption: String? = null,
     val sundayDate: String,
     val status: String = "approved",
+    val publishedAt: String? = null,
+    val expiresAt: String? = null,
+    val approvedBy: String? = null,
+    val rejectedBy: String? = null,
+    val rejectionReason: String? = null,
+    val creatorSource: String? = null,
+    val likesCount: Int = 0,
+    val hasLiked: Boolean = false,
+    val isExpired: Boolean = false,
     val createdAt: String
+)
+
+@Serializable
+data class LikeMomentResponse(
+    val success: Boolean,
+    val likesCount: Int = 0,
+    val hasLiked: Boolean = false
 )
 
 @Serializable

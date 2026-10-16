@@ -293,8 +293,23 @@ export interface SundayMoment {
   caption?: string;
   sundayDate: string; // YYYY-MM-DD
   status: 'approved' | 'pending' | 'rejected';
+  rejectionReason?: string;
+  approvedBy?: string;
+  rejectedBy?: string;
+  publishedAt?: string;
+  expiresAt?: string;
+  creatorSource?: 'member' | 'admin';
+  likesCount?: number;
+  hasLiked?: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface SundayMomentLike {
+  id: string;
+  momentId: string;
+  userId: string;
+  createdAt: string;
 }
 
 export interface MediaItem {

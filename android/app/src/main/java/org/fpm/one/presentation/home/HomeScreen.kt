@@ -11,6 +11,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
@@ -250,7 +256,80 @@ fun HomeScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // User Submission Status Notice (Pending / Rejected)
+                        val mySubmissions = remember(state.sundayMoments, currentUser?.userId) {
+                            if (currentUser?.userId != null) {
+                                state.sundayMoments.filter { it.uploadedBy == currentUser.userId }
+                            } else emptyList()
+                        }
+                        val pendingSubmission = mySubmissions.firstOrNull { it.status == "pending" }
+                        val rejectedSubmission = mySubmissions.firstOrNull { it.status == "rejected" }
+
+                        if (pendingSubmission != null) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                color = FpmGold.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, FpmGold.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("⏳", fontSize = 14.sp)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Your Sunday Moment is Pending Review",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark
+                                        )
+                                        Text(
+                                            text = "Thank you for sharing! Church leadership will review your photo shortly before it appears in the story.",
+                                            fontSize = 10.sp,
+                                            color = FpmTheme.textSecondary
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        } else if (rejectedSubmission != null) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                color = Color(0xFFEF4444).copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("⚠️", fontSize = 14.sp)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Sunday Moment Not Approved",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFEF4444)
+                                        )
+                                        Text(
+                                            text = rejectedSubmission.rejectionReason?.let { "Reason: $it" } ?: "Your submission did not meet moderation guidelines.",
+                                            fontSize = 10.sp,
+                                            color = FpmTheme.textSecondary
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
 
                         // Horizontally swipeable branch cards
                         if (sortedBranches.isEmpty()) {
@@ -280,11 +359,18 @@ fun HomeScreen(
                                     val branchMoments = remember(state.sundayMoments, branch.id) {
                                         state.sundayMoments.filter { it.branchId == branch.id }
                                     }
+                                    val eligibleMoments = remember(branchMoments) {
+                                        branchMoments.filter { it.status == "approved" && !it.isExpired }
+                                    }
+                                    val latestEligibleMoment = remember(eligibleMoments) {
+                                        eligibleMoments.maxByOrNull { it.publishedAt ?: it.createdAt }
+                                    }
 
                                     BranchSundayMomentCard(
                                         branch = branch,
                                         isUserBranch = isUserBranch,
-                                        momentsCount = branchMoments.size,
+                                        momentsCount = eligibleMoments.size,
+                                        latestMomentUrl = latestEligibleMoment?.mediaUrl,
                                         onClick = { activeGalleryBranch = branch }
                                     )
                                 }
@@ -1149,15 +1235,19 @@ fun HomeScreen(
         val branchMoments = remember(state.sundayMoments, branch.id) {
             state.sundayMoments.filter { it.branchId == branch.id }
         }
+        val eligibleMoments = remember(branchMoments) {
+            branchMoments.filter { it.status == "approved" && !it.isExpired }
+                .sortedByDescending { it.publishedAt ?: it.createdAt }
+        }
         val isBranchMemberOrAdmin = currentUser?.branchId == branch.id || currentUser?.isAdmin == true
 
-        SundayMomentsGalleryDialog(
+        SundayMomentsStoryViewerDialog(
             branch = branch,
-            moments = branchMoments,
+            moments = eligibleMoments,
             formattedSundayDate = formattedSundayDate,
             canUpload = isBranchMemberOrAdmin,
             onDismiss = { activeGalleryBranch = null },
-            onImageClick = { activeLightboxImageUrl = it },
+            onToggleLike = { momentId -> viewModel.toggleSundayMomentLike(momentId) },
             onStartUpload = {
                 photoPickerLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -1433,9 +1523,14 @@ private fun BranchSundayMomentCard(
     branch: BranchItem,
     isUserBranch: Boolean,
     momentsCount: Int,
+    latestMomentUrl: String?,
     onClick: () -> Unit
 ) {
-    val coverImage = branch.coverImageUrl ?: branch.imageUrl
+    // 1. Main Moments Cover: latest eligible published Moment, fallback to branch cover or default
+    val backgroundImageUrl = latestMomentUrl ?: branch.coverImageUrl ?: branch.imageUrl
+
+    // 2. Small circular image at top-right: branch's existing admin-managed image
+    val branchAdminImageUrl = branch.coverImageUrl ?: branch.imageUrl ?: branch.logoUrl
 
     Card(
         modifier = Modifier
@@ -1453,10 +1548,10 @@ private fun BranchSundayMomentCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Background Image or Designed Navy Fallback
-            if (!coverImage.isNullOrBlank()) {
+            if (!backgroundImageUrl.isNullOrBlank()) {
                 FpmAsyncImage(
-                    model = coverImage,
-                    contentDescription = branch.name,
+                    model = backgroundImageUrl,
+                    contentDescription = "${branch.name} Sunday Moment",
                     fallbackCategory = "event",
                     fallbackTitle = branch.name,
                     modifier = Modifier.fillMaxSize()
@@ -1474,7 +1569,7 @@ private fun BranchSundayMomentCard(
                     Image(
                         painter = painterResource(id = R.drawable.church_logo),
                         contentDescription = null,
-                        alpha = 0.10f,
+                        alpha = 0.15f,
                         modifier = Modifier
                             .size(160.dp)
                             .align(Alignment.Center)
@@ -1482,7 +1577,7 @@ private fun BranchSundayMomentCard(
                 }
             }
 
-            // Bottom Gradient Scrim
+            // Bottom Gradient Scrim for high legibility
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1490,61 +1585,92 @@ private fun BranchSundayMomentCard(
                         Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                FpmNavyDeep.copy(alpha = 0.55f),
+                                FpmNavyDeep.copy(alpha = 0.45f),
                                 FpmNavyDeep.copy(alpha = 0.95f)
                             ),
-                            startY = 100f
+                            startY = 90f
                         )
                     )
             )
 
-            // Top Badges
+            // Top Badges & Top-Right Circular Branch Avatar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                if (isUserBranch) {
-                    Surface(
-                        color = FpmGold,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "★ YOUR BRANCH",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black,
-                            color = FpmNavyDark,
-                            letterSpacing = 0.5.sp,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        )
+                // Top Left: Branch & Active Moments badge
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isUserBranch) {
+                        Surface(
+                            color = FpmGold,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "★ YOUR BRANCH",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = FpmNavyDark,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            )
+                        }
                     }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
+
+                    if (momentsCount > 0) {
+                        Surface(
+                            color = FpmNavyDeep.copy(alpha = 0.85f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(0.5.dp, FpmGold.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF22C55E))
+                                )
+                                Text(
+                                    text = "$momentsCount ${if (momentsCount == 1) "Story" else "Stories"}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FpmGoldLight
+                                )
+                            }
+                        }
+                    }
                 }
 
-                Surface(
-                    color = FpmNavyDeep.copy(alpha = 0.75f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(0.5.dp, FpmGoldMuted.copy(alpha = 0.35f))
+                // Top Right: Small circular neatly framed image of the branch (Admin/Pastor managed)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(FpmNavyDeep)
+                        .border(1.5.dp, FpmGold, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.PhotoCamera,
-                            contentDescription = null,
-                            tint = FpmGoldLight,
-                            modifier = Modifier.size(11.dp)
+                    if (!branchAdminImageUrl.isNullOrBlank()) {
+                        FpmAsyncImage(
+                            model = branchAdminImageUrl,
+                            contentDescription = "${branch.name} Branch Image",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
                         )
-                        Text(
-                            text = if (momentsCount > 0) "$momentsCount Moments" else "Moments",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = FpmGoldLight
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.church_logo),
+                            contentDescription = branch.name,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
                         )
                     }
                 }
@@ -1578,19 +1704,19 @@ private fun BranchSundayMomentCard(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
+                    Icon(
+                        imageVector = if (momentsCount > 0) Icons.Default.PlayArrow else Icons.Default.Collections,
+                        contentDescription = null,
+                        tint = FpmGold,
+                        modifier = Modifier.size(15.dp)
+                    )
                     Text(
-                        text = "View Gallery",
+                        text = if (momentsCount > 0) "Watch Story" else "Share Moment",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = FpmSurfaceWhite
-                    )
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = FpmGold,
-                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
@@ -1599,17 +1725,16 @@ private fun BranchSundayMomentCard(
 }
 
 // -----------------------------------------------------------------------------
-// COMPOSABLE: Sunday Moments Gallery Modal / Dialog
+// COMPOSABLE: Sunday Moments WhatsApp/Facebook Stories-Style Viewer Dialog
 // -----------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SundayMomentsGalleryDialog(
+private fun SundayMomentsStoryViewerDialog(
     branch: BranchItem,
     moments: List<SundayMomentItem>,
     formattedSundayDate: String,
     canUpload: Boolean,
     onDismiss: () -> Unit,
-    onImageClick: (String) -> Unit,
+    onToggleLike: (String) -> Unit,
     onStartUpload: () -> Unit,
     onDeleteMoment: (String) -> Unit,
     currentUserId: String?,
@@ -1617,288 +1742,465 @@ private fun SundayMomentsGalleryDialog(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(
-            usePlatformDefaultWidth = false
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
         )
     ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = branch.name,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = FpmTheme.textPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "Sunday Moments • $formattedSundayDate",
-                                fontSize = 11.sp,
-                                color = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Close",
-                                tint = FpmTheme.textPrimary
-                            )
-                        }
-                    },
-                    actions = {
-                        if (canUpload) {
-                            Button(
-                                onClick = onStartUpload,
-                                colors = ButtonDefaults.buttonColors(containerColor = FpmRoyalBlue),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.AddPhotoAlternate,
-                                    contentDescription = null,
-                                    tint = FpmGoldLight,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Share",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = FpmSurfaceWhite
-                                )
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = FpmTheme.dialogBackground,
-                        titleContentColor = FpmTheme.textPrimary,
-                        navigationIconContentColor = FpmTheme.textPrimary
-                    )
-                )
-            }
-        ) { padding ->
+        if (moments.isEmpty()) {
+            // Empty State
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(FpmTheme.canvasBackground)
-                    .padding(padding)
+                    .background(FpmNavyDeep)
             ) {
-                if (moments.isEmpty()) {
-                    // Empty State
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .background(if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle, CircleShape)
-                                .border(1.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.4f) else FpmGoldMuted, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = null,
-                                tint = if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark,
-                                modifier = Modifier.size(34.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        Text(
-                            text = "No Sunday Moments Yet",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
-                            color = FpmTheme.textPrimary
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "Sunday moments will appear here as your church family shares photos.",
-                            fontSize = 13.sp,
-                            color = FpmTheme.textSecondary,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 18.sp
-                        )
-
-                        if (canUpload) {
-                            Spacer(modifier = Modifier.height(20.dp))
-                            FpmButton(
-                                text = "Share the First Photo",
-                                onClick = onStartUpload,
-                                containerColor = FpmRoyalBlue
-                            )
-                        }
-                    }
-                } else {
-                    // 2-Column Photo Grid
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        // Header Banner
-                        item {
-                            Surface(
-                                color = FpmTheme.cardBackground,
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, FpmTheme.cardBorder),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Collections,
-                                        contentDescription = null,
-                                        tint = FpmRoyalBlue,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Column {
-                                        Text(
-                                            text = "${moments.size} Photos Shared This Week",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = FpmTheme.textPrimary
-                                        )
-                                        Text(
-                                            text = "Approved worship and fellowship moments from church family",
-                                            fontSize = 11.sp,
-                                            color = FpmTheme.textSecondary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Chunk items into rows of 2 for grid
-                        val chunked = moments.chunked(2)
-                        items(chunked) { pair ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                pair.forEach { moment ->
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        SundayMomentGridItem(
-                                            moment = moment,
-                                            onClick = { onImageClick(moment.mediaUrl) },
-                                            onDelete = { onDeleteMoment(moment.id) },
-                                            canDelete = isAdmin || moment.uploadedBy == currentUserId
-                                        )
-                                    }
-                                }
-                                if (pair.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .size(36.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White
+                    )
                 }
-            }
-        }
-    }
-}
 
-// -----------------------------------------------------------------------------
-// COMPOSABLE: Sunday Moment Grid Item Card
-// -----------------------------------------------------------------------------
-@Composable
-private fun SundayMomentGridItem(
-    moment: SundayMomentItem,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
-    canDelete: Boolean
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = FpmTheme.cardBackground),
-        border = BorderStroke(1.dp, FpmTheme.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-            ) {
-                FpmAsyncImage(
-                    model = moment.mediaUrl,
-                    contentDescription = moment.caption ?: "Sunday Moment",
-                    fallbackCategory = "event",
-                    fallbackTitle = "Sunday Moment",
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Delete button for owner / admin
-                if (canDelete) {
-                    IconButton(
-                        onClick = onDelete,
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(4.dp)
-                            .size(28.dp)
-                            .background(FpmNavyDeep.copy(alpha = 0.65f), CircleShape)
+                            .size(72.dp)
+                            .background(FpmNavySurface, CircleShape)
+                            .border(1.5.dp, FpmGold, CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete moment",
-                            tint = Color.White,
-                            modifier = Modifier.size(15.dp)
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = FpmGoldLight,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Text(
+                        text = "No Sunday Moments Yet",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Be the first to share a worship or fellowship moment from ${branch.name}!",
+                        fontSize = 13.sp,
+                        color = FpmSurfaceWhite.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+
+                    if (canUpload) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        FpmButton(
+                            text = "Share the First Photo",
+                            onClick = onStartUpload,
+                            containerColor = FpmRoyalBlue
                         )
                     }
                 }
             }
+        } else {
+            // Full WhatsApp Status / Facebook Stories Experience
+            var currentIndex by remember { mutableIntStateOf(0) }
+            var isPaused by remember { mutableStateOf(false) }
+            var progress by remember { mutableFloatStateOf(0f) }
 
-            Column(modifier = Modifier.padding(10.dp)) {
-                if (!moment.caption.isNullOrBlank()) {
-                    Text(
-                        text = moment.caption,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = FpmTheme.textPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+            val safeIndex = currentIndex.coerceIn(0, moments.size - 1)
+            val currentMoment = moments[safeIndex]
+
+            // Lifecycle Pause/Resume Awareness
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                        isPaused = true
+                    } else if (event == Lifecycle.Event.ON_RESUME) {
+                        isPaused = false
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            // 5-second progression timer
+            LaunchedEffect(safeIndex, isPaused, moments.size) {
+                progress = 0f
+                val stepMs = 40L
+                val totalMs = 5000L
+                val step = stepMs.toFloat() / totalMs.toFloat()
+                while (progress < 1f) {
+                    if (!isPaused) {
+                        delay(stepMs)
+                        progress = (progress + step).coerceAtMost(1f)
+                    } else {
+                        delay(50L)
+                    }
+                }
+                if (safeIndex < moments.size - 1) {
+                    currentIndex = safeIndex + 1
+                } else {
+                    onDismiss()
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            ) {
+                // Main Photo Display with Touch Gestures (Left = Prev, Right = Next, Long-Press = Hold)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(safeIndex) {
+                            detectTapGestures(
+                                onPress = {
+                                    isPaused = true
+                                    tryAwaitRelease()
+                                    isPaused = false
+                                },
+                                onTap = { offset ->
+                                    val screenWidth = size.width
+                                    if (offset.x < screenWidth * 0.35f) {
+                                        // Tap left: previous or restart
+                                        if (progress > 0.25f || safeIndex == 0) {
+                                            progress = 0f
+                                        } else {
+                                            currentIndex = maxOf(0, safeIndex - 1)
+                                            progress = 0f
+                                        }
+                                    } else {
+                                        // Tap right: next
+                                        if (safeIndex < moments.size - 1) {
+                                            currentIndex = safeIndex + 1
+                                            progress = 0f
+                                        } else {
+                                            onDismiss()
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                ) {
+                    FpmAsyncImage(
+                        model = currentMoment.mediaUrl,
+                        contentDescription = currentMoment.caption ?: "Sunday Moment",
+                        fallbackCategory = "event",
+                        fallbackTitle = branch.name,
+                        modifier = Modifier.fillMaxSize()
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = moment.uploadedByName ?: "Member",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                // Top Gradient Scrim for status bar and header legibility
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .align(Alignment.TopCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.85f),
+                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
 
-                    Text(
-                        text = moment.createdAt.take(10),
-                        fontSize = 9.sp,
-                        color = FpmTheme.textMuted
-                    )
+                // Top Controls: Segmented Progress Bar & Branch Header
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    // Segmented Progress Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        moments.forEachIndexed { i, _ ->
+                            val segVal = when {
+                                i < safeIndex -> 1f
+                                i == safeIndex -> progress
+                                else -> 0f
+                            }
+                            LinearProgressIndicator(
+                                progress = { segVal },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = FpmGoldLight,
+                                trackColor = Color.White.copy(alpha = 0.35f)
+                            )
+                        }
+                    }
+
+                    // Header: Branch Avatar, Name, Uploader, Time, Close
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // Circular Branch Avatar (Admin Managed)
+                            val branchAvatarUrl = branch.coverImageUrl ?: branch.imageUrl ?: branch.logoUrl
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(FpmNavyDeep)
+                                    .border(1.5.dp, FpmGold, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (!branchAvatarUrl.isNullOrBlank()) {
+                                    FpmAsyncImage(
+                                        model = branchAvatarUrl,
+                                        contentDescription = branch.name,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                    )
+                                } else {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.church_logo),
+                                        contentDescription = branch.name,
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = branch.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    if (currentMoment.creatorSource == "admin") {
+                                        Surface(
+                                            color = FpmGold,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "OFFICIAL",
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = FpmNavyDark,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = currentMoment.uploadedByName ?: "Church Member",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = FpmGoldLight,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "•",
+                                        fontSize = 10.sp,
+                                        color = Color.White.copy(alpha = 0.5f)
+                                    )
+                                    Text(
+                                        text = formatRelativeTime(currentMoment.publishedAt ?: currentMoment.createdAt),
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Close (X) Button
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Bottom Gradient Scrim for caption & action bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.65f),
+                                    Color.Black.copy(alpha = 0.95f)
+                                )
+                            )
+                        )
+                )
+
+                // Bottom Content: Caption & Interactive Like Bar
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    // Caption
+                    if (!currentMoment.caption.isNullOrBlank()) {
+                        Text(
+                            text = currentMoment.caption!!,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                            lineHeight = 19.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        )
+                    }
+
+                    // Action Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Like Button with heart icon & real-time counter
+                        Surface(
+                            onClick = { onToggleLike(currentMoment.id) },
+                            color = Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(22.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                if (currentMoment.hasLiked) FpmGold else Color.White.copy(alpha = 0.35f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (currentMoment.hasLiked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Like Moment",
+                                    tint = if (currentMoment.hasLiked) Color(0xFFFF3366) else Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "${currentMoment.likesCount} ${if (currentMoment.likesCount == 1) "Like" else "Likes"}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (currentMoment.hasLiked) FpmGoldLight else Color.White
+                                )
+                            }
+                        }
+
+                        // Right Actions: Upload / Delete
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (canUpload) {
+                                Surface(
+                                    onClick = onStartUpload,
+                                    color = FpmRoyalBlue,
+                                    shape = RoundedCornerShape(22.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CameraAlt,
+                                            contentDescription = "Share Moment",
+                                            tint = FpmGoldLight,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = "Share",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (isAdmin || currentMoment.uploadedBy == currentUserId) {
+                                IconButton(
+                                    onClick = { onDeleteMoment(currentMoment.id) },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Moment",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1942,6 +2244,28 @@ private fun formatSundayDateDisplay(dateStr: String): String {
         "Sunday, ${formatter.format(cal.time)}"
     } catch (e: Exception) {
         "This Sunday"
+    }
+}
+
+private fun formatRelativeTime(dateStr: String?): String {
+    if (dateStr.isNullOrBlank()) return "Just now"
+    return try {
+        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val cleanDate = if (dateStr.contains(".")) dateStr.substringBefore(".") else dateStr.replace("Z", "")
+        val date = parser.parse(cleanDate) ?: return "Recently"
+        val diffMs = System.currentTimeMillis() - date.time
+        val minutes = (diffMs / (1000 * 60)).toInt()
+        val hours = (diffMs / (1000 * 60 * 60)).toInt()
+        when {
+            minutes < 1 -> "Just now"
+            minutes < 60 -> "${minutes}m ago"
+            hours < 24 -> "${hours}h ago"
+            else -> "${hours / 24}d ago"
+        }
+    } catch (e: Exception) {
+        "Recently"
     }
 }
 

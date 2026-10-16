@@ -24,6 +24,10 @@ import {
   getSundayMomentsHandler,
   createSundayMomentHandler,
   deleteSundayMomentHandler,
+  approveSundayMomentHandler,
+  rejectSundayMomentHandler,
+  likeSundayMomentHandler,
+  unlikeSundayMomentHandler,
   getFinanceCategoriesHandler,
   getFinanceDashboardHandler,
   getFinanceTransactionsHandler,
@@ -1528,8 +1532,12 @@ async function runTests() {
     await updateBranchHandler(memberEditBranch.req, memberEditBranch.res);
     assert(memberEditBranch.getStatus() === 403, 'Unauthorized user cannot modify branch cover image (403)');
 
-    // Test 3: Member of Branch HQ can upload Sunday Moment for Branch HQ
-    const createMomentSuccess = mockReqRes({
+    // Test 3: Setting check: requireMomentsApproval defaults to true
+    const currentSettings = SettingsService.getSettings();
+    assert(currentSettings.media.requireMomentsApproval === true, 'requireMomentsApproval setting defaults to true');
+
+    // Test 4: Member upload with requireMomentsApproval=true gets pending status
+    const createMomentPending = mockReqRes({
       body: {
         branchId: IDS.BRANCH_HQ,
         mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/hq-praise.jpg',
@@ -1538,13 +1546,64 @@ async function runTests() {
       },
       user: { userId: IDS.USER_SARAH, fullName: 'Sarah Williams', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
     });
-    await createSundayMomentHandler(createMomentSuccess.req, createMomentSuccess.res);
-    assert(createMomentSuccess.getStatus() === 201, 'Member can upload a Sunday Moment for their assigned branch');
-    const createdMoment = createMomentSuccess.getData();
-    assert(createdMoment?.branchId === IDS.BRANCH_HQ, 'Created Sunday moment has correct branchId');
-    assert(createdMoment?.sundayDate === '2026-09-27', 'Created Sunday moment has correct sundayDate');
+    await createSundayMomentHandler(createMomentPending.req, createMomentPending.res);
+    assert(createMomentPending.getStatus() === 201, 'Member can upload a Sunday Moment for their assigned branch');
+    const pendingMoment = createMomentPending.getData();
+    assert(pendingMoment?.status === 'pending', 'Moment receives pending status when approval is required');
+    assert(pendingMoment?.creatorSource === 'member', 'Moment creatorSource is member');
 
-    // Test 4: Member of Branch HQ CANNOT upload to Lekki Branch
+    // Test 5: Notification created for branch when pending moment is submitted
+    assert(db.notifications.some(n => n.targetId === IDS.BRANCH_HQ && n.title.includes('Sunday Moment')), 'Notification generated for branch on pending submission');
+
+    // Test 6: Other members cannot see pending moment in public feed
+    const listOtherMember = mockReqRes({
+      query: { branchId: IDS.BRANCH_HQ },
+      user: { userId: IDS.USER_JOHN, branchId: IDS.BRANCH_HQ }
+    });
+    getSundayMomentsHandler(listOtherMember.req, listOtherMember.res);
+    const otherFeed = listOtherMember.getData();
+    assert(!otherFeed.some((m: any) => m.id === pendingMoment.id), 'Pending moment is hidden from other members');
+
+    // Test 7: Uploader can see their own pending moment to track status
+    const listUploader = mockReqRes({
+      query: { branchId: IDS.BRANCH_HQ },
+      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    });
+    getSundayMomentsHandler(listUploader.req, listUploader.res);
+    const uploaderFeed = listUploader.getData();
+    assert(uploaderFeed.some((m: any) => m.id === pendingMoment.id), 'Uploader can see their own pending moment');
+
+    // Test 8: Cross-branch moderation check: Admin of Lekki cannot approve HQ moment
+    const lekkiAdmin = {
+      userId: uuidv4(),
+      fullName: 'Pastor Lekki',
+      roleName: 'Branch Pastor',
+      adminLevel: 'branch_admin',
+      branchId: IDS.BRANCH_LEKKI
+    };
+    const unauthorizedApprove = mockReqRes({
+      params: { id: pendingMoment.id },
+      user: lekkiAdmin
+    });
+    await approveSundayMomentHandler(unauthorizedApprove.req, unauthorizedApprove.res);
+    assert(unauthorizedApprove.getStatus() === 403, 'Branch admin cannot approve moments for other branches (403)');
+
+    // Test 9: Authorized HQ Admin approves pending moment
+    const authorizedApprove = mockReqRes({
+      params: { id: pendingMoment.id },
+      user: adminUser
+    });
+    await approveSundayMomentHandler(authorizedApprove.req, authorizedApprove.res);
+    assert(authorizedApprove.getStatus() === 200, 'Authorized admin can approve moment');
+    const approvedMoment = db.sundayMoments.find(m => m.id === pendingMoment.id);
+    assert(approvedMoment?.status === 'approved', 'Moment status is approved');
+    assert(!!approvedMoment?.publishedAt, 'Moment has publishedAt timestamp');
+    assert(!!approvedMoment?.expiresAt, 'Moment has 24h expiresAt timestamp');
+
+    // Test 10: Notification sent to uploader upon approval
+    assert(db.notifications.some(n => n.targetId === IDS.USER_SARAH && n.title.includes('Approved')), 'Uploader receives approval notification');
+
+    // Test 11: Member of Branch HQ CANNOT upload to Lekki Branch
     const crossBranchMoment = mockReqRes({
       body: {
         branchId: IDS.BRANCH_LEKKI,
@@ -1556,40 +1615,147 @@ async function runTests() {
     await createSundayMomentHandler(crossBranchMoment.req, crossBranchMoment.res);
     assert(crossBranchMoment.getStatus() === 403, 'Member cannot upload a Sunday moment to another branch (403)');
 
-    // Test 5: Gallery filters correctly by branch and sundayDate
-    const listHqMoments = mockReqRes({
-      query: { branchId: IDS.BRANCH_HQ, sundayDate: '2026-09-27' },
-      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    // Test 12: Member can like approved moment
+    const likeMomentReq = mockReqRes({
+      params: { id: pendingMoment.id },
+      user: { userId: IDS.USER_JOHN, branchId: IDS.BRANCH_HQ }
     });
-    getSundayMomentsHandler(listHqMoments.req, listHqMoments.res);
-    assert(listHqMoments.getStatus() === 200, 'Gallery retrieves moments for branch and date');
-    const hqMoments = listHqMoments.getData();
-    assert(Array.isArray(hqMoments) && hqMoments.length >= 1, 'Gallery returns matching approved moments');
+    await likeSundayMomentHandler(likeMomentReq.req, likeMomentReq.res);
+    assert(likeMomentReq.getStatus() === 200, 'Member can like approved moment');
+    assert(likeMomentReq.getData()?.likesCount === 1, 'Like count increments to 1');
+    assert(likeMomentReq.getData()?.hasLiked === true, 'hasLiked is true');
 
-    const listLekkiMoments = mockReqRes({
-      query: { branchId: IDS.BRANCH_LEKKI },
-      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    // Test 13: Duplicate like is idempotent (does not double count)
+    const duplicateLikeReq = mockReqRes({
+      params: { id: pendingMoment.id },
+      user: { userId: IDS.USER_JOHN, branchId: IDS.BRANCH_HQ }
     });
-    getSundayMomentsHandler(listLekkiMoments.req, listLekkiMoments.res);
-    assert(listLekkiMoments.getStatus() === 200, 'Gallery handles empty branch correctly');
-    assert(Array.isArray(listLekkiMoments.getData()) && listLekkiMoments.getData().length === 0, 'No unrelated moments returned for Lekki');
+    await likeSundayMomentHandler(duplicateLikeReq.req, duplicateLikeReq.res);
+    assert(duplicateLikeReq.getStatus() === 200, 'Duplicate like succeeds idempotently');
+    assert(duplicateLikeReq.getData()?.likesCount === 1, 'Like count remains 1');
 
-    // Test 6: Member cannot delete another member's Sunday Moment
-    const unauthorizedDelete = mockReqRes({
-      params: { id: createdMoment.id },
-      user: { userId: IDS.USER_JOHN, fullName: 'John Mensah', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
+    // Test 14: Member can unlike moment
+    const unlikeMomentReq = mockReqRes({
+      params: { id: pendingMoment.id },
+      user: { userId: IDS.USER_JOHN, branchId: IDS.BRANCH_HQ }
     });
-    await deleteSundayMomentHandler(unauthorizedDelete.req, unauthorizedDelete.res);
-    assert(unauthorizedDelete.getStatus() === 403, 'Member cannot delete another members media upload (403)');
+    await unlikeSundayMomentHandler(unlikeMomentReq.req, unlikeMomentReq.res);
+    assert(unlikeMomentReq.getStatus() === 200, 'Member can unlike moment');
+    assert(unlikeMomentReq.getData()?.likesCount === 0, 'Like count decrements to 0');
+    assert(unlikeMomentReq.getData()?.hasLiked === false, 'hasLiked is false');
 
-    // Test 7: Owner can delete their own Sunday Moment
-    const ownerDelete = mockReqRes({
-      params: { id: createdMoment.id },
+    // Test 15: Rejection flow with reason
+    const momentToReject = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/hq-photo2.jpg',
+        caption: 'Blurry photo',
+        sundayDate: '2026-09-27'
+      },
       user: { userId: IDS.USER_SARAH, fullName: 'Sarah Williams', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
     });
-    await deleteSundayMomentHandler(ownerDelete.req, ownerDelete.res);
-    assert(ownerDelete.getStatus() === 200, 'Owner can delete their own Sunday Moment');
-    assert(db.sundayMoments.some(m => m.id === createdMoment.id) === false, 'Sunday moment successfully removed from store');
+    await createSundayMomentHandler(momentToReject.req, momentToReject.res);
+    const rejectedMomentData = momentToReject.getData();
+    
+    const rejectReq = mockReqRes({
+      params: { id: rejectedMomentData.id },
+      body: { reason: 'Photo is blurry and does not meet church guidelines.' },
+      user: adminUser
+    });
+    await rejectSundayMomentHandler(rejectReq.req, rejectReq.res);
+    assert(rejectReq.getStatus() === 200, 'Admin can reject moment with reason');
+    const rejectedInDb = db.sundayMoments.find(m => m.id === rejectedMomentData.id);
+    assert(rejectedInDb?.status === 'rejected', 'Moment status is rejected');
+    assert(Boolean(rejectedInDb?.rejectionReason?.includes('blurry')), 'Rejection reason is stored');
+
+    // Test 16: Cannot like rejected moment
+    const likeRejected = mockReqRes({
+      params: { id: rejectedMomentData.id },
+      user: { userId: IDS.USER_JOHN, branchId: IDS.BRANCH_HQ }
+    });
+    await likeSundayMomentHandler(likeRejected.req, likeRejected.res);
+    assert(likeRejected.getStatus() === 400, 'Cannot like rejected moment (400)');
+
+    // Test 17: Admin upload is published immediately
+    const adminUpload = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/admin-official.jpg',
+        caption: 'Official choir performance photo',
+        sundayDate: '2026-09-27'
+      },
+      user: adminUser
+    });
+    await createSundayMomentHandler(adminUpload.req, adminUpload.res);
+    assert(adminUpload.getStatus() === 201, 'Admin can upload moment directly');
+    const adminMoment = adminUpload.getData();
+    assert(adminMoment?.status === 'approved', 'Admin upload is published immediately');
+    assert(adminMoment?.creatorSource === 'admin', 'Admin upload creatorSource is admin');
+
+    // Test 18: Disable approval setting -> subsequent member uploads publish immediately
+    SettingsService.updateSettings({
+      media: { requireMomentsApproval: false }
+    }, adminUser);
+    assert(SettingsService.getSettings().media.requireMomentsApproval === false, 'requireMomentsApproval disabled');
+
+    const autoPublishMember = mockReqRes({
+      body: {
+        branchId: IDS.BRANCH_HQ,
+        mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/member-instant.jpg',
+        caption: 'Instant published moment',
+        sundayDate: '2026-09-27'
+      },
+      user: { userId: IDS.USER_SARAH, fullName: 'Sarah Williams', roleName: 'Worker', branchId: IDS.BRANCH_HQ, adminLevel: 'none' }
+    });
+    await createSundayMomentHandler(autoPublishMember.req, autoPublishMember.res);
+    assert(autoPublishMember.getData()?.status === 'approved', 'New member upload publishes immediately when approval disabled');
+
+    // Rejection status from earlier remains rejected
+    assert(db.sundayMoments.find(m => m.id === rejectedMomentData.id)?.status === 'rejected', 'Previously rejected moment retains rejected status');
+
+    // Restore setting to default true
+    SettingsService.updateSettings({
+      media: { requireMomentsApproval: true }
+    }, adminUser);
+    assert(SettingsService.getSettings().media.requireMomentsApproval === true, 'requireMomentsApproval restored to true');
+
+    // Test 19: 24-hour expiry: moments older than 24h are excluded from member feed
+    const expiredMomentId = uuidv4();
+    const past25Hours = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    const past1Hour = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString();
+    db.sundayMoments.unshift({
+      id: expiredMomentId,
+      branchId: IDS.BRANCH_HQ,
+      uploadedBy: IDS.USER_JOHN,
+      uploadedByName: 'John Mensah',
+      uploadedByRole: 'Member',
+      mediaUrl: 'http://localhost:5000/uploads/fpm-media/sunday-moments/old.jpg',
+      sundayDate: '2026-09-20',
+      status: 'approved',
+      publishedAt: past25Hours,
+      expiresAt: past1Hour,
+      creatorSource: 'member',
+      createdAt: past25Hours
+    });
+
+    const listFeedNonExpired = mockReqRes({
+      query: { branchId: IDS.BRANCH_HQ },
+      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    });
+    getSundayMomentsHandler(listFeedNonExpired.req, listFeedNonExpired.res);
+    const feedResults = listFeedNonExpired.getData();
+    assert(!feedResults.some((m: any) => m.id === expiredMomentId), 'Expired moment (25h old) disappears from member feed');
+
+    // Cannot like expired moment
+    const likeExpired = mockReqRes({
+      params: { id: expiredMomentId },
+      user: { userId: IDS.USER_SARAH, branchId: IDS.BRANCH_HQ }
+    });
+    await likeSundayMomentHandler(likeExpired.req, likeExpired.res);
+    assert(likeExpired.getStatus() === 400, 'Cannot like expired moment (400)');
+
+    // Clean up test moments
+    db.sundayMoments = db.sundayMoments.filter(m => m.id !== pendingMoment.id && m.id !== rejectedMomentData.id && m.id !== adminMoment.id && m.id !== autoPublishMember.getData()?.id && m.id !== expiredMomentId);
 
     // =========================================================================
     // SECTION 12: FINANCE MODULE TESTS

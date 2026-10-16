@@ -11,7 +11,7 @@ import { SettingsService } from '../services/settingsService';
 import {
   Branch, Department, DepartmentPosition, EventItem, PostItem,
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
-  DepartmentReport, SundayMoment
+  DepartmentReport, SundayMoment, SundayMomentLike
 } from '../types';
 import {
   persistService, persistDepartmentReport, persistDelete, persistDepartment,
@@ -19,6 +19,7 @@ import {
   persistMember, persistUser, persistEvent, persistPost,
   persistServiceHighlight, persistTestimony, persistNotification,
   persistSundayMoment, deleteSundayMomentFromDb, sanitizeMediaUrl,
+  persistSundayMomentLike, deleteSundayMomentLikeFromDb,
   resolveTestimonyId, recordSystemMutation, isUuid
 } from '../db/sync';
 import { query } from '../db';
@@ -3423,34 +3424,107 @@ export const deleteDepartmentReportHandler = async (req: Request, res: Response)
 // =============================================================================
 export const getSundayMomentsHandler = (req: Request, res: Response) => {
   try {
-    const { branchId, sundayDate } = req.query as { branchId?: string; sundayDate?: string };
+    const { branchId, sundayDate, status, includeExpired, allBranches } = req.query as {
+      branchId?: string;
+      sundayDate?: string;
+      status?: string;
+      includeExpired?: string;
+      allBranches?: string;
+    };
     let moments = [...(db.sundayMoments || [])];
+    const user = req.user;
+    const isSuperAdmin = user?.adminLevel === 'super_admin' || user?.roleName === 'Super Administrator';
+    const isBranchAdmin = (user?.adminLevel === 'branch_admin' || user?.adminLevel === 'church_admin' || user?.roleName?.toLowerCase().includes('pastor') || user?.roleName?.toLowerCase().includes('admin'));
 
+    // Branch scoping
     if (branchId) {
       moments = moments.filter(m => m.branchId === branchId);
+    } else if (isBranchAdmin && !isSuperAdmin && allBranches !== 'true') {
+      if (user?.branchId) {
+        moments = moments.filter(m => m.branchId === user.branchId);
+      }
     }
 
     if (sundayDate) {
       moments = moments.filter(m => m.sundayDate === sundayDate);
     }
 
-    // Regular members only see approved moments; admins can see pending
-    const user = req.user;
-    const isBranchAdminOrHigher = user?.adminLevel === 'super_admin' || 
-      (user?.adminLevel === 'branch_admin' && (!branchId || user.branchId === branchId));
+    const now = Date.now();
+    const isExpired = (m: SundayMoment): boolean => {
+      if (!m.expiresAt && !m.publishedAt) {
+        if (m.status === 'approved' && m.createdAt) {
+          return new Date(m.createdAt).getTime() + 24 * 60 * 60 * 1000 <= now;
+        }
+        return false;
+      }
+      const expTime = m.expiresAt ? new Date(m.expiresAt).getTime() : new Date(m.publishedAt!).getTime() + 24 * 60 * 60 * 1000;
+      return expTime <= now;
+    };
 
-    if (!isBranchAdminOrHigher) {
-      moments = moments.filter(m => m.status === 'approved');
+    const isAuthorizedAdminForMoment = (m: SundayMoment): boolean => {
+      if (isSuperAdmin) return true;
+      if (isBranchAdmin && user?.branchId === m.branchId) return true;
+      return false;
+    };
+
+    // Filter by status / moderation
+    if (status) {
+      if (status === 'expired') {
+        moments = moments.filter(m => (isAuthorizedAdminForMoment(m) || m.uploadedBy === user?.userId) && isExpired(m));
+      } else if (status === 'pending') {
+        moments = moments.filter(m => (isAuthorizedAdminForMoment(m) || m.uploadedBy === user?.userId) && m.status === 'pending');
+      } else if (status === 'rejected') {
+        moments = moments.filter(m => (isAuthorizedAdminForMoment(m) || m.uploadedBy === user?.userId) && m.status === 'rejected');
+      } else if (status === 'approved' || status === 'published') {
+        if (includeExpired === 'true') {
+          moments = moments.filter(m => m.status === 'approved');
+        } else {
+          moments = moments.filter(m => m.status === 'approved' && !isExpired(m));
+        }
+      } else if (status === 'all') {
+        moments = moments.filter(m => isAuthorizedAdminForMoment(m) || m.uploadedBy === user?.userId);
+      }
+    } else {
+      // Default query (e.g. mobile app feed or member view)
+      // Members only see approved & non-expired moments, PLUS their own uploads
+      moments = moments.filter(m => {
+        const canModerate = isAuthorizedAdminForMoment(m);
+        const isOwner = user?.userId && m.uploadedBy === user.userId;
+        const isLive = m.status === 'approved' && !isExpired(m);
+
+        if (canModerate) {
+          return includeExpired === 'true' ? true : (!isExpired(m) || m.status === 'pending');
+        }
+        if (isOwner) {
+          return true; // Uploader can track their own submission status
+        }
+        return isLive;
+      });
     }
 
-    // Sort by createdAt descending
-    moments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Sort by publication time or creation time descending
+    moments.sort((a, b) => {
+      const timeA = a.publishedAt ? new Date(a.publishedAt).getTime() : new Date(a.createdAt).getTime();
+      const timeB = b.publishedAt ? new Date(b.publishedAt).getTime() : new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
 
-    const sanitized = moments.map(m => ({
-      ...m,
-      mediaUrl: sanitizeMediaUrl(m.mediaUrl) || m.mediaUrl,
-      thumbnailUrl: sanitizeMediaUrl(m.thumbnailUrl || m.mediaUrl) || m.thumbnailUrl || m.mediaUrl
-    }));
+    const likes = db.sundayMomentLikes || [];
+    const sanitized = moments.map(m => {
+      const momentLikes = likes.filter(l => l.momentId === m.id);
+      const likesCount = momentLikes.length > 0 ? momentLikes.length : (m.likesCount || 0);
+      const hasLiked = Boolean(user?.userId && momentLikes.some(l => l.userId === user.userId));
+      const expired = isExpired(m);
+
+      return {
+        ...m,
+        mediaUrl: sanitizeMediaUrl(m.mediaUrl) || m.mediaUrl,
+        thumbnailUrl: sanitizeMediaUrl(m.thumbnailUrl || m.mediaUrl) || m.thumbnailUrl || m.mediaUrl,
+        likesCount,
+        hasLiked,
+        isExpired: expired
+      };
+    });
 
     return res.json(sanitized);
   } catch (err: any) {
@@ -3468,14 +3542,24 @@ export const createSundayMomentHandler = async (req: Request, res: Response) => 
       return res.status(400).json({ success: false, error: 'Branch ID and media URL are required.' });
     }
 
-    // Enforce branch-level authorization
-    const isSuperAdmin = user.adminLevel === 'super_admin';
+    const isSuperAdmin = user.adminLevel === 'super_admin' || user.roleName === 'Super Administrator';
+    const isBranchAdmin = (user.adminLevel === 'branch_admin' || user.adminLevel === 'church_admin' || user.roleName?.toLowerCase().includes('pastor') || user.roleName?.toLowerCase().includes('admin'));
+    const isAdmin = isSuperAdmin || isBranchAdmin;
+
     const userBranch = user.branchId;
 
     if (!isSuperAdmin && userBranch && userBranch !== branchId) {
       return res.status(403).json({
         success: false,
         error: 'Branch isolation violation: You can only upload Sunday moments for your assigned branch.'
+      });
+    }
+
+    const mediaSettings = SettingsService.getSettings().media;
+    if (!isAdmin && !mediaSettings.allowMemberMomentsUpload) {
+      return res.status(403).json({
+        success: false,
+        error: 'Member Sunday Moments uploads are currently disabled by administration.'
       });
     }
 
@@ -3493,19 +3577,41 @@ export const createSundayMomentHandler = async (req: Request, res: Response) => 
     const sanitizedMedia = sanitizeMediaUrl(mediaUrl) || mediaUrl;
     const sanitizedThumb = sanitizeMediaUrl(thumbnailUrl || mediaUrl) || sanitizedMedia;
 
+    const nowIso = new Date().toISOString();
+    const expiryIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    let initialStatus: 'approved' | 'pending' = 'approved';
+    let publishedAt: string | undefined = nowIso;
+    let expiresAt: string | undefined = expiryIso;
+    const creatorSource: 'admin' | 'member' = isAdmin ? 'admin' : 'member';
+
+    if (!isAdmin) {
+      const requireApproval = mediaSettings.requireMomentsApproval !== false;
+      if (requireApproval) {
+        initialStatus = 'pending';
+        publishedAt = undefined;
+        expiresAt = undefined;
+      }
+    }
+
     const newMoment: SundayMoment = {
       id: uuidv4(),
       branchId,
       uploadedBy: user.userId,
       uploadedByName: user.fullName || 'Church Member',
-      uploadedByRole: user.roleName || 'Member',
+      uploadedByRole: user.roleName || (isAdmin ? 'Admin' : 'Member'),
       mediaUrl: sanitizedMedia,
       thumbnailUrl: sanitizedThumb,
       caption: caption ? String(caption).trim() : undefined,
       sundayDate: calculatedSunday,
-      status: 'approved',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      status: initialStatus,
+      publishedAt,
+      expiresAt,
+      creatorSource,
+      likesCount: 0,
+      hasLiked: false,
+      createdAt: nowIso,
+      updatedAt: nowIso
     };
 
     if (!db.sundayMoments) {
@@ -3515,10 +3621,28 @@ export const createSundayMomentHandler = async (req: Request, res: Response) => 
 
     await persistSundayMoment(newMoment).catch(err => console.warn('[PERSIST SUNDAY MOMENT ERROR]', err.message));
 
+    // If pending, notify branch admins / super admins
+    if (initialStatus === 'pending') {
+      const branchObj = db.branches.find(b => b.id === branchId);
+      const branchName = branchObj ? branchObj.name : 'Branch';
+      const notif: NotificationItem = {
+        id: uuidv4(),
+        title: 'New Sunday Moment Submission',
+        body: `${newMoment.uploadedByName} submitted a photo for ${branchName} awaiting review.`,
+        targetScope: 'branch',
+        targetId: branchId,
+        notificationType: 'general',
+        actionUrl: '/highlights',
+        createdAt: nowIso
+      };
+      db.notifications.unshift(notif);
+      await persistNotification(notif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+    }
+
     AuditService.log(
       user.fullName,
-      user.roleName,
-      'SUNDAY_MOMENT_CREATED',
+      user.roleName || (isAdmin ? 'Admin' : 'Member'),
+      initialStatus === 'pending' ? 'SUNDAY_MOMENT_SUBMITTED' : 'SUNDAY_MOMENT_PUBLISHED',
       'sunday_moment',
       newMoment.id,
       user.userId,
@@ -3527,6 +3651,205 @@ export const createSundayMomentHandler = async (req: Request, res: Response) => 
     );
 
     return res.status(201).json(newMoment);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const approveSundayMomentHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const { id } = req.params;
+    const moment = (db.sundayMoments || []).find(m => m.id === id);
+    if (!moment) {
+      return res.status(404).json({ success: false, error: 'Sunday moment not found.' });
+    }
+
+    const isSuperAdmin = user.adminLevel === 'super_admin' || user.roleName === 'Super Administrator';
+    const isBranchAdmin = (user.adminLevel === 'branch_admin' || user.adminLevel === 'church_admin' || user.roleName?.toLowerCase().includes('pastor') || user.roleName?.toLowerCase().includes('admin')) && user.branchId === moment.branchId;
+
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: You do not have permission to moderate Sunday Moments for this branch.'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const expiryIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    moment.status = 'approved';
+    moment.approvedBy = user.userId;
+    moment.publishedAt = nowIso;
+    moment.expiresAt = expiryIso;
+    moment.updatedAt = nowIso;
+
+    await persistSundayMoment(moment).catch(err => console.warn('[PERSIST APPROVE ERROR]', err.message));
+
+    // Send notification to uploader
+    const notif: NotificationItem = {
+      id: uuidv4(),
+      title: 'Sunday Moment Approved! 🎉',
+      body: 'Your Sunday photo has been approved and is now live for church members to see for the next 24 hours.',
+      targetScope: 'specific_member',
+      targetId: moment.uploadedBy,
+      notificationType: 'general',
+      actionUrl: '/moments',
+      createdAt: nowIso
+    };
+    db.notifications.unshift(notif);
+    await persistNotification(notif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+
+    AuditService.log(
+      user.fullName,
+      user.roleName || 'Admin',
+      'SUNDAY_MOMENT_APPROVED',
+      'sunday_moment',
+      moment.id,
+      user.userId,
+      null,
+      moment
+    );
+
+    return res.json({ success: true, message: 'Sunday moment approved successfully.', moment });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const rejectSundayMomentHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const moment = (db.sundayMoments || []).find(m => m.id === id);
+    if (!moment) {
+      return res.status(404).json({ success: false, error: 'Sunday moment not found.' });
+    }
+
+    const isSuperAdmin = user.adminLevel === 'super_admin' || user.roleName === 'Super Administrator';
+    const isBranchAdmin = (user.adminLevel === 'branch_admin' || user.adminLevel === 'church_admin' || user.roleName?.toLowerCase().includes('pastor') || user.roleName?.toLowerCase().includes('admin')) && user.branchId === moment.branchId;
+
+    if (!isSuperAdmin && !isBranchAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: You do not have permission to moderate Sunday Moments for this branch.'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    moment.status = 'rejected';
+    moment.rejectedBy = user.userId;
+    moment.rejectionReason = reason ? String(reason).trim() : undefined;
+    moment.updatedAt = nowIso;
+
+    await persistSundayMoment(moment).catch(err => console.warn('[PERSIST REJECT ERROR]', err.message));
+
+    const reasonText = moment.rejectionReason ? ` Reason: ${moment.rejectionReason}` : '';
+    const notif: NotificationItem = {
+      id: uuidv4(),
+      title: 'Sunday Moment Update',
+      body: `Your Sunday photo submission was not approved by church administration.${reasonText}`,
+      targetScope: 'specific_member',
+      targetId: moment.uploadedBy,
+      notificationType: 'general',
+      createdAt: nowIso
+    };
+    db.notifications.unshift(notif);
+    await persistNotification(notif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+
+    AuditService.log(
+      user.fullName,
+      user.roleName || 'Admin',
+      'SUNDAY_MOMENT_REJECTED',
+      'sunday_moment',
+      moment.id,
+      user.userId,
+      null,
+      moment
+    );
+
+    return res.json({ success: true, message: 'Sunday moment rejected.', moment });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const likeSundayMomentHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const { id } = req.params;
+    const moment = (db.sundayMoments || []).find(m => m.id === id);
+    if (!moment) {
+      return res.status(404).json({ success: false, error: 'Sunday moment not found.' });
+    }
+
+    // Must be approved and non-expired
+    const now = Date.now();
+    const expTime = moment.expiresAt ? new Date(moment.expiresAt).getTime() : (moment.publishedAt ? new Date(moment.publishedAt).getTime() + 24 * 60 * 60 * 1000 : 0);
+    if (moment.status !== 'approved' || (expTime > 0 && expTime <= now)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot like an expired, rejected, or pending Sunday moment.'
+      });
+    }
+
+    if (!db.sundayMomentLikes) {
+      db.sundayMomentLikes = [];
+    }
+
+    const existingIndex = db.sundayMomentLikes.findIndex(l => l.momentId === id && l.userId === user.userId);
+    if (existingIndex === -1) {
+      const newLike: SundayMomentLike = {
+        id: uuidv4(),
+        momentId: id,
+        userId: user.userId,
+        createdAt: new Date().toISOString()
+      };
+      db.sundayMomentLikes.push(newLike);
+      moment.likesCount = db.sundayMomentLikes.filter(l => l.momentId === id).length;
+      await persistSundayMomentLike(newLike).catch(err => console.warn('[PERSIST LIKE ERROR]', err.message));
+      await persistSundayMoment(moment).catch(err => console.warn('[PERSIST MOMENT ERROR]', err.message));
+    }
+
+    const currentCount = db.sundayMomentLikes.filter(l => l.momentId === id).length;
+    return res.json({ success: true, likesCount: currentCount, hasLiked: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const unlikeSundayMomentHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const { id } = req.params;
+    const moment = (db.sundayMoments || []).find(m => m.id === id);
+    if (!moment) {
+      return res.status(404).json({ success: false, error: 'Sunday moment not found.' });
+    }
+
+    if (!db.sundayMomentLikes) {
+      db.sundayMomentLikes = [];
+    }
+
+    const existingIndex = db.sundayMomentLikes.findIndex(l => l.momentId === id && l.userId === user.userId);
+    if (existingIndex !== -1) {
+      db.sundayMomentLikes.splice(existingIndex, 1);
+      moment.likesCount = db.sundayMomentLikes.filter(l => l.momentId === id).length;
+      await deleteSundayMomentLikeFromDb(id, user.userId).catch(err => console.warn('[DELETE LIKE ERROR]', err.message));
+      await persistSundayMoment(moment).catch(err => console.warn('[PERSIST MOMENT ERROR]', err.message));
+    }
+
+    const currentCount = db.sundayMomentLikes.filter(l => l.momentId === id).length;
+    return res.json({ success: true, likesCount: currentCount, hasLiked: false });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -3556,6 +3879,9 @@ export const deleteSundayMomentHandler = async (req: Request, res: Response) => 
     }
 
     db.sundayMoments.splice(momentIndex, 1);
+    if (db.sundayMomentLikes) {
+      db.sundayMomentLikes = db.sundayMomentLikes.filter(l => l.momentId !== id);
+    }
     await deleteSundayMomentFromDb(id).catch(err => console.warn('[DELETE SUNDAY MOMENT ERROR]', err.message));
 
     AuditService.log(

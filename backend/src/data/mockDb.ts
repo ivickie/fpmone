@@ -3,7 +3,7 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ReactionItem, CommentItem, ServiceHighlightItem, TestimonyItem, NotificationItem,
-  AuditLogItem, MediaItem, DepartmentReport, SundayMoment,
+  AuditLogItem, MediaItem, DepartmentReport, SundayMoment, SundayMomentLike,
   FinanceTransaction, FinanceOpeningBalance
 } from '../types';
 
@@ -1904,6 +1904,7 @@ export class DatabaseStore {
   ];
 
   public sundayMoments: SundayMoment[] = [];
+  public sundayMomentLikes: SundayMomentLike[] = [];
   public financeTransactions: FinanceTransaction[] = [];
   public financeOpeningBalances: FinanceOpeningBalance[] = [];
 

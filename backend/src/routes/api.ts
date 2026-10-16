@@ -26,6 +26,7 @@ import {
   getDepartmentReportsHandler, getDepartmentReportByIdHandler,
   createDepartmentReportHandler, reviewDepartmentReportHandler, deleteDepartmentReportHandler,
   getSundayMomentsHandler, createSundayMomentHandler, deleteSundayMomentHandler,
+  approveSundayMomentHandler, rejectSundayMomentHandler, likeSundayMomentHandler, unlikeSundayMomentHandler,
   getFinanceCategoriesHandler, getFinanceDashboardHandler, getFinanceTransactionsHandler,
   getFinanceTransactionByIdHandler, createFinanceTransactionHandler, updateFinanceTransactionHandler,
   voidFinanceTransactionHandler, getFinanceOpeningBalanceHandler, setFinanceOpeningBalanceHandler,
@@ -179,8 +180,12 @@ router.put('/department-reports/:id/review', requireAuth, reviewDepartmentReport
 router.delete('/department-reports/:id', requireAuth, deleteDepartmentReportHandler);
 
 // --- SUNDAY MOMENTS ---
-router.get('/sunday-moments', getSundayMomentsHandler);
+router.get('/sunday-moments', optionalAuth, getSundayMomentsHandler);
 router.post('/sunday-moments', requireAuth, createSundayMomentHandler);
+router.put('/sunday-moments/:id/approve', requireAuth, requireAdmin, approveSundayMomentHandler);
+router.put('/sunday-moments/:id/reject', requireAuth, requireAdmin, rejectSundayMomentHandler);
+router.post('/sunday-moments/:id/like', requireAuth, likeSundayMomentHandler);
+router.post('/sunday-moments/:id/unlike', requireAuth, unlikeSundayMomentHandler);
 router.delete('/sunday-moments/:id', requireAuth, deleteSundayMomentHandler);
 
 // --- FINANCE MODULE ---

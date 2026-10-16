@@ -68,6 +68,7 @@ export interface MediaSettingsConfig {
   allowedImageFormats: string[];
   allowMemberTestimonies: boolean;
   allowMemberMomentsUpload: boolean;
+  requireMomentsApproval: boolean;
 }
 
 export interface SecuritySettingsConfig {
@@ -155,7 +156,8 @@ export class SettingsService {
       maxUploadSizeMb: 10,
       allowedImageFormats: ["image/jpeg", "image/png", "image/webp"],
       allowMemberTestimonies: true,
-      allowMemberMomentsUpload: true
+      allowMemberMomentsUpload: true,
+      requireMomentsApproval: true
     },
     security: {
       sessionLifetimeHours: 24,
@@ -374,6 +376,7 @@ export class SettingsService {
       }
       if (med.allowMemberTestimonies !== undefined) this.settings.media.allowMemberTestimonies = Boolean(med.allowMemberTestimonies);
       if (med.allowMemberMomentsUpload !== undefined) this.settings.media.allowMemberMomentsUpload = Boolean(med.allowMemberMomentsUpload);
+      if (med.requireMomentsApproval !== undefined) this.settings.media.requireMomentsApproval = Boolean(med.requireMomentsApproval);
     }
 
     // 8. Security Settings

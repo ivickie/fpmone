@@ -191,4 +191,24 @@ class ChurchRepository {
       Result.failure(e)
     }
   }
+
+  suspend fun likeSundayMoment(momentId: String): Result<LikeMomentResponse> = withContext(Dispatchers.IO) {
+    try {
+      val responseText = ApiClient.post("/sunday-moments/$momentId/like", "{}")
+      val res = ApiClient.json.decodeFromString<LikeMomentResponse>(responseText)
+      Result.success(res)
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
+
+  suspend fun unlikeSundayMoment(momentId: String): Result<LikeMomentResponse> = withContext(Dispatchers.IO) {
+    try {
+      val responseText = ApiClient.post("/sunday-moments/$momentId/unlike", "{}")
+      val res = ApiClient.json.decodeFromString<LikeMomentResponse>(responseText)
+      Result.success(res)
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
 }

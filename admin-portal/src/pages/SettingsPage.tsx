@@ -109,7 +109,8 @@ export const SettingsPage: React.FC = () => {
       maxUploadSizeMb: 10,
       allowedImageFormats: ["image/jpeg", "image/png", "image/webp"],
       allowMemberTestimonies: true,
-      allowMemberMomentsUpload: true
+      allowMemberMomentsUpload: true,
+      requireMomentsApproval: true
     },
     security: {
       sessionLifetimeHours: 24,
@@ -186,7 +187,8 @@ export const SettingsPage: React.FC = () => {
             maxUploadSizeMb: data.media?.maxUploadSizeMb ?? 10,
             allowedImageFormats: Array.isArray(data.media?.allowedImageFormats) ? data.media.allowedImageFormats : ["image/jpeg", "image/png", "image/webp"],
             allowMemberTestimonies: data.media?.allowMemberTestimonies !== false,
-            allowMemberMomentsUpload: data.media?.allowMemberMomentsUpload !== false
+            allowMemberMomentsUpload: data.media?.allowMemberMomentsUpload !== false,
+            requireMomentsApproval: data.media?.requireMomentsApproval !== false
           },
           security: {
             sessionLifetimeHours: data.security?.sessionLifetimeHours ?? 24,
@@ -1214,6 +1216,20 @@ export const SettingsPage: React.FC = () => {
                   disabled={!isSuperAdmin || saving}
                   checked={formData.media.allowMemberMomentsUpload}
                   onChange={e => setFormData({ ...formData, media: { ...formData.media, allowMemberMomentsUpload: e.target.checked } })}
+                  className="w-5 h-5 text-blue-600 rounded"
+                />
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                <div>
+                  <h4 className="font-extrabold text-slate-900">Require Approval for Sunday Moments</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">When enabled, member-submitted Moments must be approved by an authorized administrator before appearing to other members. When disabled, eligible member uploads can appear immediately.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  disabled={!isSuperAdmin || saving}
+                  checked={formData.media.requireMomentsApproval}
+                  onChange={e => setFormData({ ...formData, media: { ...formData.media, requireMomentsApproval: e.target.checked } })}
                   className="w-5 h-5 text-blue-600 rounded"
                 />
               </div>

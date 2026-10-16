@@ -3,7 +3,7 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem,
-  DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment
+  DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment, SundayMomentLike
 } from '../types';
 
 export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
@@ -59,12 +59,37 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
           caption TEXT,
           sunday_date DATE NOT NULL,
           status VARCHAR(50) DEFAULT 'approved',
+          published_at TIMESTAMPTZ,
+          expires_at TIMESTAMPTZ,
+          approved_by UUID,
+          rejected_by UUID,
+          rejection_reason TEXT,
+          creator_source VARCHAR(20) DEFAULT 'member',
+          likes_count INT NOT NULL DEFAULT 0,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS approved_by UUID;
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS rejected_by UUID;
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS creator_source VARCHAR(20) DEFAULT 'member';
+        ALTER TABLE sunday_moments ADD COLUMN IF NOT EXISTS likes_count INT NOT NULL DEFAULT 0;
         CREATE INDEX IF NOT EXISTS idx_sunday_moments_branch ON sunday_moments(branch_id);
         CREATE INDEX IF NOT EXISTS idx_sunday_moments_date ON sunday_moments(sunday_date DESC);
         CREATE INDEX IF NOT EXISTS idx_sunday_moments_created ON sunday_moments(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_sunday_moments_expires ON sunday_moments(expires_at DESC);
+
+        CREATE TABLE IF NOT EXISTS sunday_moment_likes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          moment_id UUID NOT NULL REFERENCES sunday_moments(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE(moment_id, user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_moment_likes_moment ON sunday_moment_likes(moment_id);
+        CREATE INDEX IF NOT EXISTS idx_moment_likes_user ON sunday_moment_likes(user_id);
 
         CREATE TABLE IF NOT EXISTS finance_transactions (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -172,7 +197,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       deptReportsRes,
       financeTxRes,
       financeBalancesRes,
-      sundayMomentsRes
+      sundayMomentsRes,
+      sundayMomentLikesRes
     ] = await Promise.all([
       query('SELECT * FROM branches ORDER BY name ASC'),
       query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC'),
@@ -194,7 +220,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] })),
       query('SELECT * FROM finance_transactions ORDER BY transaction_date DESC, created_at DESC').catch(() => ({ rows: [] })),
       query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM sunday_moments ORDER BY created_at DESC').catch(() => ({ rows: [] }))
+      query('SELECT * FROM sunday_moments ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      query('SELECT * FROM sunday_moment_likes ORDER BY created_at DESC').catch(() => ({ rows: [] }))
     ]);
 
     if (branchesRes.rows.length > 0) {
@@ -614,6 +641,13 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         caption: r.caption || undefined,
         sundayDate: r.sunday_date ? new Date(r.sunday_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         status: r.status || 'approved',
+        publishedAt: r.published_at ? new Date(r.published_at).toISOString() : (r.status === 'approved' && r.created_at ? new Date(r.created_at).toISOString() : undefined),
+        expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : (r.status === 'approved' && r.created_at ? new Date(new Date(r.created_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : undefined),
+        approvedBy: r.approved_by || undefined,
+        rejectedBy: r.rejected_by || undefined,
+        rejectionReason: r.rejection_reason || undefined,
+        creatorSource: r.creator_source || 'member',
+        likesCount: Number(r.likes_count || 0),
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
       }));
@@ -621,7 +655,18 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       store.sundayMoments = [];
     }
 
-    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs, ${store.sundayMoments?.length || 0} moments.`);
+    if (sundayMomentLikesRes && sundayMomentLikesRes.rows && sundayMomentLikesRes.rows.length > 0) {
+      store.sundayMomentLikes = sundayMomentLikesRes.rows.map((r: any): SundayMomentLike => ({
+        id: r.id,
+        momentId: r.moment_id,
+        userId: r.user_id,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
+      }));
+    } else if (!store.sundayMomentLikes) {
+      store.sundayMomentLikes = [];
+    }
+
+    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs, ${store.sundayMoments?.length || 0} moments, ${store.sundayMomentLikes?.length || 0} moment likes.`);
     return true;
   } catch (err: any) {
     console.error('[DATABASE] Hydration from Supabase encountered an issue, falling back to local seed state:', err.message);
@@ -1289,12 +1334,16 @@ export async function persistSundayMoment(moment: SundayMoment): Promise<void> {
   if (!isUuid(moment.id)) return;
   const branchId = isUuid(moment.branchId) ? moment.branchId : 'b1111111-1111-1111-1111-111111111111';
   const uploadedBy = isUuid(moment.uploadedBy) ? moment.uploadedBy : 'c1111111-1111-1111-1111-111111111111';
+  const approvedBy = moment.approvedBy && isUuid(moment.approvedBy) ? moment.approvedBy : null;
+  const rejectedBy = moment.rejectedBy && isUuid(moment.rejectedBy) ? moment.rejectedBy : null;
   try {
     await query(`
       INSERT INTO sunday_moments (
         id, branch_id, uploaded_by, uploaded_by_name, uploaded_by_role,
-        media_url, thumbnail_url, caption, sunday_date, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        media_url, thumbnail_url, caption, sunday_date, status,
+        published_at, expires_at, approved_by, rejected_by, rejection_reason,
+        creator_source, likes_count, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       ON CONFLICT (id) DO UPDATE SET
         branch_id = EXCLUDED.branch_id,
         media_url = EXCLUDED.media_url,
@@ -1302,6 +1351,13 @@ export async function persistSundayMoment(moment: SundayMoment): Promise<void> {
         caption = EXCLUDED.caption,
         sunday_date = EXCLUDED.sunday_date,
         status = EXCLUDED.status,
+        published_at = EXCLUDED.published_at,
+        expires_at = EXCLUDED.expires_at,
+        approved_by = EXCLUDED.approved_by,
+        rejected_by = EXCLUDED.rejected_by,
+        rejection_reason = EXCLUDED.rejection_reason,
+        creator_source = EXCLUDED.creator_source,
+        likes_count = EXCLUDED.likes_count,
         updated_at = EXCLUDED.updated_at
     `, [
       moment.id, branchId, uploadedBy,
@@ -1312,6 +1368,13 @@ export async function persistSundayMoment(moment: SundayMoment): Promise<void> {
       moment.caption || null,
       moment.sundayDate,
       moment.status || 'approved',
+      moment.publishedAt || null,
+      moment.expiresAt || null,
+      approvedBy,
+      rejectedBy,
+      moment.rejectionReason || null,
+      moment.creatorSource || 'member',
+      moment.likesCount || 0,
       moment.createdAt,
       moment.updatedAt || moment.createdAt
     ]);
@@ -1325,6 +1388,30 @@ export async function deleteSundayMomentFromDb(momentId: string): Promise<void> 
   return persistDelete('sunday_moments', momentId);
 }
 
+export async function persistSundayMomentLike(like: SundayMomentLike): Promise<void> {
+  if (!isUuid(like.id) || !isUuid(like.momentId) || !isUuid(like.userId)) return;
+  try {
+    await query(`
+      INSERT INTO sunday_moment_likes (id, moment_id, user_id, created_at)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (moment_id, user_id) DO NOTHING
+    `, [like.id, like.momentId, like.userId, like.createdAt]);
+    await recordSystemMutation('sunday_moment_likes');
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: sunday_moment_likes] ${err.message}`);
+  }
+}
+
+export async function deleteSundayMomentLikeFromDb(momentId: string, userId: string): Promise<void> {
+  if (!isUuid(momentId) || !isUuid(userId)) return;
+  try {
+    await query(`DELETE FROM sunday_moment_likes WHERE moment_id = $1 AND user_id = $2`, [momentId, userId]);
+    await recordSystemMutation('sunday_moment_likes');
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST DELETE ERROR: sunday_moment_likes] ${err.message}`);
+  }
+}
+
 export async function persistDelete(table: string, id: string): Promise<void> {
   const targetId = table === 'testimonies' ? resolveTestimonyId(id) : id;
   if (!isUuid(targetId)) return;
@@ -1335,7 +1422,8 @@ export async function persistDelete(table: string, id: string): Promise<void> {
       'users', 'members', 'workers', 'services', 'attendance_records',
       'events', 'posts', 'comments', 'reactions', 'service_highlights',
       'testimonies', 'notifications', 'media_items', 'department_reports',
-      'finance_transactions', 'finance_opening_balances', 'sunday_moments'
+      'finance_transactions', 'finance_opening_balances', 'sunday_moments',
+      'sunday_moment_likes'
     ];
     if (!safeTables.includes(table)) {
       throw new Error(`Invalid table name for persistDelete: ${table}`);

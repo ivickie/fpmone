@@ -206,4 +206,39 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
       }
     }
   }
+
+  fun toggleSundayMomentLike(momentId: String) {
+    val currentMoments = _state.value.sundayMoments
+    val target = currentMoments.find { it.id == momentId } ?: return
+
+    val newHasLiked = !target.hasLiked
+    val newLikesCount = if (newHasLiked) target.likesCount + 1 else maxOf(0, target.likesCount - 1)
+    val updatedMoment = target.copy(hasLiked = newHasLiked, likesCount = newLikesCount)
+
+    _state.value = _state.value.copy(
+      sundayMoments = currentMoments.map { if (it.id == momentId) updatedMoment else it }
+    )
+
+    viewModelScope.launch {
+      val res = if (newHasLiked) {
+        repository.likeSundayMoment(momentId)
+      } else {
+        repository.unlikeSundayMoment(momentId)
+      }
+
+      if (res.isSuccess) {
+        val data = res.getOrNull()
+        if (data != null) {
+          _state.value = _state.value.copy(
+            sundayMoments = _state.value.sundayMoments.map {
+              if (it.id == momentId) it.copy(likesCount = data.likesCount, hasLiked = data.hasLiked) else it
+            }
+          )
+        }
+      } else {
+        // Rollback on failure
+        _state.value = _state.value.copy(sundayMoments = currentMoments)
+      }
+    }
+  }
 }
