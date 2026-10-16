@@ -91,6 +91,24 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_moment_likes_moment ON sunday_moment_likes(moment_id);
         CREATE INDEX IF NOT EXISTS idx_moment_likes_user ON sunday_moment_likes(user_id);
 
+        ALTER TABLE sunday_moments ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE sunday_moment_likes ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE system_mutations ENABLE ROW LEVEL SECURITY;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'sunday_moments' AND policyname = 'Public published sunday moments read'
+          ) THEN
+            CREATE POLICY "Public published sunday moments read" ON public.sunday_moments FOR SELECT TO public USING (status = 'approved');
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'sunday_moment_likes' AND policyname = 'Public sunday moment likes read'
+          ) THEN
+            CREATE POLICY "Public sunday moment likes read" ON public.sunday_moment_likes FOR SELECT TO public USING (true);
+          END IF;
+        END $$;
+
         CREATE TABLE IF NOT EXISTS finance_transactions (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,

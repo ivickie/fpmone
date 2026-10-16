@@ -7,18 +7,25 @@ async function applyLinterFixes() {
   console.log('====================================================');
 
   // 1. Fix RLS Disabled on Public Tables (rls_disabled_in_public)
-  console.log('\n[1/4] Enabling RLS on Finance Module Tables...');
-  const financeStatements = [
+  console.log('\n[1/4] Enabling RLS on Public Tables (sunday_moments, sunday_moment_likes, system_mutations, finance)...');
+  const rlsStatements = [
     `ALTER TABLE public.finance_transactions ENABLE ROW LEVEL SECURITY;`,
     `ALTER TABLE public.finance_opening_balances ENABLE ROW LEVEL SECURITY;`,
+    `ALTER TABLE public.sunday_moments ENABLE ROW LEVEL SECURITY;`,
+    `ALTER TABLE public.sunday_moment_likes ENABLE ROW LEVEL SECURITY;`,
+    `ALTER TABLE public.system_mutations ENABLE ROW LEVEL SECURITY;`,
     `DROP POLICY IF EXISTS "Allow authenticated manage finance_transactions" ON public.finance_transactions;`,
-    `DROP POLICY IF EXISTS "Allow authenticated manage finance_opening_balances" ON public.finance_opening_balances;`
+    `DROP POLICY IF EXISTS "Allow authenticated manage finance_opening_balances" ON public.finance_opening_balances;`,
+    `DROP POLICY IF EXISTS "Public published sunday moments read" ON public.sunday_moments;`,
+    `CREATE POLICY "Public published sunday moments read" ON public.sunday_moments FOR SELECT TO public USING (status = 'approved');`,
+    `DROP POLICY IF EXISTS "Public sunday moment likes read" ON public.sunday_moment_likes;`,
+    `CREATE POLICY "Public sunday moment likes read" ON public.sunday_moment_likes FOR SELECT TO public USING (true);`
   ];
 
-  for (const stmt of financeStatements) {
+  for (const stmt of rlsStatements) {
     await query(stmt);
   }
-  console.log('  -> RLS enabled on finance_transactions and finance_opening_balances.');
+  console.log('  -> RLS enabled on sunday_moments, sunday_moment_likes, system_mutations, finance_transactions, finance_opening_balances.');
 
   // 2. Fix Overly Permissive RLS Policies (rls_policy_always_true)
   console.log('\n[2/4] Remediating Overly Permissive Policies (rls_policy_always_true)...');
@@ -99,7 +106,7 @@ async function applyLinterFixes() {
     SELECT tablename, rowsecurity 
     FROM pg_tables 
     WHERE schemaname = 'public' 
-      AND tablename IN ('finance_transactions', 'finance_opening_balances', 'user_ministry_roles', 'attendance_settings', 'department_reports', 'post_media', 'saved_posts', 'notification_reads')
+      AND tablename IN ('sunday_moments', 'sunday_moment_likes', 'system_mutations', 'finance_transactions', 'finance_opening_balances', 'user_ministry_roles', 'attendance_settings', 'department_reports', 'post_media', 'saved_posts', 'notification_reads')
     ORDER BY tablename;
   `);
   console.log('Tables RLS Status:');
@@ -109,7 +116,7 @@ async function applyLinterFixes() {
     SELECT tablename, policyname, cmd, roles, qual, with_check 
     FROM pg_policies 
     WHERE schemaname = 'public' 
-      AND tablename IN ('attendance_settings', 'department_reports', 'user_ministry_roles', 'post_media', 'notification_reads', 'saved_posts', 'finance_transactions', 'finance_opening_balances')
+      AND tablename IN ('sunday_moments', 'sunday_moment_likes', 'attendance_settings', 'department_reports', 'user_ministry_roles', 'post_media', 'notification_reads', 'saved_posts', 'finance_transactions', 'finance_opening_balances')
     ORDER BY tablename, policyname;
   `);
   console.log('\nPublic Table Policies:');
