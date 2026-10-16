@@ -1220,7 +1220,7 @@ export const requestChangesHandler = async (req: Request, res: Response) => {
   }
 };
 
-export const listMembersHandler = (req: Request, res: Response) => {
+export const listMembersHandler = async (req: Request, res: Response) => {
   const cleanParam = (val: any) => (val && val !== 'undefined' && val !== 'null' && val !== '' ? String(val) : undefined);
   const search = cleanParam(req.query.search);
   const branchId = cleanParam(req.query.branchId);
@@ -1229,7 +1229,7 @@ export const listMembersHandler = (req: Request, res: Response) => {
   const status = cleanParam(req.query.status) as any;
 
   const targetBranch = req.user?.adminLevel === 'super_admin' ? branchId : req.user?.branchId;
-  const members = MemberService.listMembers({
+  const members = await MemberService.listMembers({
     search,
     branchId: targetBranch,
     roleId,
@@ -1281,7 +1281,74 @@ export const updateMemberAssignmentHandler = async (req: Request, res: Response)
   }
 };
 
-export const getMemberByIdHandler = (req: Request, res: Response) => {
+export const getMemberByIdHandler = async (req: Request, res: Response) => {
+  if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+    try {
+      const sql = `
+        SELECT 
+          m.*,
+          u.email, u.phone, u.account_status,
+          b.name as branch_name,
+          r.name as role_name, r.code as role_code,
+          w.id as worker_id, w.worker_id_code, w.department_id, w.position_id,
+          d.name as department_name,
+          p.name as position_name
+        FROM members m
+        LEFT JOIN users u ON u.id = m.user_id
+        LEFT JOIN branches b ON b.id = m.primary_branch_id
+        LEFT JOIN ministry_roles r ON r.id = m.primary_role_id
+        LEFT JOIN workers w ON w.member_id = m.id
+        LEFT JOIN departments d ON d.id = w.department_id
+        LEFT JOIN department_positions p ON p.id = w.position_id
+        WHERE m.id = $1
+      `;
+      const resDb = await query(sql, [req.params.id]);
+      if (resDb.rows.length > 0) {
+        const r = resDb.rows[0];
+        // Branch isolation
+        if (req.user?.adminLevel !== 'super_admin' && req.user?.branchId !== r.primary_branch_id) {
+          return res.status(403).json({ success: false, error: 'Branch isolation violation: Access denied to members of other branches.' });
+        }
+        return res.json({
+          id: r.id,
+          userId: r.user_id,
+          primaryBranchId: r.primary_branch_id,
+          firstName: r.first_name,
+          middleName: r.middle_name || undefined,
+          lastName: r.last_name,
+          primaryRoleId: r.primary_role_id,
+          isWorker: !!r.is_worker,
+          gender: r.gender,
+          dateOfBirth: r.date_of_birth ? new Date(r.date_of_birth).toISOString().split('T')[0] : undefined,
+          residentialAddress: r.residential_address,
+          profilePictureUrl: sanitizeMediaUrl(r.profile_picture_url) || undefined,
+          emergencyContactName: r.emergency_contact_name,
+          emergencyContactPhone: r.emergency_contact_phone,
+          approvedBy: r.approved_by,
+          approvedAt: r.approved_at,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          email: r.email,
+          phone: r.phone,
+          accountStatus: r.account_status,
+          branchName: r.branch_name,
+          roleName: r.role_name,
+          roleCode: r.role_code,
+          worker: r.worker_id ? {
+            id: r.worker_id,
+            workerCode: r.worker_id_code,
+            departmentId: r.department_id,
+            departmentName: r.department_name,
+            positionId: r.position_id,
+            positionName: r.position_name
+          } : null
+        });
+      }
+    } catch (err: any) {
+      console.warn('[GET MEMBER BY ID] Direct Postgres query failed, falling back to cache:', err.message);
+    }
+  }
+
   const member = db.members.find(m => m.id === req.params.id);
   if (!member) return res.status(404).json({ success: false, error: 'Member not found.' });
 

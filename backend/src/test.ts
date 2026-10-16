@@ -95,12 +95,7 @@ async function runTests() {
     assert(workerLogin.user?.isWorker === true, 'Worker flag is true');
     assert(workerLogin.user?.workerDetails?.workerCode === 'FPM-0001', 'Worker ID is FPM-0001');
 
-    // TEST 3: Pending Account Login Rejection
-    const pendingLogin = await AuthService.login('daniel.new@fpmchurch.org', 'Password123!');
-    assert(pendingLogin.status === 'pending', 'Pending user login returns pending status');
-    assert(pendingLogin.error?.includes('awaiting administrative approval') === true, 'Pending user receives awaiting approval message');
-
-    // TEST 4: Multi-Step Registration
+    // TEST 3: Multi-Step Registration
     console.log('\n--- 2. Registration & Approval Workflow ---');
     const regResult = await AuthService.register({
       firstName: 'Samuel',
@@ -123,6 +118,11 @@ async function runTests() {
 
     const newlyRegisteredUser = db.users.find(u => u.id === regResult.userId);
     assert(newlyRegisteredUser?.accountStatus === 'pending', 'Newly registered account is pending approval');
+
+    // TEST 4: Pending Account Login Rejection
+    const pendingLogin = await AuthService.login('samuel.okon@example.com', 'Password123!');
+    assert(pendingLogin.status === 'pending', 'Pending user login returns pending status');
+    assert(pendingLogin.error?.includes('awaiting administrative approval') === true, 'Pending user receives awaiting approval message');
 
     // TEST 5: Approvals Queue
     const pendingList = await MemberService.getPendingApprovals();
@@ -2917,6 +2917,17 @@ async function runTests() {
       assert(updateSuspendedJson.error.includes('suspended'), 'Rejection explains suspended account status');
 
       // Also attempt pending account
+      await AuthService.register({
+        firstName: 'Pending',
+        lastName: 'Applicant',
+        phone: '+2348099990099',
+        email: 'test.pending.hod@example.com',
+        password: 'Password123!',
+        branchId: IDS.BRANCH_HQ,
+        ministryRoleId: IDS.ROLE_WORKER,
+        isWorker: true,
+        gender: 'Male'
+      });
       const updatePendingRes = await fetch(`${baseTestUrl}/api/departments/${createdDept.id}`, {
         method: 'PUT',
         headers: {
@@ -2924,7 +2935,7 @@ async function runTests() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          hodEmail: 'daniel.new@fpmchurch.org'
+          hodEmail: 'test.pending.hod@example.com'
         })
       });
       assert(updatePendingRes.status === 400, 'Pending account rejected with HTTP 400');

@@ -58,7 +58,8 @@ export class MemberService {
           roleName: r.role_name || 'Member'
         }));
       } catch (err: any) {
-        console.warn('[MEMBER SERVICE] Direct Postgres query for pending approvals failed, falling back to cache:', err.message);
+        console.warn('[MEMBER SERVICE] Direct Postgres query for pending approvals failed:', err.message);
+        return [];
       }
     }
 
@@ -390,13 +391,108 @@ export class MemberService {
   /**
    * Query Member Directory with Granular Filter Parameters
    */
-  public static listMembers(params: {
+  public static async listMembers(params: {
     branchId?: string;
     roleId?: string;
     departmentId?: string;
     status?: AccountStatus;
     search?: string;
   }) {
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      try {
+        let sql = `
+          SELECT 
+            m.id, m.user_id, m.first_name, m.middle_name, m.last_name,
+            m.gender, m.date_of_birth, m.residential_address as address,
+            m.profile_picture_url, m.emergency_contact_name, m.emergency_contact_phone,
+            m.primary_branch_id as branch_id, b.name as branch_name,
+            m.primary_role_id as role_id, r.name as role_name, r.code as role_code,
+            m.is_worker, m.approved_at,
+            u.email, u.phone, u.account_status, u.created_at as registered_at,
+            w.id as worker_id, w.worker_id_code, w.department_id,
+            d.name as department_name, w.position_name, w.worker_status,
+            w.date_started_serving, w.qr_code_token
+          FROM members m
+          LEFT JOIN users u ON u.id = m.user_id
+          LEFT JOIN branches b ON b.id = m.primary_branch_id
+          LEFT JOIN ministry_roles r ON r.id = m.primary_role_id
+          LEFT JOIN workers w ON w.member_id = m.id
+          LEFT JOIN departments d ON d.id = w.department_id
+          WHERE 1=1
+        `;
+        const queryParams: any[] = [];
+        let pIndex = 1;
+
+        if (params.status) {
+          sql += ` AND u.account_status = $${pIndex++}`;
+          queryParams.push(params.status);
+        }
+        if (params.branchId) {
+          sql += ` AND m.primary_branch_id = $${pIndex++}`;
+          queryParams.push(params.branchId);
+        }
+        if (params.roleId) {
+          sql += ` AND m.primary_role_id = $${pIndex++}`;
+          queryParams.push(params.roleId);
+        }
+        if (params.departmentId) {
+          sql += ` AND w.department_id = $${pIndex++}`;
+          queryParams.push(params.departmentId);
+        }
+        if (params.search) {
+          const q = `%${params.search.trim().toLowerCase()}%`;
+          sql += ` AND (
+            LOWER(m.first_name) LIKE $${pIndex} OR 
+            LOWER(m.last_name) LIKE $${pIndex} OR 
+            LOWER(COALESCE(u.email, '')) LIKE $${pIndex} OR 
+            COALESCE(u.phone, '') LIKE $${pIndex} OR 
+            LOWER(COALESCE(w.worker_id_code, '')) LIKE $${pIndex}
+          )`;
+          queryParams.push(q);
+          pIndex++;
+        }
+
+        sql += ` ORDER BY m.created_at DESC`;
+        const res = await query(sql, queryParams);
+        return res.rows.map((r: any) => ({
+          id: r.id,
+          userId: r.user_id,
+          fullName: `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}`.trim(),
+          firstName: r.first_name,
+          middleName: r.middle_name || undefined,
+          lastName: r.last_name,
+          email: r.email || '',
+          phone: r.phone || '',
+          gender: r.gender,
+          dateOfBirth: r.date_of_birth ? new Date(r.date_of_birth).toISOString().split('T')[0] : undefined,
+          address: r.address || undefined,
+          profilePictureUrl: sanitizeMediaUrl(r.profile_picture_url) || undefined,
+          emergencyContactName: r.emergency_contact_name || undefined,
+          emergencyContactPhone: r.emergency_contact_phone || undefined,
+          accountStatus: r.account_status || 'active',
+          branchId: r.branch_id,
+          branchName: r.branch_name || 'HQ',
+          roleId: r.role_id,
+          roleName: r.role_name || 'Member',
+          roleCode: r.role_code || 'MEMBER',
+          isWorker: !!r.is_worker,
+          workerDetails: r.worker_id ? {
+            workerId: r.worker_id,
+            workerCode: r.worker_id_code,
+            departmentId: r.department_id,
+            departmentName: r.department_name || 'Unassigned',
+            positionName: r.position_name,
+            status: r.worker_status,
+            dateStartedServing: r.date_started_serving,
+            qrCodeToken: r.qr_code_token
+          } : undefined,
+          registeredAt: r.registered_at ? new Date(r.registered_at).toISOString() : undefined,
+          approvedAt: r.approved_at ? new Date(r.approved_at).toISOString() : undefined
+        }));
+      } catch (err: any) {
+        console.warn('[MEMBER SERVICE] Direct Postgres query for listMembers failed, falling back to cache:', err.message);
+      }
+    }
     let result = db.members.map(m => {
       const u = db.users.find(user => user.id === m.userId);
       const b = db.branches.find(branch => branch.id === m.primaryBranchId);
