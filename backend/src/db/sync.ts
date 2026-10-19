@@ -235,6 +235,26 @@ export async function recordSystemMutation(entityType: string = 'general'): Prom
 }
 
 /**
+ * Executes an array of async tasks with a maximum concurrency limit.
+ * Helps prevent connection pool starvation during database hydration.
+ */
+async function runQueryBatch<T>(tasks: (() => Promise<T>)[], concurrency: number = 2): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < tasks.length) {
+      const idx = currentIndex++;
+      results[idx] = await tasks[idx]();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Hydrates in-memory DatabaseStore with live records from Supabase PostgreSQL.
  */
 export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
@@ -265,30 +285,30 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       financeBalancesRes,
       sundayMomentsRes,
       sundayMomentLikesRes
-    ] = await Promise.all([
-      query('SELECT * FROM branches ORDER BY name ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM departments ORDER BY name ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM department_positions ORDER BY name ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM users ORDER BY created_at ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM members ORDER BY created_at ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM workers ORDER BY created_at ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM services ORDER BY start_time ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM attendance_settings LIMIT 10').catch(() => ({ rows: [] })),
-      query('SELECT * FROM attendance_records ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM events ORDER BY start_datetime ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM posts ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM service_highlights ORDER BY highlight_date DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM testimonies ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM notifications ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500').catch(() => ({ rows: [] })),
-      query('SELECT * FROM media_items ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM finance_transactions ORDER BY transaction_date DESC, created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM sunday_moments ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      query('SELECT * FROM sunday_moment_likes ORDER BY created_at DESC').catch(() => ({ rows: [] }))
-    ]);
+    ] = await runQueryBatch([
+      () => query('SELECT * FROM branches ORDER BY name ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM departments ORDER BY name ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM department_positions ORDER BY name ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM users ORDER BY created_at ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM members ORDER BY created_at ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM workers ORDER BY created_at ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM services ORDER BY start_time ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM attendance_settings LIMIT 10').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM attendance_records ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM events ORDER BY start_datetime ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM posts ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM service_highlights ORDER BY highlight_date DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM testimonies ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM notifications ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM media_items ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM department_reports ORDER BY report_date DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM finance_transactions ORDER BY transaction_date DESC, created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM sunday_moments ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM sunday_moment_likes ORDER BY created_at DESC').catch(() => ({ rows: [] }))
+    ], 2);
 
     if (branchesRes.rows.length > 0) {
       store.branches = branchesRes.rows.map((r: any): Branch => ({
@@ -824,7 +844,6 @@ export async function persistUser(user: User): Promise<void> {
 
 export async function persistEmailVerification(record: EmailVerificationRecord): Promise<void> {
   try {
-    await runSchemaMigrationsOnce();
     await query(`
       INSERT INTO email_verifications (id, user_id, email, otp_hash, attempts_count, max_attempts, expires_at, verified_at, ip_address, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -843,7 +862,6 @@ export async function persistEmailVerification(record: EmailVerificationRecord):
 
 export async function persistPasswordReset(record: PasswordResetRecord): Promise<void> {
   try {
-    await runSchemaMigrationsOnce();
     await query(`
       INSERT INTO password_resets (id, user_id, email, token_hash, expires_at, used_at, ip_address, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -860,7 +878,6 @@ export async function persistPasswordReset(record: PasswordResetRecord): Promise
 
 export async function fetchActiveEmailVerification(email: string): Promise<EmailVerificationRecord | null> {
   try {
-    await runSchemaMigrationsOnce();
     const res = await query(`
       SELECT * FROM email_verifications
       WHERE LOWER(email) = LOWER($1) AND verified_at IS NULL AND expires_at > NOW()
@@ -889,7 +906,6 @@ export async function fetchActiveEmailVerification(email: string): Promise<Email
 
 export async function fetchActivePasswordReset(tokenHash: string): Promise<PasswordResetRecord | null> {
   try {
-    await runSchemaMigrationsOnce();
     const res = await query(`
       SELECT * FROM password_resets
       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
@@ -929,7 +945,6 @@ export async function persistUserPassword(userId: string, passwordHash: string):
 
 export async function persistSystemSettings(settings: any): Promise<void> {
   try {
-    await runSchemaMigrationsOnce();
     await query(`
       INSERT INTO system_settings (id, data, updated_at)
       VALUES ('global', $1, NOW())
@@ -946,7 +961,6 @@ export async function persistSystemSettings(settings: any): Promise<void> {
 
 export async function fetchSystemSettings(): Promise<any | null> {
   try {
-    await runSchemaMigrationsOnce();
     const res = await query('SELECT data, updated_at FROM system_settings WHERE id = $1', ['global']);
     if (res && res.rows && res.rows.length > 0 && res.rows[0].data) {
       const data = res.rows[0].data;

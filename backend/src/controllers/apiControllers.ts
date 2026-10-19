@@ -3145,8 +3145,7 @@ export const getAuditLogsHandler = (req: Request, res: Response) => {
 // =============================================================================
 export const getSettingsHandler = async (req: Request, res: Response) => {
   const branchId = (req.query.branchId as string) || req.user?.branchId;
-  await SettingsService.loadFromDb().catch(() => {});
-  const settings = SettingsService.getSettingsForBranch(branchId);
+  const settings = await SettingsService.getSettingsForBranchAsync(branchId);
   return res.json({
     ...settings.attendance,
     ...settings

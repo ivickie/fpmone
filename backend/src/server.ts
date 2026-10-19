@@ -8,6 +8,7 @@ import apiRoutes from './routes/api';
 import { AttendanceService } from './services/attendanceService';
 import { DiscoveryService } from './services/discoveryService';
 import { StorageService } from './services/storageService';
+import { SettingsService } from './services/settingsService';
 import { db } from './data/mockDb';
 import { checkConnection, query } from './db';
 import { generalApiRateLimiter } from './middleware/rateLimitMiddleware';
@@ -281,17 +282,26 @@ if (!process.env.VERCEL && require.main === module) {
 // Database hydration from Supabase PostgreSQL
 let dbHydrationPromise: Promise<boolean> | null = null;
 let lastHydratedAt = 0;
+let lastMutationCheckAt = 0;
+const MUTATION_CHECK_COOLDOWN_MS = 5000;
 
 export const ensureDbHydrated = async (force: boolean = false): Promise<boolean> => {
   if (process.env.HYDRATE_DB === 'false' || !process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') {
     return false;
   }
 
+  // If a hydration is already running, join the existing promise
+  if (dbHydrationPromise) {
+    return dbHydrationPromise;
+  }
+
   const now = Date.now();
   let needsRefresh = force;
 
   // Cross-instance mutation detection: check PostgreSQL for any recent mutations across all Vercel instances
-  if (!needsRefresh && lastHydratedAt > 0) {
+  // Throttled to avoid querying mutations table on rapid concurrent sub-requests
+  if (!needsRefresh && lastHydratedAt > 0 && (now - lastMutationCheckAt > MUTATION_CHECK_COOLDOWN_MS)) {
+    lastMutationCheckAt = now;
     try {
       const res = await query('SELECT mutated_at FROM system_mutations WHERE id = 1');
       if (res && res.rows && res.rows[0]?.mutated_at) {
@@ -305,18 +315,29 @@ export const ensureDbHydrated = async (force: boolean = false): Promise<boolean>
     }
   }
 
-  // If no mutation has occurred and we hydrated within the last 10 seconds, reuse existing state
-  if (!needsRefresh && dbHydrationPromise && (now - lastHydratedAt < 10_000)) {
+  // If no refresh needed and we are already hydrated, return true immediately without DB queries
+  if (!needsRefresh && lastHydratedAt > 0) {
+    return true;
+  }
+
+  // Double check in case another request initiated hydration during the mutation query await
+  if (dbHydrationPromise) {
     return dbHydrationPromise;
   }
 
-  dbHydrationPromise = db.initFromPostgres().then((res: boolean) => {
-    lastHydratedAt = Date.now();
-    return res;
-  }).catch((err: any) => {
-    console.warn('[SERVER] Supabase PostgreSQL hydration warning:', err.message);
-    return false;
-  });
+  dbHydrationPromise = (async () => {
+    try {
+      const res = await db.initFromPostgres();
+      await SettingsService.loadFromDb().catch(() => {});
+      lastHydratedAt = Date.now();
+      return res;
+    } catch (err: any) {
+      console.warn('[SERVER] Supabase PostgreSQL hydration warning:', err.message);
+      return false;
+    } finally {
+      dbHydrationPromise = null;
+    }
+  })();
 
   return dbHydrationPromise;
 };
