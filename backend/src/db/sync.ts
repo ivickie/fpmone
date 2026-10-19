@@ -95,6 +95,13 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         ALTER TABLE sunday_moment_likes ENABLE ROW LEVEL SECURITY;
         ALTER TABLE system_mutations ENABLE ROW LEVEL SECURITY;
 
+        CREATE TABLE IF NOT EXISTS system_settings (
+          id VARCHAR(50) PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+
         DO $$
         BEGIN
           IF NOT EXISTS (
@@ -106,6 +113,11 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
             SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'sunday_moment_likes' AND policyname = 'Public sunday moment likes read'
           ) THEN
             CREATE POLICY "Public sunday moment likes read" ON public.sunday_moment_likes FOR SELECT TO public USING (true);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'system_settings' AND policyname = 'Public system settings read'
+          ) THEN
+            CREATE POLICY "Public system settings read" ON public.system_settings FOR SELECT TO public USING (true);
           END IF;
         END $$;
 
@@ -715,11 +727,12 @@ export function resolveTestimonyId(id?: string | null): string {
 export async function persistUser(user: User): Promise<void> {
   if (!isUuid(user.id)) return;
   try {
+    const safePasswordHash = user.passwordHash && user.passwordHash.trim().length > 0 ? user.passwordHash : null;
     const updateRes = await query(`
       UPDATE users SET
         email = $2,
         phone = $3,
-        password_hash = $4,
+        password_hash = COALESCE($4, password_hash),
         account_status = $5,
         rejection_reason = $6,
         request_changes_notes = $7,
@@ -729,7 +742,7 @@ export async function persistUser(user: User): Promise<void> {
         updated_at = $11
       WHERE id = $1
     `, [
-      user.id, user.email, user.phone, user.passwordHash, user.accountStatus,
+      user.id, user.email, user.phone, safePasswordHash, user.accountStatus,
       user.rejectionReason || null, user.requestChangesNotes || null,
       user.isAdmin, user.adminLevel, user.lastLoginAt || null,
       user.updatedAt || new Date().toISOString()
@@ -742,7 +755,7 @@ export async function persistUser(user: User): Promise<void> {
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           phone = EXCLUDED.phone,
-          password_hash = EXCLUDED.password_hash,
+          password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash),
           account_status = EXCLUDED.account_status,
           rejection_reason = EXCLUDED.rejection_reason,
           request_changes_notes = EXCLUDED.request_changes_notes,
@@ -751,7 +764,7 @@ export async function persistUser(user: User): Promise<void> {
           last_login_at = EXCLUDED.last_login_at,
           updated_at = EXCLUDED.updated_at
       `, [
-        user.id, user.email, user.phone, user.passwordHash, user.accountStatus,
+        user.id, user.email, user.phone, safePasswordHash, user.accountStatus,
         user.rejectionReason || null, user.requestChangesNotes || null,
         user.isAdmin, user.adminLevel, user.lastLoginAt || null,
         user.createdAt, user.updatedAt
@@ -763,6 +776,55 @@ export async function persistUser(user: User): Promise<void> {
     throw err;
   }
 }
+
+export async function persistUserPassword(userId: string, passwordHash: string): Promise<void> {
+  if (!isUuid(userId) || !passwordHash) return;
+  try {
+    await query(`
+      UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1
+    `, [userId, passwordHash]);
+    await recordSystemMutation('users');
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: user password] ${err.message}`);
+    throw err;
+  }
+}
+
+export async function persistSystemSettings(settings: any): Promise<void> {
+  try {
+    await runSchemaMigrationsOnce();
+    await query(`
+      INSERT INTO system_settings (id, data, updated_at)
+      VALUES ('global', $1, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        data = EXCLUDED.data,
+        updated_at = EXCLUDED.updated_at
+    `, [JSON.stringify(settings)]);
+    await recordSystemMutation('system_settings');
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: system_settings] ${err.message}`);
+    throw err;
+  }
+}
+
+export async function fetchSystemSettings(): Promise<any | null> {
+  try {
+    await runSchemaMigrationsOnce();
+    const res = await query('SELECT data, updated_at FROM system_settings WHERE id = $1', ['global']);
+    if (res && res.rows && res.rows.length > 0 && res.rows[0].data) {
+      const data = res.rows[0].data;
+      if (res.rows[0].updated_at) {
+        data.updatedAt = new Date(res.rows[0].updated_at).toISOString();
+      }
+      return data;
+    }
+    return null;
+  } catch (err: any) {
+    console.warn(`[DATABASE FETCH WARNING: system_settings] ${err.message}`);
+    return null;
+  }
+}
+
 
 export async function persistMember(member: Member): Promise<void> {
   if (!isUuid(member.id) || !isUuid(member.userId)) return;

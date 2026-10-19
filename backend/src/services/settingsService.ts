@@ -3,6 +3,7 @@ import { AuditService } from './auditService';
 import { AttendanceService } from './attendanceService';
 import { StorageService } from './storageService';
 import { checkConnection } from '../db';
+import { persistSystemSettings, fetchSystemSettings } from '../db/sync';
 
 export interface OrganizationSettings {
   name: string;
@@ -170,6 +171,54 @@ export class SettingsService {
   };
 
   private static branchOverrides: Record<string, BranchSettingsOverrides> = {};
+  private static isHydratedFromDb = false;
+
+  /**
+   * Hydrates general settings from database, creating default record if missing.
+   */
+  public static async loadFromDb(): Promise<GeneralSettings> {
+    try {
+      const persisted = await fetchSystemSettings();
+      if (persisted) {
+        this.settings = {
+          ...this.settings,
+          ...persisted,
+          organization: { ...this.settings.organization, ...(persisted.organization || {}) },
+          regional: { ...this.settings.regional, ...(persisted.regional || {}) },
+          registration: { ...this.settings.registration, ...(persisted.registration || {}) },
+          attendance: { ...this.settings.attendance, ...(persisted.attendance || {}) },
+          finance: { ...this.settings.finance, ...(persisted.finance || {}) },
+          notifications: { ...this.settings.notifications, ...(persisted.notifications || {}) },
+          media: { ...this.settings.media, ...(persisted.media || {}) },
+          security: { ...this.settings.security, ...(persisted.security || {}) },
+        };
+        if (persisted.updatedAt) {
+          this.settings.updatedAt = persisted.updatedAt;
+        }
+        this.isHydratedFromDb = true;
+      } else {
+        await persistSystemSettings(this.settings).catch(() => {});
+        this.isHydratedFromDb = true;
+      }
+    } catch (err: any) {
+      console.warn('[SettingsService] Failed to load settings from DB, using memory:', err.message);
+    }
+    return this.getSettings();
+  }
+
+  public static async getSettingsAsync(): Promise<GeneralSettings> {
+    if (!this.isHydratedFromDb) {
+      await this.loadFromDb();
+    }
+    return this.getSettings();
+  }
+
+  public static async getSettingsForBranchAsync(branchId?: string): Promise<GeneralSettings> {
+    if (!this.isHydratedFromDb) {
+      await this.loadFromDb();
+    }
+    return this.getSettingsForBranch(branchId);
+  }
 
   /**
    * Returns current global general settings, keeping attendance in sync with mockDb.
@@ -425,7 +474,21 @@ export class SettingsService {
       this.settings
     );
 
+    // Persist to PostgreSQL database asynchronously
+    persistSystemSettings(this.settings).catch(err => {
+      console.warn('[SettingsService] Background DB settings persist notice:', err.message);
+    });
+
     return this.getSettings();
+  }
+
+  /**
+   * Asynchronously updates settings and awaits PostgreSQL persistence before resolving.
+   */
+  public static async updateSettingsAsync(body: any, user: any): Promise<GeneralSettings> {
+    const updated = this.updateSettings(body, user);
+    await persistSystemSettings(updated);
+    return updated;
   }
 
   /**

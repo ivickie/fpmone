@@ -29,6 +29,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import org.fpm.one.core.util.ImageOptimizer
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
@@ -90,15 +93,16 @@ fun HomeScreen(
     var activeHighlightDetail by remember { mutableStateOf<ServiceHighlightItem?>(null) }
 
     // Sunday photo upload dialog state
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var photoCaption by remember { mutableStateOf("") }
     var isUploadingSundayPhoto by remember { mutableStateOf(false) }
+    var uploadProgressText by remember { mutableStateOf("") }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            selectedPhotoUri = uri
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            selectedPhotoUris = uris
             photoCaption = ""
         }
     }
@@ -1181,7 +1185,7 @@ fun HomeScreen(
                     }
 
                     // Right Actions: Clock In (Worker Hub), Notifications
-                    // Sleek 28dp CircleShape containers with guaranteed spacing and zero overlap
+                    // Balanced 34dp CircleShape containers with recognized check-in badge icon
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1189,28 +1193,28 @@ fun HomeScreen(
                         if (currentUser?.isWorker == true) {
                             Box(
                                 modifier = Modifier
-                                    .size(28.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(FpmNavyDeep.copy(alpha = 0.65f))
-                                    .border(0.8.dp, FpmGold.copy(alpha = 0.45f), CircleShape)
+                                    .background(FpmNavyDeep.copy(alpha = 0.75f))
+                                    .border(1.dp, FpmGold.copy(alpha = 0.65f), CircleShape)
                                     .clickable(onClick = onOpenWorkerHub),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.AccessTime,
+                                    imageVector = Icons.Default.AssignmentTurnedIn,
                                     contentDescription = "Clock In / Worker Attendance",
                                     tint = FpmGold,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
 
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
-                                .background(FpmNavyDeep.copy(alpha = 0.65f))
-                                .border(0.6.dp, FpmCardBorder.copy(alpha = 0.35f), CircleShape)
+                                .background(FpmNavyDeep.copy(alpha = 0.75f))
+                                .border(0.8.dp, FpmCardBorder.copy(alpha = 0.45f), CircleShape)
                                 .clickable(onClick = onNavigateToNotifications),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1218,7 +1222,7 @@ fun HomeScreen(
                                 imageVector = Icons.Default.Notifications,
                                 contentDescription = "Notifications",
                                 tint = FpmSurfaceWhite,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -1270,12 +1274,12 @@ fun HomeScreen(
     // -------------------------------------------------------------------------
     // PHOTO UPLOAD CONFIRMATION DIALOG (When photo picked from gallery)
     // -------------------------------------------------------------------------
-    if (selectedPhotoUri != null && activeGalleryBranch != null) {
+    if (selectedPhotoUris.isNotEmpty() && activeGalleryBranch != null) {
         val branch = activeGalleryBranch!!
         AlertDialog(
             onDismissRequest = {
                 if (!isUploadingSundayPhoto) {
-                    selectedPhotoUri = null
+                    selectedPhotoUris = emptyList()
                     photoCaption = ""
                 }
             },
@@ -1283,7 +1287,7 @@ fun HomeScreen(
             title = {
                 Column {
                     Text(
-                        text = "Share Sunday Moment",
+                        text = if (selectedPhotoUris.size > 1) "Share Sunday Moments (${selectedPhotoUris.size})" else "Share Sunday Moment",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = FpmTheme.textPrimary
@@ -1298,19 +1302,51 @@ fun HomeScreen(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Thumbnail Preview
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(FpmTheme.surfaceTonal)
-                    ) {
-                        AsyncImage(
-                            model = selectedPhotoUri,
-                            contentDescription = "Selected photo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                    if (selectedPhotoUris.size == 1) {
+                        // Single Photo Preview
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(FpmTheme.surfaceTonal)
+                        ) {
+                            AsyncImage(
+                                model = selectedPhotoUris.first(),
+                                contentDescription = "Selected photo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    } else {
+                        // Multi-Photo Carousel Preview
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                        ) {
+                            items(selectedPhotoUris) { uri ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(120.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(FpmTheme.surfaceTonal)
+                                ) {
+                                    AsyncImage(
+                                        model = uri,
+                                        contentDescription = "Selected photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = "${selectedPhotoUris.size} photos selected for upload",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = FpmTheme.textSecondary
                         )
                     }
 
@@ -1327,8 +1363,8 @@ fun HomeScreen(
                     )
 
                     Text(
-                        text = "Your photo will be shared with the ${branch.name} Sunday gallery.",
-                        fontSize = 11.sp,
+                        text = "Photos larger than 1MB are automatically optimized for fast upload.",
+                        fontSize = 10.sp,
                         color = FpmTheme.textSecondary
                     )
                 }
@@ -1336,34 +1372,50 @@ fun HomeScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val uri = selectedPhotoUri ?: return@Button
+                        val uris = selectedPhotoUris
+                        if (uris.isEmpty()) return@Button
                         isUploadingSundayPhoto = true
                         coroutineScope.launch {
-                            val bytes = readBytesFromUri(context, uri)
-                            val mimeType = getMimeTypeFromUri(context, uri)
-                            val filename = "moment_${System.currentTimeMillis()}.jpg"
+                            var successCount = 0
+                            var lastError: String? = null
+                            for ((index, uri) in uris.withIndex()) {
+                                uploadProgressText = "Uploading ${index + 1} of ${uris.size}..."
+                                val bytes = ImageOptimizer.optimize(context, uri)
+                                val mimeType = getMimeTypeFromUri(context, uri)
+                                val filename = "moment_${System.currentTimeMillis()}_$index.jpg"
 
-                            if (bytes != null && bytes.isNotEmpty()) {
-                                viewModel.uploadSundayMoment(
-                                    branchId = branch.id,
-                                    bytes = bytes,
-                                    filename = filename,
-                                    mimeType = mimeType,
-                                    caption = photoCaption.ifBlank { null },
-                                    sundayDate = currentSundayDateStr
-                                ) { success, err ->
-                                    isUploadingSundayPhoto = false
-                                    if (success) {
-                                        selectedPhotoUri = null
-                                        photoCaption = ""
-                                        Toast.makeText(context, "Sunday moment shared successfully!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, err ?: "Upload failed", Toast.LENGTH_LONG).show()
+                                if (bytes.isNotEmpty()) {
+                                    val (success, err) = suspendCancellableCoroutine<Pair<Boolean, String?>> { cont ->
+                                        viewModel.uploadSundayMoment(
+                                            branchId = branch.id,
+                                            bytes = bytes,
+                                            filename = filename,
+                                            mimeType = mimeType,
+                                            caption = if (index == 0) photoCaption.ifBlank { null } else null,
+                                            sundayDate = currentSundayDateStr
+                                        ) { ok, errorMsg ->
+                                            if (cont.isActive) cont.resume(Pair(ok, errorMsg))
+                                        }
                                     }
+                                    if (success) {
+                                        successCount++
+                                    } else {
+                                        lastError = err
+                                    }
+                                } else {
+                                    lastError = "Could not read photo data"
                                 }
+                            }
+                            isUploadingSundayPhoto = false
+                            uploadProgressText = ""
+                            selectedPhotoUris = emptyList()
+                            photoCaption = ""
+                            if (successCount == uris.size) {
+                                Toast.makeText(context, "${successCount} moment(s) shared successfully!", Toast.LENGTH_SHORT).show()
+                            } else if (successCount > 0) {
+                                Toast.makeText(context, "${successCount} of ${uris.size} uploaded (${uris.size - successCount} failed)", Toast.LENGTH_LONG).show()
                             } else {
-                                isUploadingSundayPhoto = false
-                                Toast.makeText(context, "Could not read selected photo file", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, lastError ?: "Upload failed", Toast.LENGTH_LONG).show()
                             }
                         }
                     },
@@ -1378,16 +1430,26 @@ fun HomeScreen(
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Uploading...", fontSize = 12.sp)
+                        Text(
+                            text = uploadProgressText.ifBlank { "Uploading..." },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FpmSurfaceWhite
+                        )
                     } else {
-                        Text("Share Photo", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (selectedPhotoUris.size > 1) "Upload All (${selectedPhotoUris.size})" else "Share Moment",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FpmSurfaceWhite
+                        )
                     }
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
-                        selectedPhotoUri = null
+                        selectedPhotoUris = emptyList()
                         photoCaption = ""
                     },
                     enabled = !isUploadingSundayPhoto
@@ -1846,7 +1908,7 @@ private fun SundayMomentsStoryViewerDialog(
             }
 
             // 5-second progression timer
-            LaunchedEffect(safeIndex, isPaused, moments.size) {
+            LaunchedEffect(safeIndex, moments.size) {
                 progress = 0f
                 val stepMs = 40L
                 val totalMs = 5000L
@@ -2152,36 +2214,53 @@ private fun SundayMomentsStoryViewerDialog(
                             }
                         }
 
-                        // Right Actions: Upload / Delete
+                        // Right Actions: Upload / Share / Delete
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             if (canUpload) {
-                                Surface(
+                                IconButton(
                                     onClick = onStartUpload,
-                                    color = FpmRoyalBlue,
-                                    shape = RoundedCornerShape(22.dp)
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(FpmRoyalBlue, CircleShape)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CameraAlt,
-                                            contentDescription = "Share Moment",
-                                            tint = FpmGoldLight,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Text(
-                                            text = "Share",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.AddAPhoto,
+                                        contentDescription = "Add Moment",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
+                            }
+
+                            val currentContext = LocalContext.current
+                            IconButton(
+                                onClick = {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        val text = buildString {
+                                            append("Sunday Moments from Faith Preachers Ministries Int'l (${branch.name}):\n")
+                                            if (!currentMoment.caption.isNullOrBlank()) {
+                                                append("\"${currentMoment.caption}\"\n")
+                                            }
+                                            append(currentMoment.mediaUrl)
+                                        }
+                                        putExtra(Intent.EXTRA_TEXT, text)
+                                    }
+                                    currentContext.startActivity(Intent.createChooser(shareIntent, "Share Sunday Moment"))
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Share Moment",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
 
                             if (isAdmin || currentMoment.uploadedBy == currentUserId) {

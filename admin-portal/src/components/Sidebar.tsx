@@ -51,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'branches' as NavTab, label: 'Branches', icon: Building2 },
         { id: 'departments' as NavTab, label: 'Departments', icon: Layers },
-        { id: 'roles' as NavTab, label: 'Ministry Roles', icon: Shield }
+        ...(isSuperAdmin ? [{ id: 'roles' as NavTab, label: 'Ministry Roles', icon: Shield }] : [])
       ]
     },
     {

@@ -153,21 +153,7 @@ export class AuthService {
     if (!isValid && trimmedPass !== rawPass) {
       isValid = await bcrypt.compare(trimmedPass, user.passwordHash);
     }
-    if (isValid) return true;
-
-    // 2. Dual fallback: Allow universal default 'Password123!' unless user explicitly changed password
-    if (!user.hasChangedDefaultPassword) {
-      const lowerTrimmed = trimmedPass.toLowerCase();
-      if (
-        trimmedPass === 'Password123!' ||
-        lowerTrimmed === 'password123!' ||
-        lowerTrimmed === 'password123'
-      ) {
-        return true;
-      }
-    }
-
-    return false;
+    return isValid;
   }
 
   public static async login(

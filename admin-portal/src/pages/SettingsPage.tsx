@@ -284,7 +284,78 @@ export const SettingsPage: React.FC = () => {
       const payload = isSuperAdmin ? formData : { attendance: formData.attendance };
       const updated = await api.updateSettings(payload);
 
-      setSavedSettings(JSON.parse(JSON.stringify(formData)));
+      if (updated) {
+        const merged = {
+          organization: {
+            name: updated.organization?.name ?? formData.organization.name,
+            shortName: updated.organization?.shortName ?? formData.organization.shortName,
+            logoUrl: updated.organization?.logoUrl ?? formData.organization.logoUrl,
+            primaryEmail: updated.organization?.primaryEmail ?? formData.organization.primaryEmail,
+            phone: updated.organization?.phone ?? formData.organization.phone,
+            websiteUrl: updated.organization?.websiteUrl ?? formData.organization.websiteUrl,
+            headquartersAddress: updated.organization?.headquartersAddress ?? formData.organization.headquartersAddress,
+            motto: updated.organization?.motto ?? formData.organization.motto
+          },
+          regional: {
+            defaultTimezone: updated.regional?.defaultTimezone ?? formData.regional.defaultTimezone,
+            dateFormat: updated.regional?.dateFormat ?? formData.regional.dateFormat,
+            timeFormat: updated.regional?.timeFormat ?? formData.regional.timeFormat,
+            defaultCurrency: updated.regional?.defaultCurrency ?? formData.regional.defaultCurrency,
+            firstDayOfWeek: updated.regional?.firstDayOfWeek ?? formData.regional.firstDayOfWeek
+          },
+          registration: {
+            allowRegistrations: updated.registration?.allowRegistrations ?? formData.registration.allowRegistrations,
+            registrationPausedMessage: updated.registration?.registrationPausedMessage ?? formData.registration.registrationPausedMessage,
+            requireApproval: updated.registration?.requireApproval ?? formData.registration.requireApproval,
+            requiredFields: updated.registration?.requiredFields ?? formData.registration.requiredFields,
+            allowTestimonies: updated.registration?.allowTestimonies ?? formData.registration.allowTestimonies
+          },
+          attendance: {
+            defaultGracePeriodMinutes: updated.attendance?.defaultGracePeriodMinutes ?? updated.defaultGracePeriodMinutes ?? formData.attendance.defaultGracePeriodMinutes,
+            autoClockOutHours: updated.attendance?.autoClockOutHours ?? updated.autoClockOutHours ?? formData.attendance.autoClockOutHours,
+            manualClockOutEnabled: updated.attendance?.manualClockOutEnabled ?? updated.manualClockOutEnabled ?? formData.attendance.manualClockOutEnabled,
+            earliestClockInMinutes: updated.attendance?.earliestClockInMinutes ?? updated.earliestClockInMinutes ?? formData.attendance.earliestClockInMinutes,
+            allowBiometricClockIn: updated.attendance?.allowBiometricClockIn ?? updated.allowBiometricClockIn ?? formData.attendance.allowBiometricClockIn,
+            allowQrClockIn: updated.attendance?.allowQrClockIn ?? updated.allowQrClockIn ?? formData.attendance.allowQrClockIn,
+            allowPinClockIn: updated.attendance?.allowPinClockIn ?? updated.allowPinClockIn ?? formData.attendance.allowPinClockIn,
+            allowCorrections: updated.attendance?.allowCorrections ?? formData.attendance.allowCorrections,
+            requireCorrectionReason: updated.attendance?.requireCorrectionReason ?? formData.attendance.requireCorrectionReason
+          },
+          finance: {
+            financeEnabled: updated.finance?.financeEnabled ?? formData.finance.financeEnabled,
+            defaultCurrency: updated.finance?.defaultCurrency ?? formData.finance.defaultCurrency,
+            financialYearStartMonth: updated.finance?.financialYearStartMonth ?? formData.finance.financialYearStartMonth,
+            defaultPaymentMethods: updated.finance?.defaultPaymentMethods ?? formData.finance.defaultPaymentMethods,
+            allowEditTransactions: updated.finance?.allowEditTransactions ?? formData.finance.allowEditTransactions,
+            requireEditReason: updated.finance?.requireEditReason ?? formData.finance.requireEditReason
+          },
+          notifications: {
+            notifyOnNewRegistration: updated.notifications?.notifyOnNewRegistration ?? formData.notifications.notifyOnNewRegistration,
+            notifyOnMemberApproval: updated.notifications?.notifyOnMemberApproval ?? formData.notifications.notifyOnMemberApproval,
+            notifyOnUpcomingEvents: updated.notifications?.notifyOnUpcomingEvents ?? formData.notifications.notifyOnUpcomingEvents,
+            notifyOnAttendance: updated.notifications?.notifyOnAttendance ?? formData.notifications.notifyOnAttendance,
+            notifyOnTestimonies: updated.notifications?.notifyOnTestimonies ?? formData.notifications.notifyOnTestimonies
+          },
+          media: {
+            maxUploadSizeMb: updated.media?.maxUploadSizeMb ?? formData.media.maxUploadSizeMb,
+            allowedImageFormats: updated.media?.allowedImageFormats ?? formData.media.allowedImageFormats,
+            allowMemberTestimonies: updated.media?.allowMemberTestimonies ?? formData.media.allowMemberTestimonies,
+            allowMemberMomentsUpload: updated.media?.allowMemberMomentsUpload ?? formData.media.allowMemberMomentsUpload,
+            requireMomentsApproval: updated.media?.requireMomentsApproval ?? formData.media.requireMomentsApproval
+          },
+          security: {
+            sessionLifetimeHours: updated.security?.sessionLifetimeHours ?? formData.security.sessionLifetimeHours,
+            maxFailedLoginAttempts: updated.security?.maxFailedLoginAttempts ?? formData.security.maxFailedLoginAttempts,
+            lockoutDurationMinutes: updated.security?.lockoutDurationMinutes ?? formData.security.lockoutDurationMinutes,
+            rateLimitWindowMinutes: updated.security?.rateLimitWindowMinutes ?? formData.security.rateLimitWindowMinutes,
+            rateLimitMaxRequests: updated.security?.rateLimitMaxRequests ?? formData.security.rateLimitMaxRequests
+          }
+        };
+        setSavedSettings(merged);
+        setFormData(merged);
+      } else {
+        setSavedSettings(JSON.parse(JSON.stringify(formData)));
+      }
       toast.success('Configuration saved and applied to system runtime successfully!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save configuration.');

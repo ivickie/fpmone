@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, UserCheck, Shield, Building2, Eye,
-  Edit2, Ban, CheckCircle, Archive, QrCode, Phone, Mail, MapPin, AlertCircle, X, Users, User, UserPlus, Plus, Lock, Trash2
+  Edit2, Ban, CheckCircle, Archive, QrCode, Phone, Mail, MapPin, AlertCircle, X, Users, User, UserPlus, Plus, Lock, Trash2, Key, Copy
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const MembersPage: React.FC = () => {
   const { selectedBranchId, user } = useAuth();
+  const isSuperAdmin = user?.adminLevel === 'super_admin';
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<'members' | 'workers'>('members');
   const [members, setMembers] = useState<any[]>([]);
@@ -85,8 +86,15 @@ export const MembersPage: React.FC = () => {
     branchId: '',
     roleId: '',
     departmentId: '',
-    positionName: ''
+    positionName: '',
+    isWorker: false
   });
+
+  // Password Reset State (Super Admin assisted)
+  const [tempPasswordModalOpen, setTempPasswordModalOpen] = useState(false);
+  const [tempPasswordData, setTempPasswordData] = useState<{ name: string; password: string } | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetTargetMember, setResetTargetMember] = useState<any | null>(null);
 
   // Edit Worker Form state
   const [workerForm, setWorkerForm] = useState({
@@ -232,9 +240,38 @@ export const MembersPage: React.FC = () => {
       branchId: m.primaryBranchId || m.branchId || '',
       roleId: m.primaryRoleId || m.roleId || '',
       departmentId: m.workerDetails?.departmentId || '',
-      positionName: m.workerDetails?.positionName || ''
+      positionName: m.workerDetails?.positionName || '',
+      isWorker: !!m.isWorker || !!m.workerDetails
     });
     setEditAssignmentOpen(true);
+  };
+
+  const promptResetPassword = (member: any) => {
+    setResetTargetMember(member);
+    setResetConfirmOpen(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTargetMember) return;
+    setActionLoading(true);
+    try {
+      const res = await api.resetMemberPassword(resetTargetMember.id);
+      if (res && res.temporaryPassword) {
+        setTempPasswordData({
+          name: resetTargetMember.fullName || 'Member',
+          password: res.temporaryPassword
+        });
+        setResetConfirmOpen(false);
+        setTempPasswordModalOpen(true);
+        toast.success('Temporary password generated successfully.');
+      } else {
+        toast.error(res?.error || 'Failed to generate temporary password.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reset password.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const openEditWorker = (w: any) => {
@@ -620,6 +657,15 @@ export const MembersPage: React.FC = () => {
                               >
                                 <Shield className="w-3.5 h-3.5" />
                               </button>
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => promptResetPassword(m)}
+                                  className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded-lg transition"
+                                  title="Reset Password (Super Admin)"
+                                >
+                                  <Key className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               {m.accountStatus === 'active' ? (
                                 <button
                                   onClick={() => promptStatusChange(m.userId, 'suspended', m.fullName, isTargetAdmin)}
@@ -818,7 +864,20 @@ export const MembersPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewDetailsOpen(false);
+                    promptResetPassword(selectedMember);
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Reset Password</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setViewDetailsOpen(false)}
@@ -1016,7 +1075,22 @@ export const MembersPage: React.FC = () => {
                 </select>
               </div>
 
-              {selectedMember.isWorker && (
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={assignmentForm.isWorker}
+                    onChange={e => setAssignmentForm({ ...assignmentForm, isWorker: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800">Active Church Worker</span>
+                </label>
+                <p className="text-[11px] text-slate-500 mt-0.5 ml-6">
+                  Assign this member to a ministry department, generate a worker code and enable attendance badge.
+                </p>
+              </div>
+
+              {assignmentForm.isWorker && (
                 <>
                   <div>
                     <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -1028,9 +1102,11 @@ export const MembersPage: React.FC = () => {
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
                     >
                       <option value="">Select Department</option>
-                      {departments.map(d => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
+                      {departments
+                        .filter(d => !assignmentForm.branchId || !d.branchId || d.branchId === assignmentForm.branchId)
+                        .map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
                     </select>
                   </div>
 
@@ -1478,6 +1554,71 @@ export const MembersPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onClose={() => setConfirmDeleteOpen(false)}
       />
+
+      {/* Confirm Password Reset Dialog */}
+      <ConfirmDialog
+        isOpen={resetConfirmOpen}
+        title={`Reset Password: ${resetTargetMember?.fullName}`}
+        message={`Are you sure you want to generate a new temporary password for ${resetTargetMember?.fullName}? Their current password will be replaced immediately, and you will be provided with a temporary password to share securely with them.`}
+        confirmText="Reset Password"
+        variant="warning"
+        isLoading={actionLoading}
+        onConfirm={handleResetPassword}
+        onClose={() => {
+          setResetConfirmOpen(false);
+          setResetTargetMember(null);
+        }}
+      />
+
+      {/* Temporary Password Display Modal */}
+      {tempPasswordModalOpen && tempPasswordData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3.5 sm:p-4 z-50">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
+            <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 mx-auto">
+              <Key className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="font-extrabold text-base text-slate-900">Temporary Password Generated</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Password has been successfully updated for <span className="font-semibold text-slate-700">{tempPasswordData.name}</span>.
+              </p>
+            </div>
+
+            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800">New Temporary Password</div>
+              <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-amber-200 shadow-xs">
+                <code className="text-sm font-mono font-bold text-slate-900 select-all">{tempPasswordData.password}</code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(tempPasswordData.password);
+                    toast.success('Temporary password copied to clipboard!');
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1 transition"
+                  title="Copy to clipboard"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Please copy and provide this temporary password to the user. They will be required to change it upon first login.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTempPasswordModalOpen(false);
+                setTempPasswordData(null);
+              }}
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl cursor-pointer transition shadow-xs"
+            >
+              Done & Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -153,6 +153,20 @@ export const RolesPage: React.FC = () => {
     setFormData({ ...formData, permissions: formData.permissions.filter(p => p !== perm) });
   };
 
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-8 max-w-lg mx-auto text-center mt-12 bg-white rounded-2xl shadow-sm border border-slate-200">
+        <div className="w-16 h-16 mx-auto mb-4 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
+          <Shield className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Access Restricted</h2>
+        <p className="text-sm text-slate-600">
+          Ministry Roles configuration and role definitions are restricted exclusively to Super Administrators.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

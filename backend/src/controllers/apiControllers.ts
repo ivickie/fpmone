@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, IDS } from '../data/mockDb';
 import { AuthService } from '../services/authService';
@@ -16,7 +17,7 @@ import {
 import {
   persistService, persistDepartmentReport, persistDelete, persistDepartment,
   persistWorker, persistBranch, persistDepartmentPosition, persistRole,
-  persistMember, persistUser, persistEvent, persistPost,
+  persistMember, persistUser, persistUserPassword, persistEvent, persistPost,
   persistServiceHighlight, persistTestimony, persistNotification,
   persistSundayMoment, deleteSundayMomentFromDb, sanitizeMediaUrl,
   persistSundayMomentLike, deleteSundayMomentLikeFromDb,
@@ -1281,6 +1282,77 @@ export const updateMemberAssignmentHandler = async (req: Request, res: Response)
   }
 };
 
+export const resetMemberPasswordHandler = async (req: Request, res: Response) => {
+  try {
+    if (req.user?.adminLevel !== 'super_admin') {
+      return res.status(403).json({ success: false, error: 'Only Super Administrators can perform administrator-assisted password resets.' });
+    }
+
+    const { id } = req.params;
+    let userId: string | null = null;
+
+    // Search by member ID first, fallback to direct user ID
+    const member = db.members.find(m => m.id === id);
+    if (member) {
+      userId = member.userId;
+    } else {
+      const userDirect = db.users.find(u => u.id === id);
+      if (userDirect) {
+        userId = userDirect.id;
+      }
+    }
+
+    if (!userId) {
+      const dbMember = await query('SELECT user_id FROM members WHERE id = $1 UNION SELECT id as user_id FROM users WHERE id = $1', [id]).catch(() => ({ rows: [] }));
+      if (dbMember.rows.length > 0) {
+        userId = dbMember.rows[0].user_id;
+      }
+    }
+
+    if (!userId) {
+      return res.status(404).json({ success: false, error: 'Member or user account not found.' });
+    }
+
+    const targetUser = db.users.find(u => u.id === userId);
+
+    // Cryptographically secure temporary password (e.g. Fpm!7aB9xQ2m)
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let randStr = '';
+    for (let i = 0; i < 8; i++) {
+      randStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const tempPassword = `Fpm!${randStr}`;
+
+    const newHash = await bcrypt.hash(tempPassword, 10);
+    if (targetUser) {
+      targetUser.passwordHash = newHash;
+      targetUser.updatedAt = new Date().toISOString();
+    }
+
+    await persistUserPassword(userId, newHash);
+
+    AuditService.log(
+      req.user?.fullName || 'Super Administrator',
+      req.user?.roleName || 'super_admin',
+      'ADMIN_ASSISTED_PASSWORD_RESET',
+      'user',
+      userId,
+      req.user?.userId,
+      null,
+      { resetByAdmin: req.user?.fullName, targetUserId: userId }
+    );
+
+    return res.json({
+      success: true,
+      temporaryPassword: tempPassword,
+      message: 'Temporary password generated successfully. Please copy and provide this password securely to the member.'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Failed to reset member password.' });
+  }
+};
+
+
 export const getMemberByIdHandler = async (req: Request, res: Response) => {
   if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
     try {
@@ -1858,6 +1930,21 @@ export const createServiceHandler = async (req: Request, res: Response) => {
     };
     db.services.push(newService);
     await persistService(newService).catch(err => console.warn('[PERSIST SERVICE ERROR]', err.message));
+
+    const branchName = db.branches.find(b => b.id === branchId)?.name || 'Church';
+    const serviceNotif: NotificationItem = {
+      id: uuidv4(),
+      title: `New Service: ${name}`,
+      body: `A new service "${name}" has been scheduled for ${dayOfWeek}s at ${startTime} at ${branchName}.`,
+      notificationType: 'service_created',
+      targetScope: 'branch',
+      targetId: branchId,
+      actionUrl: '/services',
+      createdAt: new Date().toISOString()
+    };
+    db.notifications.unshift(serviceNotif);
+    await persistNotification(serviceNotif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'SERVICE_CREATED', 'service', newService.id, req.user?.userId, null, newService);
     return res.status(201).json(newService);
   } catch (err: any) {
@@ -2044,6 +2131,20 @@ export const createEventHandler = async (req: Request, res: Response) => {
     };
     db.events.push(newEvent);
     await persistEvent(newEvent).catch(err => console.warn('[PERSIST EVENT ERROR]', err.message));
+
+    const eventNotif: NotificationItem = {
+      id: uuidv4(),
+      title: `Upcoming Event: ${title}`,
+      body: `${title} is scheduled for ${new Date(startDatetime).toLocaleDateString()}. Tap to view details.`,
+      notificationType: 'event_created',
+      targetScope: effectiveBranchId ? 'branch' : 'all',
+      targetId: effectiveBranchId,
+      actionUrl: `/events/${newEvent.id}`,
+      createdAt: new Date().toISOString()
+    };
+    db.notifications.unshift(eventNotif);
+    await persistNotification(eventNotif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'EVENT_CREATED', 'event', newEvent.id, req.user?.userId, null, newEvent);
     return res.status(201).json(newEvent);
   } catch (err: any) {
@@ -2108,6 +2209,10 @@ export const deleteEventHandler = async (req: Request, res: Response) => {
     event.status = 'archived';
     event.updatedAt = new Date().toISOString();
     await persistEvent(event).catch(err => console.warn('[PERSIST EVENT ERROR]', err.message));
+
+    if (event.bannerUrl) {
+      StorageService.deleteMediaByUrl(event.bannerUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+    }
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2245,6 +2350,20 @@ export const createPostHandler = async (req: Request, res: Response) => {
     };
     db.posts.unshift(newPost);
     await persistPost(newPost).catch(err => console.warn('[PERSIST POST ERROR]', err.message));
+
+    const postNotif: NotificationItem = {
+      id: uuidv4(),
+      title: title || `New Church Post`,
+      body: `${req.user?.fullName || 'FPM Global'}: ${content.slice(0, 100)}`,
+      notificationType: 'feed_post',
+      targetScope: newPost.branchId ? 'branch' : 'all',
+      targetId: newPost.branchId,
+      actionUrl: `/feed`,
+      createdAt: new Date().toISOString()
+    };
+    db.notifications.unshift(postNotif);
+    await persistNotification(postNotif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'POST_CREATED', 'post', newPost.id, req.user?.userId, null, newPost);
     return res.status(201).json(newPost);
   } catch (err: any) {
@@ -2307,6 +2426,12 @@ export const deletePostHandler = async (req: Request, res: Response) => {
     post.status = 'archived';
     post.updatedAt = new Date().toISOString();
     await persistPost(post).catch(err => console.warn('[PERSIST POST ERROR]', err.message));
+
+    if (Array.isArray(post.mediaUrls)) {
+      for (const mUrl of post.mediaUrls) {
+        StorageService.deleteMediaByUrl(mUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+      }
+    }
 
     AuditService.log(
       req.user?.fullName || 'User',
@@ -2432,6 +2557,20 @@ export const createHighlightHandler = async (req: Request, res: Response) => {
     };
     db.serviceHighlights.unshift(newHighlight);
     await persistServiceHighlight(newHighlight).catch(err => console.warn('[PERSIST HIGHLIGHT ERROR]', err.message));
+
+    const highlightNotif: NotificationItem = {
+      id: uuidv4(),
+      title: `Service Highlights: ${title}`,
+      body: `Highlights and pictures from ${title} (${finalSpeaker}) are now available to view.`,
+      notificationType: 'service_highlight',
+      targetScope: newHighlight.branchId ? 'branch' : 'all',
+      targetId: newHighlight.branchId,
+      actionUrl: `/highlights`,
+      createdAt: new Date().toISOString()
+    };
+    db.notifications.unshift(highlightNotif);
+    await persistNotification(highlightNotif).catch(err => console.warn('[PERSIST NOTIF ERROR]', err.message));
+
     AuditService.log(req.user?.fullName || 'Admin', req.user?.roleName || 'admin', 'HIGHLIGHT_CREATED', 'highlight', newHighlight.id, req.user?.userId, null, newHighlight);
     return res.status(201).json(newHighlight);
   } catch (err: any) {
@@ -2501,6 +2640,12 @@ export const deleteHighlightHandler = async (req: Request, res: Response) => {
     const idx = db.serviceHighlights.findIndex(h => h.id === req.params.id);
     db.serviceHighlights.splice(idx, 1);
     await persistDelete('service_highlights', req.params.id).catch(err => console.warn('[DELETE HIGHLIGHT ERROR]', err.message));
+
+    if (Array.isArray(highlight.photos)) {
+      for (const pUrl of highlight.photos) {
+        StorageService.deleteMediaByUrl(pUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+      }
+    }
 
     AuditService.log(
       req.user?.fullName || 'Admin',
@@ -2742,6 +2887,12 @@ export const deleteTestimonyHandler = async (req: Request, res: Response) => {
       if (idx !== -1) {
         db.testimonies.splice(idx, 1);
       }
+      if (testimony.photoUrl) {
+        StorageService.deleteMediaByUrl(testimony.photoUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+      }
+      if (testimony.videoUrl) {
+        StorageService.deleteMediaByUrl(testimony.videoUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+      }
     }
 
     await persistDelete('testimonies', resolvedId).catch(err => console.warn('[DELETE TESTIMONY ERROR]', err.message));
@@ -2885,8 +3036,9 @@ export const getAuditLogsHandler = (req: Request, res: Response) => {
 // =============================================================================
 // SETTINGS CONTROLLER
 // =============================================================================
-export const getSettingsHandler = (req: Request, res: Response) => {
+export const getSettingsHandler = async (req: Request, res: Response) => {
   const branchId = (req.query.branchId as string) || req.user?.branchId;
+  await SettingsService.loadFromDb().catch(() => {});
   const settings = SettingsService.getSettingsForBranch(branchId);
   return res.json({
     ...settings.attendance,
@@ -2894,12 +3046,12 @@ export const getSettingsHandler = (req: Request, res: Response) => {
   });
 };
 
-export const updateSettingsHandler = (req: Request, res: Response) => {
+export const updateSettingsHandler = async (req: Request, res: Response) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
 
-    const updated = SettingsService.updateSettings(req.body, user);
+    const updated = await SettingsService.updateSettingsAsync(req.body, user);
     return res.json({
       ...updated.attendance,
       ...updated
@@ -3950,6 +4102,13 @@ export const deleteSundayMomentHandler = async (req: Request, res: Response) => 
       db.sundayMomentLikes = db.sundayMomentLikes.filter(l => l.momentId !== id);
     }
     await deleteSundayMomentFromDb(id).catch(err => console.warn('[DELETE SUNDAY MOMENT ERROR]', err.message));
+
+    if (moment.mediaUrl) {
+      StorageService.deleteMediaByUrl(moment.mediaUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+    }
+    if (moment.thumbnailUrl) {
+      StorageService.deleteMediaByUrl(moment.thumbnailUrl).catch(e => console.warn('[STORAGE DELETE ERROR]', e.message));
+    }
 
     AuditService.log(
       user.fullName,

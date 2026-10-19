@@ -11,6 +11,7 @@ import { MembersPage } from './pages/MembersPage';
 import { BranchesPage } from './pages/BranchesPage';
 import { DepartmentsPage } from './pages/DepartmentsPage';
 import { RolesPage } from './pages/RolesPage';
+import { ShieldAlert } from 'lucide-react';
 import { ServicesPage } from './pages/ServicesPage';
 import { EventsPage } from './pages/EventsPage';
 import { FeedPage } from './pages/FeedPage';
@@ -44,6 +45,7 @@ const AppContent: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'password'>('profile');
+  const isSuperAdmin = user?.adminLevel === 'super_admin' || user?.roleCode === 'SUPER_ADMIN';
 
   const navigateTo = (target: 'app' | 'privacy' | 'delete-account') => {
     setRoute(target);
@@ -186,7 +188,27 @@ const AppContent: React.FC = () => {
           {currentTab === 'members' && <MembersPage />}
           {currentTab === 'branches' && <BranchesPage />}
           {currentTab === 'departments' && <DepartmentsPage />}
-          {currentTab === 'roles' && <RolesPage />}
+          {currentTab === 'roles' && (
+            isSuperAdmin ? (
+              <RolesPage />
+            ) : (
+              <div className="p-8 max-w-lg mx-auto text-center mt-12 bg-white rounded-2xl shadow-sm border border-slate-200">
+                <div className="w-16 h-16 mx-auto mb-4 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
+                <p className="text-sm text-slate-600 mb-6">
+                  Ministry Roles & RBAC administration is restricted exclusively to Super Administrators.
+                </p>
+                <button
+                  onClick={() => setCurrentTab('dashboard')}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            )
+          )}
           {currentTab === 'services' && <ServicesPage />}
           {currentTab === 'events' && <EventsPage />}
           {currentTab === 'feed' && <FeedPage />}

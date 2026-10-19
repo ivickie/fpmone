@@ -367,4 +367,81 @@ export class StorageService {
     }
     return result;
   }
+
+  /**
+   * Safely deletes an object from Supabase Storage given its public or relative URL.
+   * Also removes local file if present and archives any matching media_items record.
+   */
+  public static async deleteMediaByUrl(url?: string | null): Promise<boolean> {
+    if (!url || typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+
+    // Do not delete default presets, icons, or external placeholder graphics
+    if (
+      trimmed.includes('church-logo.png') ||
+      trimmed.includes('church_logo') ||
+      trimmed.includes('default-avatar') ||
+      trimmed.includes('placeholder')
+    ) {
+      return false;
+    }
+
+    let storagePath: string | null = null;
+    const supabasePrefix = `/storage/v1/object/public/${this.bucketName}/`;
+    const uploadsPrefix = `/uploads/${this.bucketName}/`;
+
+    if (trimmed.includes(supabasePrefix)) {
+      storagePath = trimmed.split(supabasePrefix)[1]?.split('?')[0];
+    } else if (trimmed.includes(uploadsPrefix)) {
+      storagePath = trimmed.split(uploadsPrefix)[1]?.split('?')[0];
+    } else if (trimmed.includes('/uploads/')) {
+      storagePath = trimmed.split('/uploads/')[1]?.split('?')[0];
+    }
+
+    if (!storagePath) return false;
+
+    // Clean up leading/trailing slashes
+    storagePath = storagePath.replace(/^\/+/, '').replace(/\/+$/, '');
+
+    try {
+      const client = this.getClient();
+      if (client) {
+        const { error } = await client.storage.from(this.bucketName).remove([storagePath]);
+        if (error) {
+          console.warn('[STORAGE] Supabase remove object warning:', error.message);
+        }
+      }
+
+      // If local filesystem in dev
+      const isVercelEnv = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+      const isProdEnv = process.env.NODE_ENV === 'production';
+      if (!isVercelEnv && !isProdEnv) {
+        try {
+          const uploadsDir = this.getUploadsDir({ ensureExists: false });
+          if (fs.existsSync(uploadsDir)) {
+            const p1 = path.join(uploadsDir, this.bucketName, storagePath);
+            const p2 = path.join(uploadsDir, storagePath);
+            if (fs.existsSync(p1)) fs.unlinkSync(p1);
+            else if (fs.existsSync(p2)) fs.unlinkSync(p2);
+          }
+        } catch (e: any) {
+          console.warn('[STORAGE] Local file unlink notice:', e.message);
+        }
+      }
+
+      // Mark media items archived
+      const matchingMedia = db.mediaFiles.filter(m => m.storagePath === storagePath || m.publicUrl === trimmed);
+      for (const m of matchingMedia) {
+        m.isArchived = true;
+        m.updatedAt = new Date().toISOString();
+        persistMediaItem(m).catch(() => {});
+      }
+
+      return true;
+    } catch (err: any) {
+      console.warn('[STORAGE] deleteMediaByUrl error:', err.message);
+      return false;
+    }
+  }
 }

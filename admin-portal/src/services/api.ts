@@ -168,6 +168,8 @@ export const api = {
     apiRequest(`/members/${memberId}/assignment`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMember: (memberId: string) =>
     apiRequest(`/members/${memberId}`, { method: 'DELETE' }),
+  resetMemberPassword: (memberId: string) =>
+    apiRequest(`/members/${memberId}/reset-password`, { method: 'POST' }),
 
   getWorkers: (params: { search?: string; branchId?: string; departmentId?: string; status?: string } = {}) => {
     const searchParams = new URLSearchParams();

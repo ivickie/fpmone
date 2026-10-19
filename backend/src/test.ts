@@ -1270,7 +1270,7 @@ async function runTests() {
       body: { defaultGracePeriodMinutes: 25 },
       user: hodUser
     });
-    updateSettingsHandler(updateSettingsAttempt.req, updateSettingsAttempt.res);
+    await updateSettingsHandler(updateSettingsAttempt.req, updateSettingsAttempt.res);
     assert(updateSettingsAttempt.getStatus() === 403, 'HOD is forbidden from updating System & Ministry Configuration (returns 403)');
     assert(Boolean(updateSettingsAttempt.getData()?.error?.includes('Heads of Department cannot modify system settings')), 'Settings rejection explains HOD restriction');
 
@@ -1279,7 +1279,7 @@ async function runTests() {
       body: { defaultGracePeriodMinutes: 15 },
       user: hodWithBranchAdmin
     });
-    updateSettingsHandler(updateSettingsAllowed.req, updateSettingsAllowed.res);
+    await updateSettingsHandler(updateSettingsAllowed.req, updateSettingsAllowed.res);
     assert(updateSettingsAllowed.getStatus() === 200, 'HOD who is also a Branch Admin CAN update System & Ministry Configuration (returns 200)');
 
     // TEST 131: HOD is forbidden from broadcasting push notifications (returns 403)
@@ -2439,7 +2439,7 @@ async function runTests() {
     const mockSettingsRes: any = {
       json: (data: any) => { settingsUpdateRes = data; return mockSettingsRes; }
     };
-    updateSettingsHandler(mockSettingsReq, mockSettingsRes);
+    await updateSettingsHandler(mockSettingsReq, mockSettingsRes);
     assert(db.attendanceSettings.id === originalSettingsId, 'Settings ID cannot be overwritten via mass assignment (SEC-06)');
     assert((db.attendanceSettings as any).unknownField === undefined, 'Injected arbitrary properties rejected from Settings (SEC-06)');
     assert(db.attendanceSettings.defaultGracePeriodMinutes === 20, 'Whitelisted setting defaultGracePeriodMinutes updated');
@@ -2491,7 +2491,7 @@ async function runTests() {
     const mockGetSettingsRes: any = {
       json: (data: any) => { retrievedSettings = data; return mockGetSettingsRes; }
     };
-    getSettingsHandler({ query: {}, user: { userId: IDS.USER_ADMIN, adminLevel: 'super_admin' } } as any, mockGetSettingsRes);
+    await getSettingsHandler({ query: {}, user: { userId: IDS.USER_ADMIN, adminLevel: 'super_admin' } } as any, mockGetSettingsRes);
     assert(retrievedSettings !== null, 'getSettingsHandler returns valid payload');
     assert(Boolean(retrievedSettings.organization?.name), 'Settings includes organization section');
     assert(Boolean(retrievedSettings.regional?.defaultTimezone), 'Settings includes regional section');
@@ -2524,7 +2524,7 @@ async function runTests() {
     const superAdminUpdateRes: any = {
       json: (data: any) => { updateSettingsResult = data; return superAdminUpdateRes; }
     };
-    updateSettingsHandler(superAdminUpdateReq, superAdminUpdateRes);
+    await updateSettingsHandler(superAdminUpdateReq, superAdminUpdateRes);
     assert(updateSettingsResult.organization.name === "Faith Preachers Ministries Global", 'Super Admin can update organization name');
     assert(updateSettingsResult.organization.motto === "Walking in Faith and Power", 'Super Admin can update church motto');
     assert(updateSettingsResult.regional.dateFormat === "DD/MM/YYYY", 'Super Admin can update date format');
@@ -2545,7 +2545,7 @@ async function runTests() {
       status: (code: number) => { branchAdminStatus = code; return branchAdminForbiddenRes; },
       json: (data: any) => { branchAdminError = data; return branchAdminForbiddenRes; }
     };
-    updateSettingsHandler(branchAdminForbiddenReq, branchAdminForbiddenRes);
+    await updateSettingsHandler(branchAdminForbiddenReq, branchAdminForbiddenRes);
     assert(branchAdminStatus === 403, 'Branch Admin cannot modify global organization settings (returns 403)');
     assert(branchAdminError?.error?.includes('Only Super Administrators'), 'Rejection explains global settings restriction');
 
@@ -2562,7 +2562,7 @@ async function runTests() {
       status: (code: number) => { validationStatus = code; return invalidRes; },
       json: (data: any) => { validationError = data; return invalidRes; }
     };
-    updateSettingsHandler(invalidReq, invalidRes);
+    await updateSettingsHandler(invalidReq, invalidRes);
     assert(validationStatus === 400, 'Invalid grace period (999) rejected with HTTP 400');
 
     // TEST: Pausing member registration blocks new registrations
@@ -3267,6 +3267,167 @@ async function runTests() {
       const loginNewPassRes = await AuthService.login('worker.john@fpmchurch.org', 'NewSecurePassword2026!');
       assert(!!loginNewPassRes.token, 'Login with new password succeeds and returns JWT');
       assert(loginNewPassRes.user?.email === 'worker.john@fpmchurch.org', 'Login user session is valid');
+
+      // =========================================================================
+      // SECTION R: PRODUCTION RELIABILITY, SECURITY, MEDIA & NOTIFICATION TESTS
+      // =========================================================================
+      console.log('\n--- Section R: Production Reliability, Security & Media ---');
+
+      // Test R1: Settings persistence - Update, fetch, verify persistence across calls
+      console.log('Testing Settings Persistence...');
+      const updateSettingsRes = await fetch(`${baseTestUrl}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          organization: {
+            name: 'Faith Preachers Ministries Int\'l',
+            primaryEmail: 'persisted.hq@fpmchurch.org'
+          },
+          media: {
+            requireMomentsApproval: false
+          }
+        })
+      });
+      assert(updateSettingsRes.status === 200, 'Super Admin updating settings returns HTTP 200');
+      const updatedSettingsJson: any = await updateSettingsRes.json();
+      assert(updatedSettingsJson.organization?.primaryEmail === 'persisted.hq@fpmchurch.org', 'Persisted organization email is verified');
+      assert(updatedSettingsJson.media?.requireMomentsApproval === false, 'Persisted requireMomentsApproval toggle is false');
+
+      // Fetch fresh settings and verify persisted values survive
+      const fetchFreshSettingsRes = await fetch(`${baseTestUrl}/api/settings`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      assert(fetchFreshSettingsRes.status === 200, 'Fetching settings returns HTTP 200');
+      const freshSettingsJson: any = await fetchFreshSettingsRes.json();
+      assert(freshSettingsJson.organization?.primaryEmail === 'persisted.hq@fpmchurch.org', 'Fresh fetch returns persisted email');
+      assert(freshSettingsJson.media?.requireMomentsApproval === false, 'Fresh fetch returns persisted requireMomentsApproval');
+
+      // Restore default approval requirement
+      await fetch(`${baseTestUrl}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          media: {
+            requireMomentsApproval: true
+          }
+        })
+      });
+
+      // Test R2: Ministry Roles navigation & endpoint security (Super Admin Only)
+      console.log('Testing Ministry Roles Super Admin Restriction...');
+      // Worker attempts to create role
+      const workerRoleRes = await fetch(`${baseTestUrl}/api/roles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workerLogin.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: 'Rogue Role', code: 'ROGUE', hierarchyLevel: 5 })
+      });
+      assert(workerRoleRes.status === 403, 'Worker cannot create ministry role (HTTP 403 Forbidden)');
+
+      // Branch Admin attempts to create role
+      const branchAdminRoleRes = await fetch(`${baseTestUrl}/api/roles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ilorinAdminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: 'Branch Created Role', code: 'BRANCH_ROLE', hierarchyLevel: 5 })
+      });
+      assert(branchAdminRoleRes.status === 403, 'Branch Admin cannot create ministry role (HTTP 403 Forbidden)');
+
+      // Super Admin creates role
+      const superAdminRoleRes = await fetch(`${baseTestUrl}/api/roles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: 'Lead Deacon Test', code: 'LEAD_DEACON_TEST', hierarchyLevel: 3 })
+      });
+      assert(superAdminRoleRes.status === 201, 'Super Admin can create ministry role (HTTP 201 Created)');
+      const createdRoleData: any = await superAdminRoleRes.json();
+      const testRoleId = createdRoleData.id;
+
+      // Super Admin deletes test role
+      const deleteRoleRes = await fetch(`${baseTestUrl}/api/roles/${testRoleId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      assert(deleteRoleRes.status === 200, 'Super Admin can delete ministry role (HTTP 200)');
+
+      // Test R3: Administrator-Assisted Password Reset
+      console.log('Testing Administrator-Assisted Password Reset...');
+      const targetMember = db.members.find(m => m.userId === IDS.USER_SARAH);
+      assert(!!targetMember, 'Target worker member exists');
+
+      // Non-super-admin attempts reset
+      const unauthorizedResetRes = await fetch(`${baseTestUrl}/api/members/${targetMember!.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${ilorinAdminToken}` }
+      });
+      assert(unauthorizedResetRes.status === 403, 'Branch Admin cannot reset member password (HTTP 403 Forbidden)');
+
+      // Super Admin resets password
+      const superAdminResetRes = await fetch(`${baseTestUrl}/api/members/${targetMember!.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      assert(superAdminResetRes.status === 200, 'Super Admin reset password returns HTTP 200');
+      const resetJson: any = await superAdminResetRes.json();
+      assert(resetJson.success === true, 'Reset response returns success: true');
+      assert(typeof resetJson.temporaryPassword === 'string' && resetJson.temporaryPassword.startsWith('Fpm!'), 'Temporary password generated with secure format Fpm!<8-chars>');
+
+      // Verify login with newly generated temporary password succeeds
+      const tempLogin = await AuthService.login('worker.sarah@fpmchurch.org', resetJson.temporaryPassword);
+      assert(!!tempLogin.token, 'Login with generated temporary password succeeds');
+
+      // Verify old password fails
+      const oldLoginFail = await AuthService.login('worker.sarah@fpmchurch.org', 'Password123!');
+      assert(oldLoginFail.error?.includes('Invalid') === true, 'Login with old password now correctly fails');
+
+      // Restore Sarah's password back for any subsequent tests
+      await AuthService.changePassword({
+        emailOrPhone: 'worker.sarah@fpmchurch.org',
+        currentPassword: resetJson.temporaryPassword,
+        newPassword: 'Password123!'
+      });
+
+      // Test R4: Storage Cleanup on Delete
+      console.log('Testing Supabase Storage Media Cleanup...');
+      const deletedMediaResult = await StorageService.deleteMediaByUrl('https://example.supabase.co/storage/v1/object/public/fpm-media/posts/test-photo.jpg');
+      assert(deletedMediaResult === true, 'StorageService.deleteMediaByUrl cleans up Supabase storage URL safely');
+      const deletedPresetResult = await StorageService.deleteMediaByUrl('/church-logo.png');
+      assert(deletedPresetResult === false, 'StorageService.deleteMediaByUrl safely preserves system presets');
+
+      // Test R5: Content In-App Push Notifications
+      console.log('Testing Content Creation Notifications...');
+      const notifCountBefore = db.notifications.length;
+      const newPostRes = await fetch(`${baseTestUrl}/api/feed`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: 'Special Announcement for All Believers',
+          content: 'Kingdom advancement conference next week!',
+          category: 'announcement',
+          branchId: IDS.BRANCH_ILORIN
+        })
+      });
+      assert(newPostRes.status === 201, 'Feed post created successfully');
+      const notifCountAfter = db.notifications.length;
+      assert(notifCountAfter > notifCountBefore, 'In-app notification created for newly published content');
+      const latestNotif = db.notifications[0];
+      assert(latestNotif.title.includes('New Announcement') || latestNotif.body.includes('Kingdom advancement'), 'Notification matches published content');
 
     } finally {
       testServer.close();

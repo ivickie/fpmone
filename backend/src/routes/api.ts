@@ -9,7 +9,7 @@ import {
   getDepartmentPositionsHandler, createPositionHandler, deletePositionHandler,
   getRolesHandler, createRoleHandler, updateRoleHandler, deleteRoleHandler,
   getPendingApprovalsHandler, approveMemberHandler, rejectMemberHandler, requestChangesHandler,
-  listMembersHandler, getMemberByIdHandler, createMemberHandler, updateMemberHandler, deleteMemberHandler, updateMemberStatusHandler, updateMemberAssignmentHandler,
+  listMembersHandler, getMemberByIdHandler, createMemberHandler, updateMemberHandler, deleteMemberHandler, updateMemberStatusHandler, updateMemberAssignmentHandler, resetMemberPasswordHandler,
   listWorkersHandler, getWorkerByIdHandler, updateWorkerHandler,
   clockInHandler, clockOutHandler, triggerAutoClockOutHandler, markAbsencesHandler, excuseAbsenceHandler,
   getAttendanceDashboardHandler, getAttendanceMatrixHandler, exportAttendanceCsvHandler, getMyAttendanceHistoryHandler,
@@ -33,7 +33,7 @@ import {
   getFinanceMonthlyStatementHandler, getFinanceAnnualStatementHandler, getFinanceCategoryAnalysisHandler,
   exportFinanceReportHandler
 } from '../controllers/apiControllers';
-import { requireAuth, requireAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireAdmin, requireSuperAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
 import {
   loginRateLimiter,
   registrationRateLimiter,
@@ -79,9 +79,9 @@ router.post('/departments/:id/positions', requireAuth, requireAdmin, createPosit
 router.delete('/departments/:id/positions/:positionId', requireAuth, requireAdmin, deletePositionHandler);
 
 router.get('/roles', getRolesHandler);
-router.post('/roles', requireAuth, requireAdmin, createRoleHandler);
-router.put('/roles/:id', requireAuth, requireAdmin, updateRoleHandler);
-router.delete('/roles/:id', requireAuth, requireAdmin, deleteRoleHandler);
+router.post('/roles', requireAuth, requireSuperAdmin, createRoleHandler);
+router.put('/roles/:id', requireAuth, requireSuperAdmin, updateRoleHandler);
+router.delete('/roles/:id', requireAuth, requireSuperAdmin, deleteRoleHandler);
 
 // --- APPROVALS, MEMBERS & WORKERS ---
 router.get('/approvals', requireAuth, requireAdmin, getPendingApprovalsHandler);
@@ -96,6 +96,7 @@ router.put('/members/:id', requireAuth, requireAdmin, updateMemberHandler);
 router.delete('/members/:id', requireAuth, requireAdmin, deleteMemberHandler);
 router.put('/members/:id/status', requireAuth, requireAdmin, updateMemberStatusHandler);
 router.put('/members/:id/assignment', requireAuth, requireAdmin, updateMemberAssignmentHandler);
+router.post('/members/:id/reset-password', requireAuth, requireSuperAdmin, resetMemberPasswordHandler);
 
 router.get('/workers', requireAuth, requireAdmin, listWorkersHandler);
 router.get('/workers/:id', requireAuth, requireAdmin, getWorkerByIdHandler);
