@@ -7,7 +7,7 @@ import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem
 import { AuditService } from './auditService';
 import { SettingsService } from './settingsService';
 import { EmailService } from './emailService';
-import { persistUser, persistMember, persistNotification, persistDelete, persistEmailVerification, persistPasswordReset, fetchActiveEmailVerification, fetchActivePasswordReset } from '../db/sync';
+import { persistUser, persistMember, persistNotification, persistDelete, persistEmailVerification, persistPasswordReset, fetchActiveEmailVerification, fetchActivePasswordReset, fetchActivePasswordResetByEmail } from '../db/sync';
 import { checkAccountLoginThrottle, recordFailedLogin, clearLoginAttempts } from '../middleware/rateLimitMiddleware';
 
 const DEFAULT_DEV_JWT = 'fpm_global_super_secret_jwt_key_faith_preachers_ministry_2026';
@@ -301,10 +301,26 @@ export class AuthService {
     const memberId = uuidv4();
     const now = new Date().toISOString();
 
-    // Prevent privilege escalation: Super Admin can NEVER be self-assigned during registration
+    // Prevent privilege escalation: Privileged roles (Pastors, Admins, HODs, Super Admins)
+    // can NEVER be self-assigned during public registration.
     let assignedRoleId = data.ministryRoleId;
     const requestedRole = db.ministryRoles.find(r => r.id === data.ministryRoleId);
-    if (!requestedRole || requestedRole.code === 'SUPER_ADMIN') {
+    const privilegedRoleCodes = [
+      'SUPER_ADMIN',
+      'BRANCH_ADMIN',
+      'BRANCH_PASTOR',
+      'ASSOCIATE_PASTOR',
+      'PASTOR',
+      'HOD'
+    ];
+    if (
+      !requestedRole ||
+      privilegedRoleCodes.includes(requestedRole.code.toUpperCase()) ||
+      requestedRole.name.toLowerCase().includes('pastor') ||
+      requestedRole.name.toLowerCase().includes('admin') ||
+      requestedRole.name.toLowerCase().includes('hod') ||
+      (requestedRole.hierarchyLevel !== undefined && requestedRole.hierarchyLevel < 6)
+    ) {
       // Reassign to standard WORKER or MEMBER role
       assignedRoleId = data.isWorker ? IDS.ROLE_WORKER : IDS.ROLE_MEMBER;
     }
@@ -610,7 +626,7 @@ export class AuthService {
   }
 
   /**
-   * Generates single-use password reset token and dispatches email via Brevo.
+   * Generates single-use 6-digit password reset OTP (valid for 10 minutes) and dispatches email via Brevo.
    * Employs anti-enumeration to protect user privacy.
    */
   public static async requestPasswordReset(params: {
@@ -629,24 +645,27 @@ export class AuthService {
     const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
 
     if (user) {
-      // Invalidate existing unused tokens for this user
+      // Invalidate existing unused reset records for this user
+      const now = new Date().toISOString();
       db.passwordResets.forEach(pr => {
         if (pr.userId === user.id && !pr.usedAt) {
-          pr.usedAt = new Date().toISOString();
+          pr.usedAt = now;
           persistPasswordReset(pr).catch(() => {});
         }
       });
 
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-      const now = new Date().toISOString();
+      // Generate cryptographically secure 6-digit numeric OTP
+      const otp = crypto.randomInt(100000, 1000000).toString();
+      const tokenHash = crypto.createHash('sha256').update(otp).digest('hex');
 
       const record: PasswordResetRecord = {
         id: uuidv4(),
         userId: user.id,
         email: user.email,
         tokenHash,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // Exactly 10 minutes
+        attemptsCount: 0,
+        maxAttempts: 5,
         ipAddress,
         createdAt: now
       };
@@ -657,11 +676,11 @@ export class AuthService {
       const recipientName = member ? `${member.firstName} ${member.lastName}` : user.email.split('@')[0];
 
       if (EmailService.isConfigured()) {
-        await EmailService.sendPasswordReset({
+        await EmailService.sendPasswordResetOtp({
           toEmail: user.email,
           recipientName,
-          resetToken,
-          expiresInMinutes: 60
+          otp,
+          expiresInMinutes: 10
         });
       }
 
@@ -676,7 +695,183 @@ export class AuthService {
   }
 
   /**
+   * Verifies a 6-digit password reset OTP.
+   * On success, issues a single-use reset authorization token.
+   */
+  public static async verifyResetOtp(params: {
+    email: string;
+    otp: string;
+    ipAddress?: string;
+  }): Promise<{
+    success: boolean;
+    valid: boolean;
+    resetAuthToken?: string;
+    email?: string;
+    message?: string;
+    error?: string;
+    remainingAttempts?: number;
+  }> {
+    const { email, otp, ipAddress } = params;
+    if (!email || !otp) {
+      return { success: false, valid: false, error: 'Email and verification code are required.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+
+    if (cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
+      return { success: false, valid: false, error: 'Verification code must be 6 digits.' };
+    }
+
+    const now = Date.now();
+    let record = db.passwordResets.find(
+      pr => pr.email.toLowerCase() === cleanEmail && !pr.usedAt && new Date(pr.expiresAt).getTime() > now
+    );
+
+    if (!record) {
+      const dbRecord = await fetchActivePasswordResetByEmail(cleanEmail);
+      if (dbRecord) {
+        db.passwordResets.push(dbRecord);
+        record = dbRecord;
+      }
+    }
+
+    if (!record) {
+      return {
+        success: false,
+        valid: false,
+        error: 'This verification code is invalid or has expired. Please request a new code.'
+      };
+    }
+
+    const maxAttempts = record.maxAttempts || 5;
+    if ((record.attemptsCount || 0) >= maxAttempts) {
+      return {
+        success: false,
+        valid: false,
+        error: 'Maximum verification attempts exceeded. Please request a new reset code.'
+      };
+    }
+
+    const inputHash = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+    if (inputHash !== record.tokenHash) {
+      record.attemptsCount = (record.attemptsCount || 0) + 1;
+      persistPasswordReset(record).catch(() => {});
+      const remaining = Math.max(0, maxAttempts - record.attemptsCount);
+      return {
+        success: false,
+        valid: false,
+        error: 'Incorrect verification code. Please check your email and try again.',
+        remainingAttempts: remaining
+      };
+    }
+
+    // OTP verified successfully. Issue single-use reset authorization token.
+    const resetAuthToken = crypto.randomBytes(32).toString('hex');
+    const resetAuthTokenHash = crypto.createHash('sha256').update(resetAuthToken).digest('hex');
+    record.verifiedAt = new Date().toISOString();
+    record.resetAuthTokenHash = resetAuthTokenHash;
+    // Set 15-minute validity window for resetAuthToken
+    record.expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    persistPasswordReset(record).catch(() => {});
+
+    return {
+      success: true,
+      valid: true,
+      resetAuthToken,
+      email: record.email,
+      message: 'Verification code confirmed. You may now set your new password.'
+    };
+  }
+
+  /**
+   * Resends a 6-digit password reset OTP with rate-limiting cooldown.
+   */
+  public static async resendPasswordResetOtp(params: {
+    email: string;
+    ipAddress?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+    cooldownSeconds?: number;
+  }> {
+    const { email, ipAddress } = params;
+    if (!email || !email.includes('@')) {
+      return { success: false, message: '', error: 'Please enter a valid email address.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      // Preserve anti-enumeration
+      return {
+        success: true,
+        message: 'A fresh 6-digit password reset code has been dispatched to your email.'
+      };
+    }
+
+    // Check active record for cooldown
+    const active = db.passwordResets.find(
+      pr => pr.userId === user.id && !pr.usedAt && new Date(pr.expiresAt).getTime() > Date.now()
+    );
+
+    if (active) {
+      const createdTime = new Date(active.createdAt).getTime();
+      const elapsed = Math.floor((Date.now() - createdTime) / 1000);
+      const COOLDOWN_PERIOD = 60;
+      if (elapsed < COOLDOWN_PERIOD) {
+        const remaining = COOLDOWN_PERIOD - elapsed;
+        return {
+          success: false,
+          error: `Please wait ${remaining} seconds before requesting a new reset code.`,
+          message: '',
+          cooldownSeconds: remaining
+        };
+      }
+      // Invalidate previous OTP
+      active.usedAt = new Date().toISOString();
+      persistPasswordReset(active).catch(() => {});
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const tokenHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const nowIso = new Date().toISOString();
+
+    const record: PasswordResetRecord = {
+      id: uuidv4(),
+      userId: user.id,
+      email: user.email,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      attemptsCount: 0,
+      maxAttempts: 5,
+      ipAddress,
+      createdAt: nowIso
+    };
+    db.passwordResets.push(record);
+    persistPasswordReset(record).catch(() => {});
+
+    const member = db.members.find(m => m.userId === user.id);
+    const recipientName = member ? `${member.firstName} ${member.lastName}` : user.email.split('@')[0];
+
+    if (EmailService.isConfigured()) {
+      await EmailService.sendPasswordResetOtp({
+        toEmail: user.email,
+        recipientName,
+        otp,
+        expiresInMinutes: 10
+      });
+    }
+
+    return {
+      success: true,
+      message: 'A fresh 6-digit password reset code has been dispatched to your email.'
+    };
+  }
+
+  /**
    * Validates a password reset token without consuming it.
+   * Supports both legacy reset tokens and OTP-generated resetAuthTokens.
    */
   public static async verifyPasswordResetToken(token: string): Promise<{
     valid: boolean;
@@ -687,9 +882,12 @@ export class AuthService {
       return { valid: false, error: 'Password reset token is missing.' };
     }
     const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+    const now = Date.now();
 
     let record = db.passwordResets.find(
-      pr => pr.tokenHash === tokenHash && !pr.usedAt && new Date(pr.expiresAt).getTime() > Date.now()
+      pr => (pr.tokenHash === tokenHash || pr.resetAuthTokenHash === tokenHash) &&
+            !pr.usedAt &&
+            new Date(pr.expiresAt).getTime() > now
     );
 
     if (!record) {
@@ -703,7 +901,7 @@ export class AuthService {
     if (!record) {
       return {
         valid: false,
-        error: 'This password reset link is invalid, expired, or has already been used. Please request a new link.'
+        error: 'This password reset link or code is invalid, expired, or has already been used. Please request a new code.'
       };
     }
 
@@ -715,9 +913,12 @@ export class AuthService {
 
   /**
    * Completes the password reset by setting new password and invalidating token.
+   * Supports resetAuthToken, token, and sends confirmation email.
    */
   public static async completePasswordReset(params: {
-    token: string;
+    token?: string;
+    resetAuthToken?: string;
+    email?: string;
     newPassword: string;
     ipAddress?: string;
   }): Promise<{
@@ -725,50 +926,80 @@ export class AuthService {
     message: string;
     error?: string;
   }> {
-    const { token, newPassword, ipAddress } = params;
-    if (!token) {
-      return { success: false, message: '', error: 'Password reset token is required.' };
+    const { token, resetAuthToken, email, newPassword, ipAddress } = params;
+    const effectiveToken = (resetAuthToken || token || '').trim();
+
+    if (!effectiveToken) {
+      return { success: false, message: '', error: 'Password reset authorization token is required.' };
     }
     if (!newPassword || newPassword.length < 6) {
       return { success: false, message: '', error: 'New password must be at least 6 characters long.' };
     }
 
-    const verification = await this.verifyPasswordResetToken(token);
+    const verification = await this.verifyPasswordResetToken(effectiveToken);
     if (!verification.valid) {
       return { success: false, message: '', error: verification.error || 'Invalid reset token.' };
     }
 
-    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
-    const record = db.passwordResets.find(pr => pr.tokenHash === tokenHash && !pr.usedAt);
+    const tokenHash = crypto.createHash('sha256').update(effectiveToken).digest('hex');
+    const now = Date.now();
+
+    let record = db.passwordResets.find(
+      pr => (pr.tokenHash === tokenHash || pr.resetAuthTokenHash === tokenHash) &&
+            !pr.usedAt &&
+            new Date(pr.expiresAt).getTime() > now
+    );
     if (!record) {
-      return { success: false, message: '', error: 'Password reset record not found.' };
+      const dbRecord = await fetchActivePasswordReset(tokenHash);
+      if (dbRecord) {
+        db.passwordResets.push(dbRecord);
+        record = dbRecord;
+      }
     }
 
-    const user = db.users.find(u => u.id === record.userId || u.email.toLowerCase() === record.email.toLowerCase());
+    if (!record || record.usedAt || new Date(record.expiresAt).getTime() <= now) {
+      return {
+        success: false,
+        message: '',
+        error: 'Password reset authorization has expired or has already been used. Please request a new code.'
+      };
+    }
+
+    const user = db.users.find(u => u.id === record!.userId || u.email.toLowerCase() === record!.email.toLowerCase());
     if (!user) {
       return { success: false, message: '', error: 'Associated user account could not be found.' };
     }
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    const now = new Date().toISOString();
+    const nowIso = new Date().toISOString();
 
     user.passwordHash = newHash;
     user.hasChangedDefaultPassword = true;
-    user.updatedAt = now;
+    user.updatedAt = nowIso;
 
     // Mark token used
-    record.usedAt = now;
+    record.usedAt = nowIso;
     persistPasswordReset(record).catch(() => {});
 
-    // Invalidate any other active reset tokens for this user
+    // Invalidate any other active reset records for this user
     db.passwordResets.forEach(pr => {
       if (pr.userId === user.id && !pr.usedAt) {
-        pr.usedAt = now;
+        pr.usedAt = nowIso;
         persistPasswordReset(pr).catch(() => {});
       }
     });
 
     await persistUser(user);
+
+    // Send confirmation email (never emailing new password)
+    const member = db.members.find(m => m.userId === user.id);
+    const recipientName = member ? `${member.firstName} ${member.lastName}` : user.email.split('@')[0];
+    if (EmailService.isConfigured()) {
+      EmailService.sendPasswordResetConfirmation({
+        toEmail: user.email,
+        recipientName
+      }).catch(() => {});
+    }
 
     AuditService.log(user.email, user.adminLevel || 'member', 'PASSWORD_RESET_COMPLETED', 'user', user.id, user.id);
 

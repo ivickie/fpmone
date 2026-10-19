@@ -22,6 +22,18 @@ export interface PasswordResetEmailParams {
   expiresInMinutes?: number;
 }
 
+export interface PasswordResetOtpParams {
+  toEmail: string;
+  recipientName: string;
+  otp: string;
+  expiresInMinutes?: number;
+}
+
+export interface PasswordResetConfirmationParams {
+  toEmail: string;
+  recipientName: string;
+}
+
 export interface BrevoStatus {
   configured: boolean;
   hasApiKey: boolean;
@@ -298,7 +310,7 @@ export class EmailService {
           <tr>
             <td style="background-color: #f8fafc; padding: 24px 32px; border-top: 1px solid #e2e8f0; text-align: center;">
               <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 600; color: #64748b;">
-                Faith Preachers Ministries Int'l &bull; Faith Cathedral HQ
+                Faith Preachers Ministries Int'l &bull; 
               </p>
               <p style="margin: 0 0 12px 0; font-size: 11px; color: #94a3b8; line-height: 1.4;">
                 Nigeria (Lagos, Ilorin, Abuja) &bull; United Kingdom &bull; North America (Houston, Canada)
@@ -465,6 +477,210 @@ If you did not request this password reset, please ignore this email. Your exist
       to: toEmail,
       toName: recipientName,
       subject: 'Reset Your FPM Global Password',
+      htmlContent,
+      textContent
+    });
+  }
+
+  /**
+   * Generates and dispatches a single-use 6-digit password reset OTP email.
+   * Explicitly notes 10-minute expiry and security guidelines.
+   */
+  public static async sendPasswordResetOtp(params: PasswordResetOtpParams): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+  }> {
+    const { toEmail, recipientName, otp, expiresInMinutes = 10 } = params;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password - FPM Global</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card -->
+        <table role="presentation" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+          <!-- Header Banner -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #001F3F 0%, #08284d 100%); padding: 32px 24px; text-align: center; border-bottom: 3px solid #D4AF37;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center">
+                    <div style="display: inline-block; width: 56px; height: 56px; background: rgba(255,255,255,0.1); border: 1px solid rgba(212,175,55,0.4); border-radius: 50%; padding: 8px; margin-bottom: 12px;">
+                      <img src="https://www.fpmglobal.online/church-logo.png" alt="FPM Global" width="40" height="40" style="display: block; border-radius: 50%;" />
+                    </div>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">FAITH PREACHERS MINISTRIES INT'L</h1>
+                    <p style="margin: 4px 0 0 0; color: #D4AF37; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;">Security & Account Recovery</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Content Area -->
+          <tr>
+            <td style="padding: 36px 32px;">
+              <h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #0f172a;">Password Reset Code</h2>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                Hello <strong>${recipientName}</strong>,
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                We received a request to reset the password for your FPM Global church account. Use the 6-digit password reset code below to verify your identity and set a new password:
+              </p>
+
+              <!-- OTP Code Display Box -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
+                <tr>
+                  <td align="center" style="background-color: #f8fafc; border: 2px dashed #001F3F; border-radius: 12px; padding: 22px 16px;">
+                    <div style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 12px; color: #001F3F; text-indent: 12px;">
+                      ${otp}
+                    </div>
+                    <div style="margin-top: 8px; font-size: 11px; font-weight: 600; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">
+                      Expires in ${expiresInMinutes} minutes &bull; Single-use only
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 16px 0; font-size: 13px; line-height: 1.6; color: #64748b;">
+                Enter this code in your FPM Global app to choose your new password.
+              </p>
+
+              <!-- Security Warning -->
+              <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 4px; margin-top: 24px;">
+                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #991b1b;">
+                  <strong>Security Note:</strong> Never share this code with anyone. FPM Global pastoral staff and administrators will never contact you asking for this code. If you did not request a password reset, you can safely ignore this email.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 24px 32px; border-top: 1px solid #e2e8f0; text-align: center;">
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 600; color: #64748b;">
+                Faith Preachers Ministries Int'l &bull; Global Headquarters
+              </p>
+              <p style="margin: 0 0 10px 0; font-size: 11px; color: #94a3b8;">
+                https://www.fpmglobal.online &bull; Faith &bull; Purpose &bull; Mission
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `.trim();
+
+    const textContent = `
+FAITH PREACHERS MINISTRIES INT'L
+Security & Account Recovery
+
+Hello ${recipientName},
+
+We received a request to reset the password for your FPM Global church account.
+
+Your 6-digit password reset code is: ${otp}
+
+This code expires in ${expiresInMinutes} minutes and can only be used once.
+
+Security Notice: Never share this code with anyone. FPM Global staff will never request your code.
+
+If you did not request this password reset, you can safely ignore this email.
+    `.trim();
+
+    return this.sendEmail({
+      to: toEmail,
+      toName: recipientName,
+      subject: `Your FPM Global Password Reset Code: ${otp}`,
+      htmlContent,
+      textContent
+    });
+  }
+
+  /**
+   * Dispatches a notification confirming password has been reset.
+   * Strictly never includes the new password.
+   */
+  public static async sendPasswordResetConfirmation(params: PasswordResetConfirmationParams): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+  }> {
+    const { toEmail, recipientName } = params;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Reset Successful - FPM Global</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #001F3F 0%, #08284d 100%); padding: 32px 24px; text-align: center; border-bottom: 3px solid #D4AF37;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 700;">FAITH PREACHERS MINISTRIES INT'L</h1>
+              <p style="margin: 4px 0 0 0; color: #D4AF37; font-size: 11px; font-weight: 600; text-transform: uppercase;">Security Alert</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 32px;">
+              <h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #0f172a;">Password Changed Successfully</h2>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                Hello <strong>${recipientName}</strong>,
+              </p>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                This email confirms that the password for your FPM Global church account (${toEmail}) was successfully updated. You can now log into your mobile application and portals using your new password.
+              </p>
+              <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 4px; margin-top: 24px;">
+                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #991b1b;">
+                  <strong>Important:</strong> If you did NOT initiate this password reset, please contact church administration immediately to secure your account.
+                </p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8fafc; padding: 24px 32px; border-top: 1px solid #e2e8f0; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #64748b;">Faith Preachers Ministries Int'l &bull; https://www.fpmglobal.online</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `.trim();
+
+    const textContent = `
+FAITH PREACHERS MINISTRIES INT'L
+Security Alert
+
+Hello ${recipientName},
+
+This is confirmation that the password for your FPM Global church account (${toEmail}) was successfully changed.
+
+If you did not initiate this change, please contact church administration immediately.
+    `.trim();
+
+    return this.sendEmail({
+      to: toEmail,
+      toName: recipientName,
+      subject: 'Security Alert: Your FPM Global Password Was Changed',
       htmlContent,
       textContent
     });

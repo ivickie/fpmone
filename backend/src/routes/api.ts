@@ -4,7 +4,7 @@ import {
   loginHandler, registerHandler, getProfileHandler, updateProfileHandler,
   changePasswordHandler, lookupMemberProfileHandler, deleteAccountRequestHandler,
   verifyEmailHandler, resendVerificationOtpHandler, forgotPasswordHandler,
-  verifyResetTokenHandler, resetPasswordHandler, getBrevoStatusHandler, testSendEmailHandler,
+  verifyResetTokenHandler, verifyResetOtpHandler, resendResetOtpHandler, resetPasswordHandler, getBrevoStatusHandler, testSendEmailHandler,
   getBranchesHandler, createBranchHandler, updateBranchHandler, deleteBranchHandler,
   getDepartmentsHandler, createDepartmentHandler, updateDepartmentHandler, deleteDepartmentHandler,
   lookupHodHandler, getEligibleHodsHandler,
@@ -64,6 +64,8 @@ router.post('/auth/register', registrationRateLimiter, registerHandler);
 router.post('/auth/verify-email', verifyEmailRateLimiter, verifyEmailHandler);
 router.post('/auth/resend-verification-otp', resendOtpRateLimiter, resendVerificationOtpHandler);
 router.post('/auth/forgot-password', forgotPasswordRateLimiter, forgotPasswordHandler);
+router.post('/auth/verify-reset-otp', resetPasswordRateLimiter, verifyResetOtpHandler);
+router.post('/auth/resend-reset-otp', resendOtpRateLimiter, resendResetOtpHandler);
 router.post('/auth/verify-reset-token', verifyResetTokenHandler);
 router.post('/auth/reset-password', resetPasswordRateLimiter, resetPasswordHandler);
 router.get('/auth/brevo-status', requireAuth, requireSuperAdmin, getBrevoStatusHandler);

@@ -10,6 +10,13 @@ import org.fpm.one.data.model.UserSession
 import org.fpm.one.data.repository.AuthRepository
 import org.fpm.one.data.repository.UnverifiedEmailException
 
+enum class ForgotPasswordStep {
+  ENTER_EMAIL,
+  ENTER_OTP,
+  SET_NEW_PASSWORD,
+  SUCCESS
+}
+
 data class AuthUiState(
   val isLoading: Boolean = false,
   val error: String? = null,
@@ -21,10 +28,20 @@ data class AuthUiState(
   val verifyErrorMessage: String? = null,
   val isResendingOtp: Boolean = false,
   val resendSuccessMessage: String? = null,
-  // Brevo forgot password state
+  // Brevo forgot password state (6-digit OTP & new password flow)
   val isForgotPasswordLoading: Boolean = false,
   val forgotPasswordSuccess: String? = null,
-  val forgotPasswordError: String? = null
+  val forgotPasswordError: String? = null,
+  val forgotPasswordStep: ForgotPasswordStep = ForgotPasswordStep.ENTER_EMAIL,
+  val forgotPasswordEmail: String? = null,
+  val resetAuthToken: String? = null,
+  val isVerifyingResetOtp: Boolean = false,
+  val resetOtpError: String? = null,
+  val isResendingResetOtp: Boolean = false,
+  val resendResetSuccess: String? = null,
+  val isResettingPassword: Boolean = false,
+  val resetPasswordSuccess: String? = null,
+  val resetPasswordError: String? = null
 )
 
 class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
@@ -117,20 +134,28 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     }
   }
 
-  fun forgotPassword(email: String) {
+  fun forgotPassword(email: String, onSuccess: () -> Unit = {}) {
     if (email.isBlank() || !email.contains("@")) {
       _uiState.value = _uiState.value.copy(forgotPasswordError = "Please enter a valid email address.")
       return
     }
-    _uiState.value = _uiState.value.copy(isForgotPasswordLoading = true, forgotPasswordError = null, forgotPasswordSuccess = null)
+    _uiState.value = _uiState.value.copy(
+      isForgotPasswordLoading = true,
+      forgotPasswordError = null,
+      forgotPasswordSuccess = null
+    )
     viewModelScope.launch {
-      val result = repository.forgotPassword(email.trim())
+      val cleanEmail = email.trim()
+      val result = repository.forgotPassword(cleanEmail)
       result.fold(
         onSuccess = { res ->
           _uiState.value = _uiState.value.copy(
             isForgotPasswordLoading = false,
-            forgotPasswordSuccess = res.message ?: "If an account exists with this email, password reset instructions have been dispatched."
+            forgotPasswordSuccess = res.message ?: "If an account exists with this email, password reset instructions have been dispatched.",
+            forgotPasswordEmail = cleanEmail,
+            forgotPasswordStep = ForgotPasswordStep.ENTER_OTP
           )
+          onSuccess()
         },
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
@@ -142,11 +167,104 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     }
   }
 
+  fun verifyResetOtp(email: String, otp: String, onSuccess: () -> Unit = {}) {
+    if (otp.isBlank() || otp.trim().length != 6) {
+      _uiState.value = _uiState.value.copy(resetOtpError = "Please enter the 6-digit verification code.")
+      return
+    }
+    _uiState.value = _uiState.value.copy(
+      isVerifyingResetOtp = true,
+      resetOtpError = null
+    )
+    viewModelScope.launch {
+      val result = repository.verifyResetOtp(email.trim(), otp.trim())
+      result.fold(
+        onSuccess = { res ->
+          _uiState.value = _uiState.value.copy(
+            isVerifyingResetOtp = false,
+            resetAuthToken = res.resetAuthToken,
+            forgotPasswordEmail = email.trim(),
+            forgotPasswordStep = ForgotPasswordStep.SET_NEW_PASSWORD
+          )
+          onSuccess()
+        },
+        onFailure = { ex ->
+          _uiState.value = _uiState.value.copy(
+            isVerifyingResetOtp = false,
+            resetOtpError = ex.message ?: "Invalid verification code. Please try again."
+          )
+        }
+      )
+    }
+  }
+
+  fun resendResetOtp(email: String) {
+    _uiState.value = _uiState.value.copy(
+      isResendingResetOtp = true,
+      resetOtpError = null,
+      resendResetSuccess = null
+    )
+    viewModelScope.launch {
+      val result = repository.resendResetOtp(email.trim())
+      result.fold(
+        onSuccess = { res ->
+          _uiState.value = _uiState.value.copy(
+            isResendingResetOtp = false,
+            resendResetSuccess = res.message ?: "A fresh 6-digit code has been dispatched."
+          )
+        },
+        onFailure = { ex ->
+          _uiState.value = _uiState.value.copy(
+            isResendingResetOtp = false,
+            resetOtpError = ex.message ?: "Failed to resend code."
+          )
+        }
+      )
+    }
+  }
+
+  fun completePasswordReset(email: String, resetAuthToken: String, newPassword: String, onSuccess: () -> Unit = {}) {
+    if (newPassword.isBlank() || newPassword.length < 6) {
+      _uiState.value = _uiState.value.copy(resetPasswordError = "New password must be at least 6 characters.")
+      return
+    }
+    _uiState.value = _uiState.value.copy(
+      isResettingPassword = true,
+      resetPasswordError = null,
+      resetPasswordSuccess = null
+    )
+    viewModelScope.launch {
+      val result = repository.completePasswordReset(email.trim(), resetAuthToken, newPassword)
+      result.fold(
+        onSuccess = { res ->
+          _uiState.value = _uiState.value.copy(
+            isResettingPassword = false,
+            resetPasswordSuccess = res.message ?: "Password successfully updated.",
+            forgotPasswordStep = ForgotPasswordStep.SUCCESS
+          )
+          onSuccess()
+        },
+        onFailure = { ex ->
+          _uiState.value = _uiState.value.copy(
+            isResettingPassword = false,
+            resetPasswordError = ex.message ?: "Failed to reset password."
+          )
+        }
+      )
+    }
+  }
+
+  fun setForgotPasswordStep(step: ForgotPasswordStep) {
+    _uiState.value = _uiState.value.copy(forgotPasswordStep = step)
+  }
+
   fun clearError() {
     _uiState.value = _uiState.value.copy(
       error = null,
       verifyErrorMessage = null,
-      forgotPasswordError = null
+      forgotPasswordError = null,
+      resetOtpError = null,
+      resetPasswordError = null
     )
   }
 
@@ -154,7 +272,17 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     _uiState.value = _uiState.value.copy(
       forgotPasswordError = null,
       forgotPasswordSuccess = null,
-      isForgotPasswordLoading = false
+      isForgotPasswordLoading = false,
+      forgotPasswordStep = ForgotPasswordStep.ENTER_EMAIL,
+      forgotPasswordEmail = null,
+      resetAuthToken = null,
+      isVerifyingResetOtp = false,
+      resetOtpError = null,
+      isResendingResetOtp = false,
+      resendResetSuccess = null,
+      isResettingPassword = false,
+      resetPasswordSuccess = null,
+      resetPasswordError = null
     )
   }
 }

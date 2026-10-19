@@ -45,6 +45,10 @@ export interface PasswordResetRecord {
   tokenHash: string;
   expiresAt: string;
   usedAt?: string;
+  verifiedAt?: string;
+  attemptsCount?: number;
+  maxAttempts?: number;
+  resetAuthTokenHash?: string;
   ipAddress?: string;
   createdAt: string;
 }

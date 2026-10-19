@@ -112,6 +112,37 @@ data class ForgotPasswordResponse(
 )
 
 @Serializable
+data class VerifyResetOtpRequest(
+    val email: String,
+    val otp: String
+)
+
+@Serializable
+data class VerifyResetOtpResponse(
+    val success: Boolean = false,
+    val valid: Boolean = false,
+    val resetAuthToken: String? = null,
+    val email: String? = null,
+    val message: String? = null,
+    val error: String? = null,
+    val remainingAttempts: Int? = null
+)
+
+@Serializable
+data class CompletePasswordResetRequest(
+    val email: String,
+    val resetAuthToken: String,
+    val newPassword: String
+)
+
+@Serializable
+data class CompletePasswordResetResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val error: String? = null
+)
+
+@Serializable
 data class BranchItem(
     val id: String,
     val name: String,

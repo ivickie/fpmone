@@ -92,8 +92,9 @@ class RegistrationViewModel(
       val deptsRes = churchRepository.getDepartments()
 
       val branches = branchesRes.getOrDefault(emptyList())
-      // Filter out Super Admin from public mobile registration
-      val roles = rolesRes.getOrDefault(emptyList()).filter { it.code != "SUPER_ADMIN" }
+      // Filter out privileged roles from public mobile registration (allow only MEMBER and WORKER)
+      val allowedRoleCodes = setOf("MEMBER", "WORKER")
+      val roles = rolesRes.getOrDefault(emptyList()).filter { it.code.uppercase() in allowedRoleCodes }
       val depts = deptsRes.getOrDefault(emptyList())
 
       // Default role is strictly MEMBER (not Worker)
@@ -340,6 +341,21 @@ class RegistrationViewModel(
         } else if (!Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(dobTrimmed)) {
           dobErr = "Date of Birth must be in YYYY-MM-DD format."
           hasError = true
+        } else {
+          try {
+            val parts = dobTrimmed.split("-").map { it.toInt() }
+            val cal = java.util.Calendar.getInstance()
+            cal.setLenient(false)
+            cal.set(parts[0], parts[1] - 1, parts[2], 0, 0, 0)
+            cal.time // validates leap year / month day ranges
+            if (cal.timeInMillis > System.currentTimeMillis()) {
+              dobErr = "Date of Birth cannot be in the future."
+              hasError = true
+            }
+          } catch (e: Exception) {
+            dobErr = "Please select a valid calendar date."
+            hasError = true
+          }
         }
 
         if (s.residentialAddress.trim().length < 5) {

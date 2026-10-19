@@ -103,6 +103,35 @@ export const forgotPasswordHandler = async (req: Request, res: Response) => {
   }
 };
 
+export const verifyResetOtpHandler = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const result = await AuthService.verifyResetOtp({ email, otp, ipAddress });
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, valid: false, error: err.message || 'Failed to verify reset code.' });
+  }
+};
+
+export const resendResetOtpHandler = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const result = await AuthService.resendPasswordResetOtp({ email, ipAddress });
+    if (!result.success) {
+      const statusCode = result.cooldownSeconds ? 429 : 400;
+      return res.status(statusCode).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Failed to resend reset code.' });
+  }
+};
+
 export const verifyResetTokenHandler = async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
@@ -118,9 +147,9 @@ export const verifyResetTokenHandler = async (req: Request, res: Response) => {
 
 export const resetPasswordHandler = async (req: Request, res: Response) => {
   try {
-    const { token, newPassword } = req.body;
+    const { token, resetAuthToken, email, newPassword } = req.body;
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
-    const result = await AuthService.completePasswordReset({ token, newPassword, ipAddress });
+    const result = await AuthService.completePasswordReset({ token, resetAuthToken, email, newPassword, ipAddress });
     if (!result.success) {
       return res.status(400).json(result);
     }

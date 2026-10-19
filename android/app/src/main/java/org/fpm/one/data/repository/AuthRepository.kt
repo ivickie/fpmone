@@ -120,6 +120,72 @@ class AuthRepository(private val sessionManager: SessionManager) {
     }
   }
 
+  suspend fun verifyResetOtp(email: String, otp: String): Result<VerifyResetOtpResponse> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(VerifyResetOtpRequest(email, otp))
+      val responseText = ApiClient.post("/auth/verify-reset-otp", payload)
+      val response = ApiClient.json.decodeFromString<VerifyResetOtpResponse>(responseText)
+      if (response.error != null && !response.valid) {
+        Result.failure(Exception(response.error))
+      } else {
+        Result.success(response)
+      }
+    } catch (e: Exception) {
+      val msg = e.message ?: ""
+      val friendlyMsg = try {
+        val jsonElement = ApiClient.json.parseToJsonElement(msg)
+        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+      } catch (_: Exception) {
+        msg
+      }
+      Result.failure(Exception(friendlyMsg))
+    }
+  }
+
+  suspend fun resendResetOtp(email: String): Result<ResendOtpResponse> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(ResendOtpRequest(email))
+      val responseText = ApiClient.post("/auth/resend-reset-otp", payload)
+      val response = ApiClient.json.decodeFromString<ResendOtpResponse>(responseText)
+      if (response.error != null) {
+        Result.failure(Exception(response.error))
+      } else {
+        Result.success(response)
+      }
+    } catch (e: Exception) {
+      val msg = e.message ?: ""
+      val friendlyMsg = try {
+        val jsonElement = ApiClient.json.parseToJsonElement(msg)
+        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+      } catch (_: Exception) {
+        msg
+      }
+      Result.failure(Exception(friendlyMsg))
+    }
+  }
+
+  suspend fun completePasswordReset(email: String, resetAuthToken: String, newPassword: String): Result<CompletePasswordResetResponse> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(CompletePasswordResetRequest(email, resetAuthToken, newPassword))
+      val responseText = ApiClient.post("/auth/reset-password", payload)
+      val response = ApiClient.json.decodeFromString<CompletePasswordResetResponse>(responseText)
+      if (response.error != null && !response.success) {
+        Result.failure(Exception(response.error))
+      } else {
+        Result.success(response)
+      }
+    } catch (e: Exception) {
+      val msg = e.message ?: ""
+      val friendlyMsg = try {
+        val jsonElement = ApiClient.json.parseToJsonElement(msg)
+        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+      } catch (_: Exception) {
+        msg
+      }
+      Result.failure(Exception(friendlyMsg))
+    }
+  }
+
   suspend fun refreshProfile(): Result<UserSession> = withContext(Dispatchers.IO) {
     try {
       val responseText = ApiClient.get("/auth/profile")

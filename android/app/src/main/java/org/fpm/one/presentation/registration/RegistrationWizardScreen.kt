@@ -26,7 +26,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +38,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -283,6 +287,8 @@ private fun Step1Account(
 
     Spacer(modifier = Modifier.height(6.dp))
 
+    var passwordVisible by remember { mutableStateOf(false) }
+
     OutlinedTextField(
       value = password,
       onValueChange = { 
@@ -298,7 +304,16 @@ private fun Step1Account(
           Text("Minimum 6 characters", fontSize = 10.sp, color = FpmTheme.textSecondary)
         }
       },
-      visualTransformation = PasswordVisualTransformation(),
+      visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+      trailingIcon = {
+        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+          Icon(
+            imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+            tint = FpmTheme.textSecondary
+          )
+        }
+      },
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(10.dp),
       singleLine = true,
@@ -417,7 +432,7 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
     }
     Spacer(modifier = Modifier.height(6.dp))
 
-    // Display ALL registration roles (excluding Super Admin)
+    // Display allowed registration roles (Member and Worker)
     state.roles.forEach { r ->
       Row(
         modifier = Modifier
@@ -557,6 +572,7 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: RegistrationViewModel) {
   val context = LocalContext.current
@@ -567,6 +583,53 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
   var emName by remember { mutableStateOf(state.emergencyContactName) }
   var emPhone by remember { mutableStateOf(state.emergencyContactPhone) }
   var localPhotoError by remember { mutableStateOf<String?>(null) }
+  var showDatePicker by remember { mutableStateOf(false) }
+
+  val datePickerState = rememberDatePickerState(
+    selectableDates = object : SelectableDates {
+      override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+        return utcTimeMillis <= System.currentTimeMillis()
+      }
+      override fun isSelectableYear(year: Int): Boolean {
+        val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        return year <= currentYear
+      }
+    }
+  )
+
+  if (showDatePicker) {
+    DatePickerDialog(
+      onDismissRequest = { showDatePicker = false },
+      confirmButton = {
+        TextButton(onClick = {
+          datePickerState.selectedDateMillis?.let { millis ->
+            val calendar = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+              timeInMillis = millis
+            }
+            val formatted = String.format(
+              java.util.Locale.US,
+              "%04d-%02d-%02d",
+              calendar.get(java.util.Calendar.YEAR),
+              calendar.get(java.util.Calendar.MONTH) + 1,
+              calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            )
+            dob = formatted
+            viewModel.updateStep3(gender, formatted, address, emName, emPhone)
+          }
+          showDatePicker = false
+        }) {
+          Text("OK", fontWeight = FontWeight.Bold, color = if (FpmTheme.isDark) FpmGold else FpmRoyalBlue)
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showDatePicker = false }) {
+          Text("Cancel", color = FpmTheme.textSecondary)
+        }
+      }
+    ) {
+      DatePicker(state = datePickerState)
+    }
+  }
 
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
@@ -774,26 +837,45 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
 
     Spacer(modifier = Modifier.height(12.dp))
 
-    OutlinedTextField(
-      value = dob,
-      onValueChange = { 
-        dob = it
-        viewModel.updateStep3(gender, it, address, emName, emPhone)
-      },
-      label = { Text("Date of Birth (YYYY-MM-DD) *", fontSize = 12.sp) },
-      isError = state.dobError != null,
-      supportingText = {
-        if (state.dobError != null) {
-          Text(state.dobError, color = FpmTheme.errorText, fontSize = 11.sp)
-        } else {
-          Text("Format: YYYY-MM-DD (e.g. 1995-08-20)", fontSize = 10.sp, color = FpmTheme.textSecondary)
-        }
-      },
-      modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(10.dp),
-      singleLine = true,
-      colors = fpmOutlinedTextFieldColors()
-    )
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { showDatePicker = true }
+    ) {
+      OutlinedTextField(
+        value = dob,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Date of Birth *", fontSize = 12.sp) },
+        placeholder = { Text("Select Date of Birth (YYYY-MM-DD)", fontSize = 12.sp) },
+        isError = state.dobError != null,
+        supportingText = {
+          if (state.dobError != null) {
+            Text(state.dobError, color = FpmTheme.errorText, fontSize = 11.sp)
+          } else {
+            Text("Tap to select date · Format: YYYY-MM-DD", fontSize = 10.sp, color = FpmTheme.textSecondary)
+          }
+        },
+        trailingIcon = {
+          IconButton(onClick = { showDatePicker = true }) {
+            Icon(
+              imageVector = Icons.Default.DateRange,
+              contentDescription = "Select Date of Birth",
+              tint = FpmTheme.textSecondary
+            )
+          }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        singleLine = true,
+        colors = fpmOutlinedTextFieldColors()
+      )
+      Box(
+        modifier = Modifier
+          .matchParentSize()
+          .clickable { showDatePicker = true }
+      )
+    }
 
     Spacer(modifier = Modifier.height(6.dp))
 

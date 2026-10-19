@@ -152,9 +152,14 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           ip_address VARCHAR(45)
         );
+        ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS attempts_count INT NOT NULL DEFAULT 0;
+        ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 5;
+        ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+        ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS reset_auth_token_hash VARCHAR(255);
         CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
         CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
         CREATE INDEX IF NOT EXISTS idx_password_resets_expires ON password_resets(expires_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_password_resets_auth_token ON password_resets(reset_auth_token_hash);
         ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
 
         CREATE TABLE IF NOT EXISTS finance_transactions (
@@ -863,13 +868,17 @@ export async function persistEmailVerification(record: EmailVerificationRecord):
 export async function persistPasswordReset(record: PasswordResetRecord): Promise<void> {
   try {
     await query(`
-      INSERT INTO password_resets (id, user_id, email, token_hash, expires_at, used_at, ip_address, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO password_resets (id, user_id, email, token_hash, expires_at, used_at, ip_address, created_at, attempts_count, max_attempts, verified_at, reset_auth_token_hash)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       ON CONFLICT (id) DO UPDATE SET
-        used_at = EXCLUDED.used_at
+        used_at = EXCLUDED.used_at,
+        attempts_count = EXCLUDED.attempts_count,
+        verified_at = EXCLUDED.verified_at,
+        reset_auth_token_hash = EXCLUDED.reset_auth_token_hash
     `, [
       record.id, record.userId, record.email.toLowerCase(), record.tokenHash,
-      record.expiresAt, record.usedAt || null, record.ipAddress || null, record.createdAt
+      record.expiresAt, record.usedAt || null, record.ipAddress || null, record.createdAt,
+      record.attemptsCount || 0, record.maxAttempts || 5, record.verifiedAt || null, record.resetAuthTokenHash || null
     ]);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: password_resets] ${err.message}`);
@@ -908,7 +917,7 @@ export async function fetchActivePasswordReset(tokenHash: string): Promise<Passw
   try {
     const res = await query(`
       SELECT * FROM password_resets
-      WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+      WHERE (token_hash = $1 OR reset_auth_token_hash = $1) AND used_at IS NULL AND expires_at > NOW()
       ORDER BY created_at DESC
       LIMIT 1
     `, [tokenHash]);
@@ -921,11 +930,45 @@ export async function fetchActivePasswordReset(tokenHash: string): Promise<Passw
       tokenHash: r.token_hash,
       expiresAt: new Date(r.expires_at).toISOString(),
       usedAt: r.used_at ? new Date(r.used_at).toISOString() : undefined,
+      verifiedAt: r.verified_at ? new Date(r.verified_at).toISOString() : undefined,
+      attemptsCount: r.attempts_count,
+      maxAttempts: r.max_attempts,
+      resetAuthTokenHash: r.reset_auth_token_hash,
       ipAddress: r.ip_address || undefined,
       createdAt: new Date(r.created_at).toISOString()
     };
   } catch (err: any) {
     console.warn('[DB fetchActivePasswordReset]', err.message);
+    return null;
+  }
+}
+
+export async function fetchActivePasswordResetByEmail(email: string): Promise<PasswordResetRecord | null> {
+  try {
+    const res = await query(`
+      SELECT * FROM password_resets
+      WHERE LOWER(email) = LOWER($1) AND used_at IS NULL AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [email.trim()]);
+    if (!res || !res.rows || res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      userId: r.user_id,
+      email: r.email,
+      tokenHash: r.token_hash,
+      expiresAt: new Date(r.expires_at).toISOString(),
+      usedAt: r.used_at ? new Date(r.used_at).toISOString() : undefined,
+      verifiedAt: r.verified_at ? new Date(r.verified_at).toISOString() : undefined,
+      attemptsCount: r.attempts_count,
+      maxAttempts: r.max_attempts,
+      resetAuthTokenHash: r.reset_auth_token_hash,
+      ipAddress: r.ip_address || undefined,
+      createdAt: new Date(r.created_at).toISOString()
+    };
+  } catch (err: any) {
+    console.warn('[DB fetchActivePasswordResetByEmail]', err.message);
     return null;
   }
 }

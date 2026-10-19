@@ -64,13 +64,15 @@ import { FinanceService } from './services/financeService';
 import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from './data/mockDb';
 import http from 'http';
 import { AddressInfo } from 'net';
-import { persistBranch } from './db/sync';
+import { persistBranch, runSchemaMigrationsOnce } from './db/sync';
 import app, { isOriginAllowed, isAllowedCustomDomain, isAllowedVercelDomain, isAllowedDevHost, getExplicitAllowedOrigins } from './server';
 
 async function runTests() {
   console.log('====================================================');
   console.log('  RUNNING FPM GLOBAL CORE BACKEND TEST SUITE');
   console.log('====================================================');
+
+  await runSchemaMigrationsOnce().catch(() => {});
 
   let passed = 0;
   let failed = 0;
@@ -3526,7 +3528,7 @@ async function runTests() {
       const replayAttempt = await AuthService.verifyEmailOtp({ email: testEmail, otp: knownOtp });
       assert(replayAttempt.success === false, 'Replaying already-verified OTP is strictly blocked');
 
-      // 7. Forgot Password & Anti-Enumeration
+      // 7. Forgot Password 6-Digit OTP & Anti-Enumeration
       const nonExistentForgot = await AuthService.requestPasswordReset({ email: 'nobody_12345@fpmchurch.org' });
       assert(nonExistentForgot.success === true, 'Forgot password returns generic success for non-existent email (anti-enumeration)');
 
@@ -3539,38 +3541,76 @@ async function runTests() {
 
       const resetRecord = db.passwordResets.find(pr => pr.email === 'worker.sarah@fpmchurch.org' && !pr.usedAt);
       assert(!!resetRecord, 'Password reset record created in database');
-      assert(resetRecord!.tokenHash.length === 64, 'Reset token is hashed with SHA-256 in database');
-      assert(new Date(resetRecord!.expiresAt).getTime() > Date.now(), 'Reset token expires in future (~1 hour)');
+      assert(resetRecord!.tokenHash.length === 64, 'Reset OTP is hashed with SHA-256 in database');
+      // OTP expires in 10 minutes (600,000 ms)
+      const expiryDeltaMs = new Date(resetRecord!.expiresAt).getTime() - Date.now();
+      assert(expiryDeltaMs > 0 && expiryDeltaMs <= 10 * 60 * 1000 + 5000, 'Reset OTP expires in ~10 minutes');
+      assert(resetRecord!.maxAttempts === 5, 'Maximum reset OTP attempts set to 5');
+      assert(resetRecord!.attemptsCount === 0, 'Initial attemptsCount is 0');
 
-      // 8. Verify Reset Token
-      const invalidTokenCheck = await AuthService.verifyPasswordResetToken('invalid_token_xyz_123');
-      assert(invalidTokenCheck.valid === false, 'Invalid reset token rejected');
+      // 8. Verify Reset OTP Validation & Attempt Throttling
+      const wrongResetOtpRes = await AuthService.verifyResetOtp({
+        email: 'worker.sarah@fpmchurch.org',
+        otp: '000000'
+      });
+      assert(wrongResetOtpRes.success === false, 'Incorrect 6-digit reset OTP is rejected');
+      assert(wrongResetOtpRes.remainingAttempts === 4, 'Remaining attempts counter decrements to 4');
+      assert(resetRecord!.attemptsCount === 1, 'Database reset attemptsCount incremented to 1');
 
-      // Simulate obtaining token matching the hash
-      const testTokenPlaintext = 'test_token_sarah_secure_reset_2026_xyz';
-      resetRecord!.tokenHash = nodeCrypto.createHash('sha256').update(testTokenPlaintext).digest('hex');
+      // Resend Reset OTP Cooldown Test
+      const rapidResetResend = await AuthService.resendPasswordResetOtp({ email: 'worker.sarah@fpmchurch.org' });
+      assert(rapidResetResend.success === false, 'Immediate reset OTP resend is blocked by cooldown');
+      assert((rapidResetResend.cooldownSeconds || 0) > 0, 'Resend provides remaining cooldown seconds');
 
-      const validTokenCheck = await AuthService.verifyPasswordResetToken(testTokenPlaintext);
-      assert(validTokenCheck.valid === true, 'Valid reset token verified successfully');
-      assert(validTokenCheck.email === 'worker.sarah@fpmchurch.org', 'Reset token resolves correct user email');
+      // Simulate cooldown expiry by advancing record creation time
+      resetRecord!.createdAt = new Date(Date.now() - 65 * 1000).toISOString();
+      const validResetResend = await AuthService.resendPasswordResetOtp({ email: 'worker.sarah@fpmchurch.org' });
+      assert(validResetResend.success === true, 'Reset OTP resend succeeds after cooldown interval');
 
-      // 9. Complete Password Reset
-      const shortPassReset = await AuthService.completePasswordReset({ token: testTokenPlaintext, newPassword: '123' });
+      const freshResetRecord = db.passwordResets.find(pr => pr.email === 'worker.sarah@fpmchurch.org' && !pr.usedAt && !pr.verifiedAt);
+      assert(!!freshResetRecord, 'Fresh active reset OTP record exists in database');
+      assert(freshResetRecord!.id !== resetRecord!.id, 'New reset OTP has unique record ID');
+
+      // Set known OTP on the fresh record for controlled verification
+      const knownResetOtp = '739105';
+      const knownResetHash = nodeCrypto.createHash('sha256').update(knownResetOtp).digest('hex');
+      freshResetRecord!.tokenHash = knownResetHash;
+
+      // Verify with correct OTP -> issues resetAuthToken
+      const verifyResetSuccess = await AuthService.verifyResetOtp({
+        email: 'worker.sarah@fpmchurch.org',
+        otp: knownResetOtp
+      });
+      assert(verifyResetSuccess.success === true, 'Verification with correct 6-digit OTP succeeds');
+      assert(typeof verifyResetSuccess.resetAuthToken === 'string' && verifyResetSuccess.resetAuthToken!.length >= 32, 'Issues secure resetAuthToken for password update');
+      assert(!!freshResetRecord!.verifiedAt, 'Reset record marked verifiedAt');
+      assert(!!freshResetRecord!.resetAuthTokenHash, 'Reset auth token hash stored in record');
+
+      const resetAuthToken = verifyResetSuccess.resetAuthToken!;
+
+      // 9. Complete Password Reset using resetAuthToken
+      const shortPassReset = await AuthService.completePasswordReset({
+        email: 'worker.sarah@fpmchurch.org',
+        resetAuthToken,
+        newPassword: '123'
+      });
       assert(shortPassReset.success === false, 'Password reset with password < 6 chars is rejected');
 
       const resetSuccess = await AuthService.completePasswordReset({
-        token: testTokenPlaintext,
+        email: 'worker.sarah@fpmchurch.org',
+        resetAuthToken,
         newPassword: 'SarahNewPassword2026!'
       });
-      assert(resetSuccess.success === true, 'Password reset completes successfully');
-      assert(!!resetRecord!.usedAt, 'Password reset token marked as used');
+      assert(resetSuccess.success === true, 'Password reset completes successfully with resetAuthToken');
+      assert(!!freshResetRecord!.usedAt, 'Password reset record marked as used');
 
       // Token Single-Use Prevention
       const reuseAttempt = await AuthService.completePasswordReset({
-        token: testTokenPlaintext,
+        email: 'worker.sarah@fpmchurch.org',
+        resetAuthToken,
         newPassword: 'AnotherPassword2026!'
       });
-      assert(reuseAttempt.success === false, 'Reusing consumed password reset token is strictly prevented');
+      assert(reuseAttempt.success === false, 'Reusing consumed resetAuthToken is strictly prevented');
 
       // Verify Login with New Password
       const oldPassLogin = await AuthService.login('worker.sarah@fpmchurch.org', 'Password123!');
@@ -3584,7 +3624,36 @@ async function runTests() {
       targetUser!.passwordHash = await bcrypt.hash('Password123!', 10);
       await persistUser(targetUser!);
 
-      // 10. Existing Users Backward Compatibility
+      // 10. Public Registration Role Escalation Prevention
+      const maliciousEmail = 'attacker.privilege@fpmchurch.org';
+      db.users = db.users.filter(u => u.email !== maliciousEmail);
+      db.members = db.members.filter(m => m.userId !== maliciousEmail);
+
+      const privilegedReg = await AuthService.register({
+        firstName: 'Sneaky',
+        lastName: 'Attacker',
+        email: maliciousEmail,
+        phone: '+2348099990000',
+        password: 'Password123!',
+        branchId: IDS.BRANCH_HQ,
+        ministryRoleId: IDS.ROLE_SUPER_ADMIN, // Attempting to self-assign Super Admin!
+        isWorker: false,
+        gender: 'Male'
+      });
+      assert(privilegedReg.success === true, 'Registration request completes');
+      const maliciousUser = db.users.find(u => u.email === maliciousEmail);
+      assert(maliciousUser?.isAdmin === false, 'Attacker was NOT made an admin');
+      assert(maliciousUser?.adminLevel === 'none', 'Attacker adminLevel remains none');
+      const maliciousMember = db.members.find(m => m.userId === maliciousUser?.id);
+      assert(maliciousMember?.primaryRoleId !== IDS.ROLE_SUPER_ADMIN, 'Super Admin role ID was stripped');
+      assert(maliciousMember?.primaryRoleId === IDS.ROLE_MEMBER, 'Privileged role was sanitized to standard MEMBER');
+
+      // Clean up attacker test records
+      db.users = db.users.filter(u => u.email !== maliciousEmail);
+      if (maliciousMember) db.members = db.members.filter(m => m.id !== maliciousMember.id);
+      db.emailVerifications = db.emailVerifications.filter(v => v.email !== maliciousEmail);
+
+      // 11. Existing Users Backward Compatibility
       const adminUser = db.users.find(u => u.adminLevel === 'super_admin');
       assert(adminUser?.emailVerified !== false, 'Existing super admin account is not blocked by email verification');
       const pastorUser = db.users.find(u => u.email === 'pastor@fpmchurch.org');
