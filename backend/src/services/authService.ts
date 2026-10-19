@@ -301,25 +301,21 @@ export class AuthService {
     const memberId = uuidv4();
     const now = new Date().toISOString();
 
-    // Prevent privilege escalation: Privileged roles (Pastors, Admins, HODs, Super Admins)
+    // Prevent privilege escalation: Disallowed roles (Super Admin, Branch Pastor, Branch Administrator)
     // can NEVER be self-assigned during public registration.
     let assignedRoleId = data.ministryRoleId;
     const requestedRole = db.ministryRoles.find(r => r.id === data.ministryRoleId);
-    const privilegedRoleCodes = [
+    const prohibitedRoleCodes = [
       'SUPER_ADMIN',
       'BRANCH_ADMIN',
-      'BRANCH_PASTOR',
-      'ASSOCIATE_PASTOR',
-      'PASTOR',
-      'HOD'
+      'BRANCH_PASTOR'
     ];
     if (
       !requestedRole ||
-      privilegedRoleCodes.includes(requestedRole.code.toUpperCase()) ||
-      requestedRole.name.toLowerCase().includes('pastor') ||
-      requestedRole.name.toLowerCase().includes('admin') ||
-      requestedRole.name.toLowerCase().includes('hod') ||
-      (requestedRole.hierarchyLevel !== undefined && requestedRole.hierarchyLevel < 6)
+      prohibitedRoleCodes.includes(requestedRole.code.toUpperCase()) ||
+      requestedRole.name.toLowerCase().includes('branch pastor') ||
+      requestedRole.name.toLowerCase().includes('branch administrator') ||
+      requestedRole.name.toLowerCase().includes('branch admin')
     ) {
       // Reassign to standard WORKER or MEMBER role
       assignedRoleId = data.isWorker ? IDS.ROLE_WORKER : IDS.ROLE_MEMBER;

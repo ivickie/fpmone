@@ -92,9 +92,16 @@ class RegistrationViewModel(
       val deptsRes = churchRepository.getDepartments()
 
       val branches = branchesRes.getOrDefault(emptyList())
-      // Filter out privileged roles from public mobile registration (allow only MEMBER and WORKER)
-      val allowedRoleCodes = setOf("MEMBER", "WORKER")
-      val roles = rolesRes.getOrDefault(emptyList()).filter { it.code.uppercase() in allowedRoleCodes }
+      // Filter out Super Admin, Branch Pastor, and Branch Administrator from public registration
+      val excludedRoleCodes = setOf("SUPER_ADMIN", "BRANCH_PASTOR", "BRANCH_ADMIN")
+      val roles = rolesRes.getOrDefault(emptyList()).filter {
+        val codeUpper = it.code.uppercase()
+        val nameLower = it.name.lowercase()
+        codeUpper !in excludedRoleCodes &&
+        !nameLower.contains("branch pastor") &&
+        !nameLower.contains("branch administrator") &&
+        !nameLower.contains("branch admin")
+      }
       val depts = deptsRes.getOrDefault(emptyList())
 
       // Default role is strictly MEMBER (not Worker)

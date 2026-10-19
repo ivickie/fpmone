@@ -432,7 +432,7 @@ private fun Step2ChurchInfo(state: RegistrationFormState, viewModel: Registratio
     }
     Spacer(modifier = Modifier.height(6.dp))
 
-    // Display allowed registration roles (Member and Worker)
+    // Display allowed registration roles (excluding Super Admin, Branch Pastor, Branch Administrator)
     state.roles.forEach { r ->
       Row(
         modifier = Modifier

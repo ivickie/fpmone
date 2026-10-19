@@ -3648,6 +3648,33 @@ async function runTests() {
       assert(maliciousMember?.primaryRoleId !== IDS.ROLE_SUPER_ADMIN, 'Super Admin role ID was stripped');
       assert(maliciousMember?.primaryRoleId === IDS.ROLE_MEMBER, 'Privileged role was sanitized to standard MEMBER');
 
+      // Also test BRANCH_PASTOR sanitization
+      const bpEmail = 'branch.pastor.candidate@fpmchurch.org';
+      db.users = db.users.filter(u => u.email !== bpEmail && u.phone !== '+2348099990001');
+      db.members = db.members.filter(m => m.userId !== bpEmail);
+
+      const branchPastorReg = await AuthService.register({
+        firstName: 'Branch',
+        lastName: 'PastorCandidate',
+        email: bpEmail,
+        phone: '+2348099990001',
+        password: 'Password123!',
+        branchId: IDS.BRANCH_HQ,
+        ministryRoleId: IDS.ROLE_BRANCH_PASTOR,
+        isWorker: false,
+        gender: 'Male'
+      });
+      assert(branchPastorReg.success === true, 'Branch Pastor candidate registration succeeds');
+      const bpUser = db.users.find(u => u.email === bpEmail);
+      const bpMember = db.members.find(m => m.userId === bpUser?.id);
+      assert(bpMember?.primaryRoleId !== IDS.ROLE_BRANCH_PASTOR, 'Branch Pastor role ID was stripped');
+      assert(bpMember?.primaryRoleId === IDS.ROLE_MEMBER, 'Branch Pastor was sanitized to standard MEMBER');
+
+      // Clean up test records
+      db.users = db.users.filter(u => u.email !== bpEmail);
+      if (bpMember) db.members = db.members.filter(m => m.id !== bpMember.id);
+      db.emailVerifications = db.emailVerifications.filter(v => v.email !== bpEmail);
+
       // Clean up attacker test records
       db.users = db.users.filter(u => u.email !== maliciousEmail);
       if (maliciousMember) db.members = db.members.filter(m => m.id !== maliciousMember.id);
