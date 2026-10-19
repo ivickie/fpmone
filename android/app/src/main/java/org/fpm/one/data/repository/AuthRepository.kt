@@ -7,6 +7,12 @@ import org.fpm.one.core.security.SessionManager
 import org.fpm.one.data.model.*
 import kotlinx.serialization.encodeToString
 
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+
+class UnverifiedEmailException(val email: String, message: String) : Exception(message)
+
 class AuthRepository(private val sessionManager: SessionManager) {
 
   suspend fun login(emailOrPhone: String, pass: String): Result<UserSession> = withContext(Dispatchers.IO) {
@@ -22,7 +28,18 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.failure(Exception(response.error ?: "Login failed"))
       }
     } catch (e: Exception) {
-      Result.failure(e)
+      val msg = e.message ?: ""
+      if (msg.contains("unverified_email") || msg.contains("verify your email", ignoreCase = true)) {
+        Result.failure(UnverifiedEmailException(emailOrPhone, "Please verify your email address before logging in."))
+      } else {
+        val friendlyMsg = try {
+          val jsonElement = ApiClient.json.parseToJsonElement(msg)
+          jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+        } catch (_: Exception) {
+          msg
+        }
+        Result.failure(Exception(friendlyMsg))
+      }
     }
   }
 
@@ -34,6 +51,72 @@ class AuthRepository(private val sessionManager: SessionManager) {
       Result.success(response)
     } catch (e: Exception) {
       Result.failure(e)
+    }
+  }
+
+  suspend fun verifyEmail(email: String, otp: String): Result<VerifyEmailResponse> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(VerifyEmailRequest(email, otp))
+      val responseText = ApiClient.post("/auth/verify-email", payload)
+      val response = ApiClient.json.decodeFromString<VerifyEmailResponse>(responseText)
+      if (response.error != null) {
+        Result.failure(Exception(response.error))
+      } else {
+        Result.success(response)
+      }
+    } catch (e: Exception) {
+      val msg = e.message ?: ""
+      val friendlyMsg = try {
+        val jsonElement = ApiClient.json.parseToJsonElement(msg)
+        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+      } catch (_: Exception) {
+        msg
+      }
+      Result.failure(Exception(friendlyMsg))
+    }
+  }
+
+  suspend fun resendOtp(email: String): Result<ResendOtpResponse> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(ResendOtpRequest(email))
+      val responseText = ApiClient.post("/auth/resend-verification-otp", payload)
+      val response = ApiClient.json.decodeFromString<ResendOtpResponse>(responseText)
+      if (response.error != null) {
+        Result.failure(Exception(response.error))
+      } else {
+        Result.success(response)
+      }
+    } catch (e: Exception) {
+      val msg = e.message ?: ""
+      val friendlyMsg = try {
+        val jsonElement = ApiClient.json.parseToJsonElement(msg)
+        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+      } catch (_: Exception) {
+        msg
+      }
+      Result.failure(Exception(friendlyMsg))
+    }
+  }
+
+  suspend fun forgotPassword(email: String): Result<ForgotPasswordResponse> = withContext(Dispatchers.IO) {
+    try {
+      val payload = ApiClient.json.encodeToString(ForgotPasswordRequest(email))
+      val responseText = ApiClient.post("/auth/forgot-password", payload)
+      val response = ApiClient.json.decodeFromString<ForgotPasswordResponse>(responseText)
+      if (response.error != null) {
+        Result.failure(Exception(response.error))
+      } else {
+        Result.success(response)
+      }
+    } catch (e: Exception) {
+      val msg = e.message ?: ""
+      val friendlyMsg = try {
+        val jsonElement = ApiClient.json.parseToJsonElement(msg)
+        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
+      } catch (_: Exception) {
+        msg
+      }
+      Result.failure(Exception(friendlyMsg))
     }
   }
 

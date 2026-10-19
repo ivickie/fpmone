@@ -233,3 +233,44 @@ export const generalApiRateLimiter = createRateLimiter({
   message: 'API rate limit exceeded. Please reduce request frequency.',
   keyGenerator: (req: Request) => `api_gen_${getClientIp(req)}`
 });
+
+// 8. Email Verification Rate Limiter: 10 attempts per 10 minutes per IP/Email
+export const verifyEmailRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  message: 'Too many verification attempts. Please wait a few minutes before trying again.',
+  keyGenerator: (req: Request) => {
+    const email = (req.body?.email || '').trim().toLowerCase();
+    return `verify_email_${email ? hashIdentifier(email) : getClientIp(req)}`;
+  }
+});
+
+// 9. Resend OTP Rate Limiter: 3 requests per 10 minutes per IP/Email
+export const resendOtpRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 3,
+  message: 'Please wait before requesting another verification code.',
+  keyGenerator: (req: Request) => {
+    const email = (req.body?.email || '').trim().toLowerCase();
+    return `resend_otp_${email ? hashIdentifier(email) : getClientIp(req)}`;
+  }
+});
+
+// 10. Forgot Password Rate Limiter: 5 requests per 15 minutes per IP/Email (anti-enumeration & anti-bombing)
+export const forgotPasswordRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many password reset requests. Please wait a few minutes before trying again.',
+  keyGenerator: (req: Request) => {
+    const email = (req.body?.email || '').trim().toLowerCase();
+    return `forgot_pass_${email ? hashIdentifier(email) : getClientIp(req)}`;
+  }
+});
+
+// 11. Reset Password Rate Limiter: 10 attempts per 15 minutes per IP
+export const resetPasswordRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many password reset attempts. Please wait a few minutes before trying again.',
+  keyGenerator: (req: Request) => `reset_pass_${getClientIp(req)}`
+});

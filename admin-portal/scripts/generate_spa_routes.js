@@ -14,7 +14,7 @@ if (!fs.existsSync(indexHtmlPath)) {
 
 const indexContent = fs.readFileSync(indexHtmlPath, 'utf8');
 
-const routes = ['privacy', 'delete-account'];
+const routes = ['privacy', 'delete-account', 'reset-password'];
 
 for (const route of routes) {
   // 1. Directory with index.html (e.g. dist/privacy/index.html)

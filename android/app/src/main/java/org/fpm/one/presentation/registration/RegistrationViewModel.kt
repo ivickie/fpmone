@@ -21,6 +21,8 @@ data class RegistrationFormState(
   val isLoading: Boolean = false,
   val error: String? = null,
   val isSubmitted: Boolean = false,
+  val requiresEmailVerification: Boolean = false,
+  val registeredEmail: String? = null,
 
   // Metadata options
   val branches: List<BranchItem> = emptyList(),
@@ -385,7 +387,7 @@ class RegistrationViewModel(
     _state.value = _state.value.copy(currentStep = step, error = null)
   }
 
-  fun submitRegistration(onSuccess: () -> Unit) {
+  fun submitRegistration(onSuccess: (requiresEmailVerification: Boolean, email: String) -> Unit) {
     val s = _state.value
     _state.value = s.copy(isLoading = true, error = null)
 
@@ -413,9 +415,14 @@ class RegistrationViewModel(
 
       val result = authRepository.register(request)
       result.fold(
-        onSuccess = {
-          _state.value = _state.value.copy(isLoading = false, isSubmitted = true)
-          onSuccess()
+        onSuccess = { res ->
+          _state.value = _state.value.copy(
+            isLoading = false,
+            isSubmitted = true,
+            requiresEmailVerification = res.requiresEmailVerification,
+            registeredEmail = s.email.trim()
+          )
+          onSuccess(res.requiresEmailVerification, s.email.trim())
         },
         onFailure = { ex ->
           _state.value = _state.value.copy(isLoading = false, error = ex.message ?: "Submission failed")

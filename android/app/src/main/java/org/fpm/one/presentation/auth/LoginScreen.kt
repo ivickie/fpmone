@@ -53,7 +53,8 @@ fun LoginScreen(
   viewModel: AuthViewModel,
   onLoginSuccess: () -> Unit,
   onNavigateToRegister: () -> Unit,
-  onPendingApproval: () -> Unit
+  onPendingApproval: () -> Unit,
+  onNavigateToVerifyEmail: (String) -> Unit = {}
 ) {
   val uiState by viewModel.uiState.collectAsState()
   val scope = rememberCoroutineScope()
@@ -63,6 +64,7 @@ fun LoginScreen(
   var emailOrPhone by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   var passwordVisible by remember { mutableStateOf(false) }
+  var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
   // Intercept back button when in SIGN_IN state to smoothly return to WELCOME
   BackHandler(enabled = authState == AuthScreenState.SIGN_IN) {
@@ -416,7 +418,25 @@ fun LoginScreen(
             colors = fpmOutlinedTextFieldColors()
           )
 
-          Spacer(modifier = Modifier.height(18.dp))
+          // Forgot Password Action
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+          ) {
+            TextButton(
+              onClick = { showForgotPasswordDialog = true },
+              contentPadding = PaddingValues(0.dp)
+            ) {
+              Text(
+                text = "Forgot Password?",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isDark) FpmGold else FpmRoyalBlue
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(10.dp))
 
           // Primary Sign In CTA
           FpmButton(
@@ -426,7 +446,8 @@ fun LoginScreen(
                 emailOrPhone,
                 password,
                 onSuccess = onLoginSuccess,
-                onPending = onPendingApproval
+                onPending = onPendingApproval,
+                onUnverified = onNavigateToVerifyEmail
               )
             },
             isLoading = uiState.isLoading,
@@ -462,5 +483,13 @@ fun LoginScreen(
         }
       }
     }
+  }
+
+  if (showForgotPasswordDialog) {
+    ForgotPasswordDialog(
+      initialEmail = emailOrPhone.takeIf { it.contains("@") } ?: "",
+      viewModel = viewModel,
+      onDismiss = { showForgotPasswordDialog = false }
+    )
   }
 }

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, LogIn, AlertCircle, Eye, EyeOff, Sparkles,
-  KeyRound, UserCheck, CheckCircle2, X, UserPlus
+  KeyRound, UserCheck, CheckCircle2, X, UserPlus, Mail, Send, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -22,6 +22,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [showResetHelp, setShowResetHelp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Forgot Password Modal State
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+
+  // Email Verification OTP Modal State
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyEmail, setVerifyEmail] = useState('');
+  const [verifyOtp, setVerifyOtp] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Sign Up Modal State
   const [showSignUpModal, setShowSignUpModal] = useState(false);
@@ -93,8 +118,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         branchId: 'b1111111-1111-1111-1111-111111111111',
         ministryRoleId: 'a5555555-5555-5555-5555-555555555555'
       });
-      setSignUpSuccess(res.message || 'Registration submitted successfully! Your account has been registered.');
       setEmail(signUpEmail.trim().toLowerCase());
+      if (res.requiresEmailVerification) {
+        setVerifyEmail(signUpEmail.trim().toLowerCase());
+        setVerifyOtp('');
+        setVerifyError(null);
+        setVerifySuccess(null);
+        setShowSignUpModal(false);
+        setShowVerifyModal(true);
+      } else {
+        setSignUpSuccess(res.message || 'Registration submitted successfully! Your account has been registered.');
+      }
     } catch (err: any) {
       setSignUpError(err.message || 'Registration failed. Please check your information.');
     } finally {
@@ -109,9 +143,79 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     try {
       await login(email.trim(), password.trim());
     } catch (err: any) {
+      if (err.status === 'unverified_email' || err.data?.status === 'unverified_email' || err.message?.toLowerCase().includes('verify your email')) {
+        setVerifyEmail(email.trim().toLowerCase());
+        setVerifyOtp('');
+        setVerifyError(null);
+        setVerifySuccess(null);
+        setShowVerifyModal(true);
+      }
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your registered email address.');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const res = await api.forgotPassword(forgotEmail.trim().toLowerCase());
+      setForgotSuccess(res.message || 'If an account exists with this email address, password reset instructions have been dispatched. Please check your inbox and spam folder.');
+    } catch (err: any) {
+      setForgotError(err.message || 'Failed to submit password reset request.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyError(null);
+    setVerifySuccess(null);
+    if (!verifyEmail.trim()) {
+      setVerifyError('Email address is required.');
+      return;
+    }
+    if (!verifyOtp.trim() || verifyOtp.trim().length !== 6) {
+      setVerifyError('Please enter the 6-digit verification code.');
+      return;
+    }
+    setVerifyLoading(true);
+    try {
+      const res = await api.verifyEmail(verifyEmail.trim().toLowerCase(), verifyOtp.trim());
+      setVerifySuccess(res.message || 'Email verified successfully! You may now sign in.');
+      setEmail(verifyEmail.trim().toLowerCase());
+      setTimeout(() => {
+        setShowVerifyModal(false);
+        setVerifySuccess(null);
+        setVerifyOtp('');
+      }, 2000);
+    } catch (err: any) {
+      setVerifyError(err.message || 'Failed to verify email code. Please check your code.');
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
+    setVerifyError(null);
+    setResendLoading(true);
+    try {
+      const res = await api.resendVerificationOtp(verifyEmail.trim().toLowerCase());
+      setResendCooldown(60);
+      setVerifySuccess(res.message || 'A fresh 6-digit verification code has been dispatched.');
+    } catch (err: any) {
+      setVerifyError(err.message || 'Failed to resend verification code.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -370,28 +474,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <span className="text-slate-400">Forgot Password?</span>
                 <button
                   type="button"
-                  onClick={() => setShowResetHelp(!showResetHelp)}
+                  onClick={() => {
+                    setForgotEmail(email.trim());
+                    setForgotError(null);
+                    setForgotSuccess(null);
+                    setShowForgotModal(true);
+                  }}
                   className="text-[#0B1528] hover:text-[#C59B27] font-semibold transition cursor-pointer"
                 >
                   Reset Password Here
                 </button>
               </div>
-
-              {/* Reset Password Advisory */}
-              {showResetHelp && (
-                <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-[12px] text-amber-900 flex items-start justify-between">
-                  <span className="leading-snug">
-                    For administrative and pastoral security, password resets must be initiated by the Global IT Directorate or Super Administrator.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowResetHelp(false)}
-                    className="text-amber-700 hover:text-amber-900 ml-2 font-bold cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
 
               {/* Primary Action Button */}
               <button
@@ -1003,6 +1096,245 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         <span>Submit Sign Up</span>
                       </>
                     )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 4: FORGOT PASSWORD MODAL (Brevo Email Integration)   */}
+      {/* ======================================================== */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgotModal(false);
+                setForgotError(null);
+                setForgotSuccess(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 bg-[#0B1528] text-[#C59B27] rounded-full flex items-center justify-center mx-auto mb-3 shadow-md ring-4 ring-[#FAF8F5]">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Forgot Password?</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                Enter your registered administrator or pastoral email address to receive password reset instructions.
+              </p>
+            </div>
+
+            {forgotSuccess ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">Instructions Dispatched</p>
+                    <p className="text-[11px] leading-relaxed text-emerald-700">{forgotSuccess}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                  <p className="font-semibold text-slate-700">What to do next:</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-slate-500">
+                    <li>Check your inbox and spam / promotions folder.</li>
+                    <li>Click the secure link in the email to set a new password.</li>
+                    <li>The reset token expires in 1 hour and is single-use.</li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    setForgotSuccess(null);
+                  }}
+                  className="w-full h-11 bg-[#070E1B] hover:bg-[#0B1528] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                >
+                  Return to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                {forgotError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2 text-rose-700 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                    <span>{forgotError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Registered Email Address
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="admin@fpmchurch.org"
+                      className="w-full h-11 pl-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C59B27]/20 focus:border-[#C59B27] transition"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="w-full h-11 bg-[#070E1B] hover:bg-[#0B1528] active:bg-[#03070E] text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    {forgotLoading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 text-[#F6E7B9]" />
+                        <span>Send Password Reset Link</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotModal(false);
+                      setForgotError(null);
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-800 transition font-medium cursor-pointer"
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: EMAIL VERIFICATION OTP MODAL (Brevo Integration) */}
+      {/* ======================================================== */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-7 shadow-2xl border border-slate-200/80 relative max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowVerifyModal(false);
+                setVerifyError(null);
+                setVerifySuccess(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <Mail className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Verify Your Email</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                A single-use 6-digit verification code has been dispatched to:
+              </p>
+              <p className="text-xs font-bold text-blue-700 mt-1 bg-blue-50/70 py-1 px-2.5 rounded-lg inline-block border border-blue-100">
+                {verifyEmail}
+              </p>
+            </div>
+
+            {verifySuccess ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Verified Successfully!</p>
+                    <p className="text-[11px] leading-relaxed text-emerald-700 mt-0.5">{verifySuccess}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVerifyModal(false);
+                    setVerifySuccess(null);
+                  }}
+                  className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                >
+                  Proceed to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleVerifyOtpSubmit} className="space-y-4">
+                {verifyError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2 text-rose-700 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                    <span>{verifyError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 text-center">
+                    Enter 6-Digit Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    value={verifyOtp}
+                    onChange={(e) => setVerifyOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    className="w-full h-12 text-center text-xl font-bold tracking-[0.4em] bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  />
+                  <p className="text-[11px] text-slate-400 text-center mt-1.5">
+                    Valid for 10 minutes. Check your inbox and spam folder.
+                  </p>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    disabled={verifyLoading || verifyOtp.trim().length !== 6}
+                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    {verifyLoading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Verify Email Code</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                  <span className="text-slate-500">Didn't receive code?</span>
+                  <button
+                    type="button"
+                    disabled={resendCooldown > 0 || resendLoading}
+                    onClick={handleResendOtp}
+                    className="text-blue-600 hover:text-blue-800 font-bold transition flex items-center space-x-1 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {resendLoading ? (
+                      <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3 h-3" />
+                    )}
+                    <span>
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                    </span>
                   </button>
                 </div>
               </form>

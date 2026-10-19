@@ -66,9 +66,49 @@ data class RegistrationRequest(
 
 @Serializable
 data class RegistrationResponse(
-    val success: Boolean,
+    val success: Boolean = true,
     val message: String,
-    val userId: String? = null
+    val userId: String? = null,
+    val requiresEmailVerification: Boolean = false,
+    val email: String? = null
+)
+
+@Serializable
+data class VerifyEmailRequest(
+    val email: String,
+    val otp: String
+)
+
+@Serializable
+data class VerifyEmailResponse(
+    val success: Boolean = true,
+    val message: String? = null,
+    val error: String? = null,
+    val email: String? = null
+)
+
+@Serializable
+data class ResendOtpRequest(
+    val email: String
+)
+
+@Serializable
+data class ResendOtpResponse(
+    val success: Boolean = true,
+    val message: String? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class ForgotPasswordRequest(
+    val email: String
+)
+
+@Serializable
+data class ForgotPasswordResponse(
+    val success: Boolean = true,
+    val message: String? = null,
+    val error: String? = null
 )
 
 @Serializable

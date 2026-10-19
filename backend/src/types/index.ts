@@ -19,8 +19,34 @@ export interface User {
   adminLevel: AdminLevel;
   lastLoginAt?: string;
   hasChangedDefaultPassword?: boolean;
+  emailVerified?: boolean;
+  emailVerifiedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EmailVerificationRecord {
+  id: string;
+  userId: string;
+  email: string;
+  otpHash: string;
+  attemptsCount: number;
+  maxAttempts: number;
+  expiresAt: string;
+  verifiedAt?: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+export interface PasswordResetRecord {
+  id: string;
+  userId: string;
+  email: string;
+  tokenHash: string;
+  expiresAt: string;
+  usedAt?: string;
+  ipAddress?: string;
+  createdAt: string;
 }
 
 export interface Member {

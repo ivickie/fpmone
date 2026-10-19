@@ -3,6 +3,8 @@ import multer from 'multer';
 import {
   loginHandler, registerHandler, getProfileHandler, updateProfileHandler,
   changePasswordHandler, lookupMemberProfileHandler, deleteAccountRequestHandler,
+  verifyEmailHandler, resendVerificationOtpHandler, forgotPasswordHandler,
+  verifyResetTokenHandler, resetPasswordHandler, getBrevoStatusHandler, testSendEmailHandler,
   getBranchesHandler, createBranchHandler, updateBranchHandler, deleteBranchHandler,
   getDepartmentsHandler, createDepartmentHandler, updateDepartmentHandler, deleteDepartmentHandler,
   lookupHodHandler, getEligibleHodsHandler,
@@ -40,7 +42,11 @@ import {
   uploadRateLimiter,
   exportRateLimiter,
   broadcastRateLimiter,
-  clockInRateLimiter
+  clockInRateLimiter,
+  verifyEmailRateLimiter,
+  resendOtpRateLimiter,
+  forgotPasswordRateLimiter,
+  resetPasswordRateLimiter
 } from '../middleware/rateLimitMiddleware';
 
 const upload = multer({
@@ -55,6 +61,13 @@ const router = Router();
 // --- AUTH ---
 router.post('/auth/login', loginRateLimiter, loginHandler);
 router.post('/auth/register', registrationRateLimiter, registerHandler);
+router.post('/auth/verify-email', verifyEmailRateLimiter, verifyEmailHandler);
+router.post('/auth/resend-verification-otp', resendOtpRateLimiter, resendVerificationOtpHandler);
+router.post('/auth/forgot-password', forgotPasswordRateLimiter, forgotPasswordHandler);
+router.post('/auth/verify-reset-token', verifyResetTokenHandler);
+router.post('/auth/reset-password', resetPasswordRateLimiter, resetPasswordHandler);
+router.get('/auth/brevo-status', requireAuth, requireSuperAdmin, getBrevoStatusHandler);
+router.post('/auth/test-send-email', requireAuth, requireSuperAdmin, testSendEmailHandler);
 router.get('/auth/profile', requireAuth, getProfileHandler);
 router.put('/auth/profile', requireAuth, updateProfileHandler);
 router.post('/auth/change-password', optionalAuth, changePasswordHandler);

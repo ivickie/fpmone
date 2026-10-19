@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, IDS } from '../data/mockDb';
 import { AuthService } from '../services/authService';
+import { EmailService } from '../services/emailService';
 import { MemberService } from '../services/memberService';
 import { AttendanceService } from '../services/attendanceService';
 import { AuditService } from '../services/auditService';
@@ -39,10 +40,11 @@ export const loginHandler = async (req: Request, res: Response) => {
     }
     const result = await AuthService.login(emailOrPhone, password, requestedPortal);
     if (result.error) {
-      const statusCode = (result.status === 'pending' || result.status === 'unauthorized') ? 403 : 401;
+      const statusCode = (result.status === 'pending' || result.status === 'unauthorized' || result.status === 'unverified_email') ? 403 : 401;
       return res.status(statusCode).json({
         error: result.error,
-        status: result.status
+        status: result.status,
+        email: (result as any).email
       });
     }
     return res.json(result);
@@ -53,10 +55,115 @@ export const loginHandler = async (req: Request, res: Response) => {
 
 export const registerHandler = async (req: Request, res: Response) => {
   try {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
     const result = await AuthService.register(req.body);
     return res.status(201).json(result);
   } catch (err: any) {
     return res.status(400).json({ error: err.message || 'Registration failed.' });
+  }
+};
+
+export const verifyEmailHandler = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const result = await AuthService.verifyEmailOtp({ email, otp, ipAddress });
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Email verification failed.' });
+  }
+};
+
+export const resendVerificationOtpHandler = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const result = await AuthService.resendVerificationOtp({ email, ipAddress });
+    if (!result.success) {
+      const statusCode = result.cooldownSeconds ? 429 : 400;
+      return res.status(statusCode).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Failed to resend verification code.' });
+  }
+};
+
+export const forgotPasswordHandler = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const result = await AuthService.requestPasswordReset({ email, ipAddress });
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Failed to process password reset request.' });
+  }
+};
+
+export const verifyResetTokenHandler = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    const result = await AuthService.verifyPasswordResetToken(token);
+    if (!result.valid) {
+      return res.status(400).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ valid: false, error: err.message || 'Failed to verify reset token.' });
+  }
+};
+
+export const resetPasswordHandler = async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const result = await AuthService.completePasswordReset({ token, newPassword, ipAddress });
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Failed to reset password.' });
+  }
+};
+
+export const getBrevoStatusHandler = async (req: Request, res: Response) => {
+  try {
+    const status = EmailService.getConfigurationStatus();
+    let senderVerification: any = undefined;
+    if (status.configured) {
+      senderVerification = await EmailService.verifySenderStatus().catch((e: any) => ({
+        success: false,
+        error: e.message
+      }));
+    }
+    return res.json({
+      ...status,
+      senderVerification
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to retrieve Brevo status.' });
+  }
+};
+
+export const testSendEmailHandler = async (req: Request, res: Response) => {
+  try {
+    const { toEmail, recipientName } = req.body;
+    if (!toEmail) {
+      return res.status(400).json({ success: false, error: 'Recipient toEmail is required.' });
+    }
+    const result = await EmailService.sendVerificationOtp({
+      toEmail,
+      recipientName: recipientName || 'FPM Test Recipient',
+      otp: '123456',
+      expiresInMinutes: 10
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 

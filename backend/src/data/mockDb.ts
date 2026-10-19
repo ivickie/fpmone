@@ -4,7 +4,7 @@ import {
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ReactionItem, CommentItem, ServiceHighlightItem, TestimonyItem, NotificationItem,
   AuditLogItem, MediaItem, DepartmentReport, SundayMoment, SundayMomentLike,
-  FinanceTransaction, FinanceOpeningBalance
+  FinanceTransaction, FinanceOpeningBalance, EmailVerificationRecord, PasswordResetRecord
 } from '../types';
 
 // Finance Constants & Seed Categories
@@ -1856,6 +1856,8 @@ export class DatabaseStore {
   public sundayMomentLikes: SundayMomentLike[] = [];
   public financeTransactions: FinanceTransaction[] = [];
   public financeOpeningBalances: FinanceOpeningBalance[] = [];
+  public emailVerifications: EmailVerificationRecord[] = [];
+  public passwordResets: PasswordResetRecord[] = [];
 
   private workerCounter = 7;
 

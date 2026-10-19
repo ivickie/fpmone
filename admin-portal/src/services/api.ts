@@ -61,7 +61,10 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   if (contentType && contentType.includes('application/json')) {
     data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || data.message || 'API request failed');
+      const err: any = new Error(data.error || data.message || 'API request failed');
+      err.status = data.status || response.status;
+      err.data = data;
+      throw err;
     }
   } else {
     if (!response.ok) {
@@ -424,5 +427,33 @@ export const api = {
     if (params.month) qs.append('month', String(params.month));
     if (params.format) qs.append('format', params.format);
     return apiRequest(`/finance/export?${qs.toString()}`);
-  }
+  },
+
+  // --- EMAIL VERIFICATION & PASSWORD RESET ---
+  verifyEmail: (email: string, otp: string) =>
+    apiRequest<{ success: boolean; message: string; error?: string; accountStatus?: string }>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp })
+    }),
+  resendVerificationOtp: (email: string) =>
+    apiRequest<{ success: boolean; message: string; error?: string; cooldownSeconds?: number }>('/auth/resend-verification-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+  forgotPassword: (email: string) =>
+    apiRequest<{ success: boolean; message: string; error?: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+  verifyResetToken: (token: string) =>
+    apiRequest<{ valid: boolean; email?: string; error?: string }>('/auth/verify-reset-token', {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    }),
+  resetPassword: (token: string, newPassword: string) =>
+    apiRequest<{ success: boolean; message: string; error?: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword })
+    }),
+  getBrevoStatus: () => apiRequest('/auth/brevo-status')
 };

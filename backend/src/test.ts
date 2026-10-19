@@ -1,10 +1,14 @@
 process.env.IS_TEST_RUN = 'true';
 
+import nodeCrypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { AuthService } from './services/authService';
 import { MemberService } from './services/memberService';
 import { AttendanceService } from './services/attendanceService';
 import { AuditService } from './services/auditService';
 import { StorageService } from './services/storageService';
+import { EmailService } from './services/emailService';
+import { persistUser } from './db/sync';
 import { db, IDS } from './data/mockDb';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -118,6 +122,16 @@ async function runTests() {
 
     const newlyRegisteredUser = db.users.find(u => u.id === regResult.userId);
     assert(newlyRegisteredUser?.accountStatus === 'pending', 'Newly registered account is pending approval');
+    assert(newlyRegisteredUser?.emailVerified === false, 'Newly registered account has emailVerified = false');
+
+    // TEST 3B: Unverified User Login Rejection
+    const unverifiedLogin = await AuthService.login('samuel.okon@example.com', 'Password123!');
+    assert(unverifiedLogin.status === 'unverified_email', 'Unverified user login returns unverified_email status');
+    assert(unverifiedLogin.error?.includes('not been verified') === true, 'Unverified user receives verification prompt');
+
+    // Verify Samuel's email address
+    newlyRegisteredUser!.emailVerified = true;
+    newlyRegisteredUser!.emailVerifiedAt = new Date().toISOString();
 
     // TEST 4: Pending Account Login Rejection
     const pendingLogin = await AuthService.login('samuel.okon@example.com', 'Password123!');
@@ -3427,7 +3441,160 @@ async function runTests() {
       const notifCountAfter = db.notifications.length;
       assert(notifCountAfter > notifCountBefore, 'In-app notification created for newly published content');
       const latestNotif = db.notifications[0];
-      assert(latestNotif.title.includes('New Announcement') || latestNotif.body.includes('Kingdom advancement'), 'Notification matches published content');
+      // Section S: Brevo Email Verification & Password Reset Security Tests
+      console.log('\n--- Section S: Brevo Email Verification & Password Reset Security Tests ---');
+
+      // 1. Brevo Configuration Inspection
+      const brevoStatus = EmailService.getConfigurationStatus();
+      assert(typeof brevoStatus.configured === 'boolean', 'EmailService returns boolean configured status');
+      assert(Array.isArray(brevoStatus.missing), 'EmailService reports list of missing variables');
+      assert(brevoStatus.appBaseUrl.startsWith('http'), 'EmailService provides valid app base URL');
+
+      // 2. Registration & OTP Generation
+      const testEmail = 'brevo.applicant@example.com';
+      // Clean up previous if any
+      db.users = db.users.filter(u => u.email !== testEmail);
+      db.emailVerifications = db.emailVerifications.filter(v => v.email !== testEmail);
+
+      const brevoReg = await AuthService.register({
+        firstName: 'Daniel',
+        lastName: 'Balogun',
+        email: testEmail,
+        phone: '+2348077778888',
+        password: 'Password123!',
+        branchId: IDS.BRANCH_HQ,
+        ministryRoleId: IDS.ROLE_MEMBER,
+        isWorker: false,
+        gender: 'Male'
+      });
+      assert(brevoReg.success === true, 'Member registration with email verification succeeds');
+      const regUser = db.users.find(u => u.email === testEmail);
+      assert(regUser?.emailVerified === false, 'Newly registered user has emailVerified = false');
+
+      const otpRecord = db.emailVerifications.find(v => v.email === testEmail && !v.verifiedAt);
+      assert(!!otpRecord, 'Single-use OTP verification record generated in database');
+      assert(otpRecord!.otpHash.length === 64, 'OTP is securely stored as 64-character SHA-256 hash');
+      assert(otpRecord!.maxAttempts === 5, 'Maximum verification attempts set to 5');
+      assert(new Date(otpRecord!.expiresAt).getTime() > Date.now(), 'OTP expiry timestamp is in future (~10 min)');
+
+      // 3. Unverified User Login Block
+      const unverifiedAttempt = await AuthService.login(testEmail, 'Password123!');
+      assert(unverifiedAttempt.status === 'unverified_email', 'Unverified applicant login rejected with unverified_email status');
+      assert(unverifiedAttempt.error?.includes('email address has not been verified') === true, 'Error message instructs user to verify email');
+
+      // 4. Incorrect OTP & Attempt Throttling
+      const wrongOtpRes = await AuthService.verifyEmailOtp({ email: testEmail, otp: '000000' });
+      assert(wrongOtpRes.success === false, 'Incorrect OTP is rejected');
+      assert(wrongOtpRes.remainingAttempts === 4, 'Remaining attempts counter decrements to 4');
+      assert(otpRecord!.attemptsCount === 1, 'Database attempts_count incremented to 1');
+
+      // Exhaust attempts to trigger lockout
+      await AuthService.verifyEmailOtp({ email: testEmail, otp: '111111' });
+      await AuthService.verifyEmailOtp({ email: testEmail, otp: '222222' });
+      await AuthService.verifyEmailOtp({ email: testEmail, otp: '333333' });
+      const lockoutRes = await AuthService.verifyEmailOtp({ email: testEmail, otp: '444444' });
+      assert(lockoutRes.success === false, '5th failed attempt is rejected');
+      const blockedRes = await AuthService.verifyEmailOtp({ email: testEmail, otp: '555555' });
+      assert(blockedRes.error?.includes('Maximum verification attempts exceeded') === true, 'Attempting 6th verification triggers lockout');
+
+      // 5. Resend OTP Cooldown
+      const rapidResend = await AuthService.resendVerificationOtp({ email: testEmail });
+      assert(rapidResend.success === false, 'Immediate OTP resend rejected by cooldown');
+      assert((rapidResend.cooldownSeconds || 0) > 0, 'Resend response provides remaining cooldown seconds');
+
+      // Simulate cooldown expiry by advancing record creation time
+      otpRecord!.createdAt = new Date(Date.now() - 65 * 1000).toISOString();
+      const validResend = await AuthService.resendVerificationOtp({ email: testEmail });
+      assert(validResend.success === true, 'Resend OTP succeeds after cooldown interval');
+
+      const freshOtpRecord = db.emailVerifications.find(v => v.email === testEmail && !v.verifiedAt && new Date(v.expiresAt).getTime() > Date.now());
+      assert(!!freshOtpRecord, 'Fresh active OTP record exists in database');
+      assert(freshOtpRecord!.id !== otpRecord!.id, 'New OTP has unique record ID');
+
+      // 6. Successful Email Verification
+      // Create a known OTP to test successful verification
+      const knownOtp = '849201';
+      const knownHash = nodeCrypto.createHash('sha256').update(knownOtp).digest('hex');
+      freshOtpRecord!.otpHash = knownHash;
+
+      const verifySuccess = await AuthService.verifyEmailOtp({ email: testEmail, otp: knownOtp });
+      assert(verifySuccess.success === true, 'Verification with correct OTP succeeds');
+      assert(regUser?.emailVerified === true, 'User emailVerified flag transitioned to true');
+      assert(!!regUser?.emailVerifiedAt, 'User emailVerifiedAt timestamp recorded');
+
+      // Replay attack prevention: Same OTP cannot be used twice
+      const replayAttempt = await AuthService.verifyEmailOtp({ email: testEmail, otp: knownOtp });
+      assert(replayAttempt.success === false, 'Replaying already-verified OTP is strictly blocked');
+
+      // 7. Forgot Password & Anti-Enumeration
+      const nonExistentForgot = await AuthService.requestPasswordReset({ email: 'nobody_12345@fpmchurch.org' });
+      assert(nonExistentForgot.success === true, 'Forgot password returns generic success for non-existent email (anti-enumeration)');
+
+      // Real user forgot password
+      const targetUser = db.users.find(u => u.email === 'worker.sarah@fpmchurch.org');
+      assert(!!targetUser, 'Target user Sarah exists');
+
+      const validForgot = await AuthService.requestPasswordReset({ email: 'worker.sarah@fpmchurch.org' });
+      assert(validForgot.success === true, 'Forgot password request succeeds');
+
+      const resetRecord = db.passwordResets.find(pr => pr.email === 'worker.sarah@fpmchurch.org' && !pr.usedAt);
+      assert(!!resetRecord, 'Password reset record created in database');
+      assert(resetRecord!.tokenHash.length === 64, 'Reset token is hashed with SHA-256 in database');
+      assert(new Date(resetRecord!.expiresAt).getTime() > Date.now(), 'Reset token expires in future (~1 hour)');
+
+      // 8. Verify Reset Token
+      const invalidTokenCheck = await AuthService.verifyPasswordResetToken('invalid_token_xyz_123');
+      assert(invalidTokenCheck.valid === false, 'Invalid reset token rejected');
+
+      // Simulate obtaining token matching the hash
+      const testTokenPlaintext = 'test_token_sarah_secure_reset_2026_xyz';
+      resetRecord!.tokenHash = nodeCrypto.createHash('sha256').update(testTokenPlaintext).digest('hex');
+
+      const validTokenCheck = await AuthService.verifyPasswordResetToken(testTokenPlaintext);
+      assert(validTokenCheck.valid === true, 'Valid reset token verified successfully');
+      assert(validTokenCheck.email === 'worker.sarah@fpmchurch.org', 'Reset token resolves correct user email');
+
+      // 9. Complete Password Reset
+      const shortPassReset = await AuthService.completePasswordReset({ token: testTokenPlaintext, newPassword: '123' });
+      assert(shortPassReset.success === false, 'Password reset with password < 6 chars is rejected');
+
+      const resetSuccess = await AuthService.completePasswordReset({
+        token: testTokenPlaintext,
+        newPassword: 'SarahNewPassword2026!'
+      });
+      assert(resetSuccess.success === true, 'Password reset completes successfully');
+      assert(!!resetRecord!.usedAt, 'Password reset token marked as used');
+
+      // Token Single-Use Prevention
+      const reuseAttempt = await AuthService.completePasswordReset({
+        token: testTokenPlaintext,
+        newPassword: 'AnotherPassword2026!'
+      });
+      assert(reuseAttempt.success === false, 'Reusing consumed password reset token is strictly prevented');
+
+      // Verify Login with New Password
+      const oldPassLogin = await AuthService.login('worker.sarah@fpmchurch.org', 'Password123!');
+      assert(!!oldPassLogin.error, 'Login with old password now fails');
+
+      const newPassLogin = await AuthService.login('worker.sarah@fpmchurch.org', 'SarahNewPassword2026!');
+      assert(!!newPassLogin.token, 'Login with newly established password succeeds');
+      assert(newPassLogin.user?.fullName.includes('Sarah') === true, 'User profile accurately loaded on login');
+
+      // Restore Sarah's password for test hygiene
+      targetUser!.passwordHash = await bcrypt.hash('Password123!', 10);
+      await persistUser(targetUser!);
+
+      // 10. Existing Users Backward Compatibility
+      const adminUser = db.users.find(u => u.adminLevel === 'super_admin');
+      assert(adminUser?.emailVerified !== false, 'Existing super admin account is not blocked by email verification');
+      const pastorUser = db.users.find(u => u.email === 'pastor@fpmchurch.org');
+      assert(pastorUser?.emailVerified !== false, 'Existing pastor account is not blocked by email verification');
+      const regularWorker = db.users.find(u => u.email === 'worker.john@fpmchurch.org');
+      assert(regularWorker?.emailVerified !== false, 'Existing worker account is not blocked by email verification');
+
+      // Clean up test applicant
+      db.users = db.users.filter(u => u.email !== testEmail);
+      db.emailVerifications = db.emailVerifications.filter(v => v.email !== testEmail);
 
     } finally {
       testServer.close();

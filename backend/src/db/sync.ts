@@ -3,7 +3,8 @@ import {
   User, Member, Worker, Branch, MinistryRole, Department, DepartmentPosition,
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem,
-  DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment, SundayMomentLike
+  DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment, SundayMomentLike,
+  EmailVerificationRecord, PasswordResetRecord
 } from '../types';
 
 export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
@@ -120,6 +121,41 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
             CREATE POLICY "Public system settings read" ON public.system_settings FOR SELECT TO public USING (true);
           END IF;
         END $$;
+
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT TRUE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+
+        CREATE TABLE IF NOT EXISTS email_verifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          email VARCHAR(255) NOT NULL,
+          otp_hash VARCHAR(255) NOT NULL,
+          attempts_count INT NOT NULL DEFAULT 0,
+          max_attempts INT NOT NULL DEFAULT 5,
+          expires_at TIMESTAMPTZ NOT NULL,
+          verified_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          ip_address VARCHAR(45)
+        );
+        CREATE INDEX IF NOT EXISTS idx_email_verifications_user ON email_verifications(user_id);
+        CREATE INDEX IF NOT EXISTS idx_email_verifications_email ON email_verifications(email);
+        CREATE INDEX IF NOT EXISTS idx_email_verifications_expires ON email_verifications(expires_at DESC);
+        ALTER TABLE email_verifications ENABLE ROW LEVEL SECURITY;
+
+        CREATE TABLE IF NOT EXISTS password_resets (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          email VARCHAR(255) NOT NULL,
+          token_hash VARCHAR(255) NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          ip_address VARCHAR(45)
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
+        CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
+        CREATE INDEX IF NOT EXISTS idx_password_resets_expires ON password_resets(expires_at DESC);
+        ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
 
         CREATE TABLE IF NOT EXISTS finance_transactions (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -338,6 +374,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         isAdmin: !!r.is_admin,
         adminLevel: r.admin_level || 'none',
         lastLoginAt: r.last_login_at ? new Date(r.last_login_at).toISOString() : undefined,
+        emailVerified: r.email_verified === null || r.email_verified === undefined ? true : !!r.email_verified,
+        emailVerifiedAt: r.email_verified_at ? new Date(r.email_verified_at).toISOString() : undefined,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
       }));
@@ -728,6 +766,7 @@ export async function persistUser(user: User): Promise<void> {
   if (!isUuid(user.id)) return;
   try {
     const safePasswordHash = user.passwordHash && user.passwordHash.trim().length > 0 ? user.passwordHash : null;
+    const isEmailVerified = user.emailVerified !== undefined ? user.emailVerified : true;
     const updateRes = await query(`
       UPDATE users SET
         email = $2,
@@ -739,19 +778,22 @@ export async function persistUser(user: User): Promise<void> {
         is_admin = $8,
         admin_level = $9,
         last_login_at = $10,
-        updated_at = $11
+        email_verified = $11,
+        email_verified_at = $12,
+        updated_at = $13
       WHERE id = $1
     `, [
       user.id, user.email, user.phone, safePasswordHash, user.accountStatus,
       user.rejectionReason || null, user.requestChangesNotes || null,
       user.isAdmin, user.adminLevel, user.lastLoginAt || null,
+      isEmailVerified, user.emailVerifiedAt || null,
       user.updatedAt || new Date().toISOString()
     ]);
 
     if (!updateRes || updateRes.rowCount === 0) {
       await query(`
-        INSERT INTO users (id, email, phone, password_hash, account_status, rejection_reason, request_changes_notes, is_admin, admin_level, last_login_at, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO users (id, email, phone, password_hash, account_status, rejection_reason, request_changes_notes, is_admin, admin_level, last_login_at, email_verified, email_verified_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (id) DO UPDATE SET
           email = EXCLUDED.email,
           phone = EXCLUDED.phone,
@@ -762,11 +804,14 @@ export async function persistUser(user: User): Promise<void> {
           is_admin = EXCLUDED.is_admin,
           admin_level = EXCLUDED.admin_level,
           last_login_at = EXCLUDED.last_login_at,
+          email_verified = EXCLUDED.email_verified,
+          email_verified_at = EXCLUDED.email_verified_at,
           updated_at = EXCLUDED.updated_at
       `, [
         user.id, user.email, user.phone, safePasswordHash, user.accountStatus,
         user.rejectionReason || null, user.requestChangesNotes || null,
         user.isAdmin, user.adminLevel, user.lastLoginAt || null,
+        isEmailVerified, user.emailVerifiedAt || null,
         user.createdAt, user.updatedAt
       ]);
     }
@@ -774,6 +819,98 @@ export async function persistUser(user: User): Promise<void> {
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: users] ${err.message}`);
     throw err;
+  }
+}
+
+export async function persistEmailVerification(record: EmailVerificationRecord): Promise<void> {
+  try {
+    await runSchemaMigrationsOnce();
+    await query(`
+      INSERT INTO email_verifications (id, user_id, email, otp_hash, attempts_count, max_attempts, expires_at, verified_at, ip_address, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (id) DO UPDATE SET
+        attempts_count = EXCLUDED.attempts_count,
+        verified_at = EXCLUDED.verified_at
+    `, [
+      record.id, record.userId, record.email.toLowerCase(), record.otpHash,
+      record.attemptsCount, record.maxAttempts, record.expiresAt,
+      record.verifiedAt || null, record.ipAddress || null, record.createdAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: email_verifications] ${err.message}`);
+  }
+}
+
+export async function persistPasswordReset(record: PasswordResetRecord): Promise<void> {
+  try {
+    await runSchemaMigrationsOnce();
+    await query(`
+      INSERT INTO password_resets (id, user_id, email, token_hash, expires_at, used_at, ip_address, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (id) DO UPDATE SET
+        used_at = EXCLUDED.used_at
+    `, [
+      record.id, record.userId, record.email.toLowerCase(), record.tokenHash,
+      record.expiresAt, record.usedAt || null, record.ipAddress || null, record.createdAt
+    ]);
+  } catch (err: any) {
+    console.error(`[DATABASE PERSIST ERROR: password_resets] ${err.message}`);
+  }
+}
+
+export async function fetchActiveEmailVerification(email: string): Promise<EmailVerificationRecord | null> {
+  try {
+    await runSchemaMigrationsOnce();
+    const res = await query(`
+      SELECT * FROM email_verifications
+      WHERE LOWER(email) = LOWER($1) AND verified_at IS NULL AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [email.trim()]);
+    if (!res || !res.rows || res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      userId: r.user_id,
+      email: r.email,
+      otpHash: r.otp_hash,
+      attemptsCount: r.attempts_count,
+      maxAttempts: r.max_attempts,
+      expiresAt: new Date(r.expires_at).toISOString(),
+      verifiedAt: r.verified_at ? new Date(r.verified_at).toISOString() : undefined,
+      ipAddress: r.ip_address || undefined,
+      createdAt: new Date(r.created_at).toISOString()
+    };
+  } catch (err: any) {
+    console.warn('[DB fetchActiveEmailVerification]', err.message);
+    return null;
+  }
+}
+
+export async function fetchActivePasswordReset(tokenHash: string): Promise<PasswordResetRecord | null> {
+  try {
+    await runSchemaMigrationsOnce();
+    const res = await query(`
+      SELECT * FROM password_resets
+      WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [tokenHash]);
+    if (!res || !res.rows || res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      userId: r.user_id,
+      email: r.email,
+      tokenHash: r.token_hash,
+      expiresAt: new Date(r.expires_at).toISOString(),
+      usedAt: r.used_at ? new Date(r.used_at).toISOString() : undefined,
+      ipAddress: r.ip_address || undefined,
+      createdAt: new Date(r.created_at).toISOString()
+    };
+  } catch (err: any) {
+    console.warn('[DB fetchActivePasswordReset]', err.message);
+    return null;
   }
 }
 

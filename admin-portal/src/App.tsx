@@ -25,19 +25,21 @@ import { SettingsPage } from './pages/SettingsPage';
 import { FinancePage } from './pages/FinancePage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { DeleteAccountPage } from './pages/DeleteAccountPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { api } from './services/api';
 
-const getInitialRoute = (): 'app' | 'privacy' | 'delete-account' => {
+const getInitialRoute = (): 'app' | 'privacy' | 'delete-account' | 'reset-password' => {
   if (typeof window === 'undefined') return 'app';
   const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
   if (path === '/privacy') return 'privacy';
   if (path === '/delete-account') return 'delete-account';
+  if (path === '/reset-password') return 'reset-password';
   return 'app';
 };
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const [route, setRoute] = useState<'app' | 'privacy' | 'delete-account'>(getInitialRoute);
+  const [route, setRoute] = useState<'app' | 'privacy' | 'delete-account' | 'reset-password'>(getInitialRoute);
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [branches, setBranches] = useState<any[]>([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
@@ -47,9 +49,9 @@ const AppContent: React.FC = () => {
   const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'password'>('profile');
   const isSuperAdmin = user?.adminLevel === 'super_admin' || user?.roleCode === 'SUPER_ADMIN';
 
-  const navigateTo = (target: 'app' | 'privacy' | 'delete-account') => {
+  const navigateTo = (target: 'app' | 'privacy' | 'delete-account' | 'reset-password') => {
     setRoute(target);
-    const targetPath = target === 'privacy' ? '/privacy' : target === 'delete-account' ? '/delete-account' : '/';
+    const targetPath = target === 'privacy' ? '/privacy' : target === 'delete-account' ? '/delete-account' : target === 'reset-password' ? '/reset-password' : '/';
     if (window.location.pathname !== targetPath) {
       window.history.pushState({}, '', targetPath);
     }
@@ -60,6 +62,7 @@ const AppContent: React.FC = () => {
       const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
       if (path === '/privacy') setRoute('privacy');
       else if (path === '/delete-account') setRoute('delete-account');
+      else if (path === '/reset-password') setRoute('reset-password');
       else setRoute('app');
     };
     window.addEventListener('popstate', handlePopState);
@@ -111,6 +114,14 @@ const AppContent: React.FC = () => {
       <DeleteAccountPage
         onNavigateHome={() => navigateTo('app')}
         onNavigatePrivacy={() => navigateTo('privacy')}
+      />
+    );
+  }
+
+  if (route === 'reset-password') {
+    return (
+      <ResetPasswordPage
+        onNavigateHome={() => navigateTo('app')}
       />
     );
   }

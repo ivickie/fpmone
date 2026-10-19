@@ -36,6 +36,7 @@ import org.fpm.one.data.repository.NotificationRepository
 import org.fpm.one.presentation.auth.AuthViewModel
 import org.fpm.one.presentation.auth.LoginScreen
 import org.fpm.one.presentation.auth.PendingApprovalScreen
+import org.fpm.one.presentation.auth.VerifyEmailScreen
 import org.fpm.one.presentation.events.EventsViewModel
 import org.fpm.one.presentation.home.HomeViewModel
 import org.fpm.one.presentation.main.MainScreen
@@ -78,6 +79,7 @@ class MainActivity : FragmentActivity() {
           }
 
           var currentScreen by remember { mutableStateOf("SPLASH") }
+          var verifyEmailTarget by remember { mutableStateOf("") }
 
           // ViewModels
           val authViewModel = remember { AuthViewModel(authRepository) }
@@ -125,6 +127,10 @@ class MainActivity : FragmentActivity() {
                   },
                   onPendingApproval = {
                     currentScreen = "PENDING"
+                  },
+                  onNavigateToVerifyEmail = { email ->
+                    verifyEmailTarget = email
+                    currentScreen = "VERIFY_EMAIL"
                   }
                 )
               }
@@ -134,8 +140,25 @@ class MainActivity : FragmentActivity() {
                   onNavigateBack = {
                     currentScreen = "LOGIN"
                   },
-                  onRegistrationComplete = {
+                  onRegistrationComplete = { requiresVerification, email ->
+                    if (requiresVerification) {
+                      verifyEmailTarget = email
+                      currentScreen = "VERIFY_EMAIL"
+                    } else {
+                      currentScreen = "PENDING"
+                    }
+                  }
+                )
+              }
+              "VERIFY_EMAIL" -> {
+                VerifyEmailScreen(
+                  email = verifyEmailTarget,
+                  viewModel = authViewModel,
+                  onVerificationComplete = {
                     currentScreen = "PENDING"
+                  },
+                  onBackToLogin = {
+                    currentScreen = "LOGIN"
                   }
                 )
               }

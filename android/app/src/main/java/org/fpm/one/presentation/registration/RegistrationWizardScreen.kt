@@ -48,7 +48,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 fun RegistrationWizardScreen(
   viewModel: RegistrationViewModel,
   onNavigateBack: () -> Unit,
-  onRegistrationComplete: () -> Unit
+  onRegistrationComplete: (requiresEmailVerification: Boolean, email: String) -> Unit
 ) {
   val state by viewModel.state.collectAsState()
   val isDark = FpmTheme.isDark
@@ -880,7 +880,7 @@ private fun Step3PersonalInfo(state: RegistrationFormState, viewModel: Registrat
 private fun Step4Review(
   state: RegistrationFormState,
   viewModel: RegistrationViewModel,
-  onRegistrationComplete: () -> Unit
+  onRegistrationComplete: (requiresEmailVerification: Boolean, email: String) -> Unit
 ) {
   val branchName = state.branches.find { it.id == state.branchId }?.name ?: "Ilorin Branch (Headquarters)"
   val roleName = state.roles.find { it.id == state.ministryRoleId }?.name ?: "Member"

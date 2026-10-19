@@ -1,11 +1,13 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { db, IDS } from '../data/mockDb';
-import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem } from '../types';
+import { User, Member, AuthUserSession, RegistrationRequestDto, NotificationItem, EmailVerificationRecord, PasswordResetRecord } from '../types';
 import { AuditService } from './auditService';
 import { SettingsService } from './settingsService';
-import { persistUser, persistMember, persistNotification, persistDelete } from '../db/sync';
+import { EmailService } from './emailService';
+import { persistUser, persistMember, persistNotification, persistDelete, persistEmailVerification, persistPasswordReset, fetchActiveEmailVerification, fetchActivePasswordReset } from '../db/sync';
 import { checkAccountLoginThrottle, recordFailedLogin, clearLoginAttempts } from '../middleware/rateLimitMiddleware';
 
 const DEFAULT_DEV_JWT = 'fpm_global_super_secret_jwt_key_faith_preachers_ministry_2026';
@@ -187,6 +189,14 @@ export class AuthService {
       return { error: 'Invalid email/phone or password.' };
     }
 
+    // Check email verification status
+    if (user.emailVerified === false) {
+      return {
+        status: 'unverified_email',
+        error: 'Your email address has not been verified. Please enter the 6-digit verification code sent to your email.'
+      };
+    }
+
     // Check account status
     if (user.accountStatus === 'pending') {
       return {
@@ -306,6 +316,7 @@ export class AuthService {
       phone: cleanPhone,
       passwordHash,
       accountStatus: regSettings.requireApproval ? 'pending' : 'active',
+      emailVerified: false,
       isAdmin: false,
       adminLevel: 'none',
       createdAt: now,
@@ -345,6 +356,43 @@ export class AuthService {
       console.warn('[AUTH REGISTER DB PERSISTENCE ERROR]', e.message);
     }
 
+    // 5. Generate and store 6-digit Email Verification OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+
+    // Invalidate previous pending OTPs for this email in-memory
+    db.emailVerifications = db.emailVerifications.filter(v => v.email.toLowerCase() !== cleanEmail);
+
+    const verificationRecord: EmailVerificationRecord = {
+      id: uuidv4(),
+      userId,
+      email: cleanEmail,
+      otpHash,
+      attemptsCount: 0,
+      maxAttempts: 5,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      createdAt: now
+    };
+    db.emailVerifications.push(verificationRecord);
+    persistEmailVerification(verificationRecord).catch(() => {});
+
+    // 6. Send Verification Email via Brevo
+    let emailDeliverySuccess = false;
+    let emailDeliveryError: string | undefined;
+
+    if (EmailService.isConfigured()) {
+      const emailRes = await EmailService.sendVerificationOtp({
+        toEmail: cleanEmail,
+        recipientName: data.firstName.trim(),
+        otp,
+        expiresInMinutes: 10
+      });
+      emailDeliverySuccess = emailRes.success;
+      emailDeliveryError = emailRes.error;
+    } else {
+      console.warn('[BREVO SERVICE UNCONFIGURED] Verification code generated but Brevo API credentials not set.');
+    }
+
     // Log audit
     AuditService.log(
       `${data.firstName} ${data.lastName}`,
@@ -371,8 +419,362 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'Your registration has been submitted and is awaiting approval.',
-      userId
+      message: 'Your registration has been submitted. Please check your email for a 6-digit verification code.',
+      userId,
+      requiresEmailVerification: true,
+      email: cleanEmail,
+      emailDelivery: {
+        sent: emailDeliverySuccess,
+        error: emailDeliveryError
+      }
+    } as any;
+  }
+
+  /**
+   * Validates member-entered OTP against active verification record.
+   */
+  public static async verifyEmailOtp(params: {
+    email: string;
+    otp: string;
+    ipAddress?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+    accountStatus?: string;
+    requiresApproval?: boolean;
+    remainingAttempts?: number;
+  }> {
+    const { email, otp, ipAddress } = params;
+    if (!email || !otp) {
+      return { success: false, message: '', error: 'Email address and verification code are required.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+
+    let record = db.emailVerifications.find(
+      v => v.email.toLowerCase() === cleanEmail && !v.verifiedAt && new Date(v.expiresAt).getTime() > Date.now()
+    );
+
+    if (!record) {
+      const dbRecord = await fetchActiveEmailVerification(cleanEmail);
+      if (dbRecord) {
+        db.emailVerifications.push(dbRecord);
+        record = dbRecord;
+      }
+    }
+
+    if (!record) {
+      return {
+        success: false,
+        message: '',
+        error: 'The verification code has expired or is invalid. Please request a new code.'
+      };
+    }
+
+    if (record.attemptsCount >= record.maxAttempts) {
+      return {
+        success: false,
+        message: '',
+        error: 'Maximum verification attempts exceeded. Please request a fresh code.'
+      };
+    }
+
+    const inputHash = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+    if (inputHash !== record.otpHash) {
+      record.attemptsCount += 1;
+      persistEmailVerification(record).catch(() => {});
+      const remaining = Math.max(0, record.maxAttempts - record.attemptsCount);
+      return {
+        success: false,
+        message: '',
+        error: `Incorrect verification code. ${remaining} attempt(s) remaining.`,
+        remainingAttempts: remaining
+      };
+    }
+
+    // OTP Match: Mark verified
+    const now = new Date().toISOString();
+    record.verifiedAt = now;
+    persistEmailVerification(record).catch(() => {});
+
+    // Update user record
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail || u.id === record!.userId);
+    if (user) {
+      user.emailVerified = true;
+      user.emailVerifiedAt = now;
+      user.updatedAt = now;
+      await persistUser(user).catch(() => {});
+      AuditService.log(user.email, user.adminLevel || 'member', 'EMAIL_VERIFIED', 'user', user.id, user.id);
+    }
+
+    return {
+      success: true,
+      message: 'Your email address has been verified successfully.',
+      accountStatus: user ? user.accountStatus : 'pending',
+      requiresApproval: user ? user.accountStatus === 'pending' : true
+    };
+  }
+
+  /**
+   * Resends verification OTP with 60s cooldown and Brevo email dispatch.
+   */
+  public static async resendVerificationOtp(params: {
+    email: string;
+    ipAddress?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+    cooldownSeconds?: number;
+  }> {
+    const { email, ipAddress } = params;
+    if (!email) {
+      return { success: false, message: '', error: 'Email address is required.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Find user
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (user && user.emailVerified === true) {
+      return {
+        success: true,
+        message: 'This email address is already verified. You can log in with your credentials.'
+      };
+    }
+
+    // Check 60-second cooldown from last creation
+    const existing = db.emailVerifications
+      .filter(v => v.email.toLowerCase() === cleanEmail)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    if (existing.length > 0) {
+      const latest = existing[0];
+      const elapsedMs = Date.now() - new Date(latest.createdAt).getTime();
+      const cooldownMs = 60 * 1000;
+      if (elapsedMs < cooldownMs) {
+        const waitSec = Math.ceil((cooldownMs - elapsedMs) / 1000);
+        return {
+          success: false,
+          message: '',
+          error: `Please wait ${waitSec} second(s) before requesting another code.`,
+          cooldownSeconds: waitSec
+        };
+      }
+    }
+
+    // Invalidate existing active OTPs for this email
+    db.emailVerifications.forEach(v => {
+      if (v.email.toLowerCase() === cleanEmail && !v.verifiedAt) {
+        v.expiresAt = new Date().toISOString();
+        persistEmailVerification(v).catch(() => {});
+      }
+    });
+
+    // Generate fresh OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const now = new Date().toISOString();
+    const userId = user ? user.id : uuidv4();
+
+    const record: EmailVerificationRecord = {
+      id: uuidv4(),
+      userId,
+      email: cleanEmail,
+      otpHash,
+      attemptsCount: 0,
+      maxAttempts: 5,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      ipAddress,
+      createdAt: now
+    };
+    db.emailVerifications.push(record);
+    persistEmailVerification(record).catch(() => {});
+
+    const member = user ? db.members.find(m => m.userId === user.id) : undefined;
+    const recipientName = member ? `${member.firstName} ${member.lastName}` : cleanEmail.split('@')[0];
+
+    if (EmailService.isConfigured()) {
+      await EmailService.sendVerificationOtp({
+        toEmail: cleanEmail,
+        recipientName,
+        otp,
+        expiresInMinutes: 10
+      });
+    }
+
+    return {
+      success: true,
+      message: 'A fresh 6-digit verification code has been dispatched to your email.'
+    };
+  }
+
+  /**
+   * Generates single-use password reset token and dispatches email via Brevo.
+   * Employs anti-enumeration to protect user privacy.
+   */
+  public static async requestPasswordReset(params: {
+    email: string;
+    ipAddress?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+  }> {
+    const { email, ipAddress } = params;
+    if (!email || !email.includes('@')) {
+      return { success: false, message: '', error: 'Please enter a valid email address.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (user) {
+      // Invalidate existing unused tokens for this user
+      db.passwordResets.forEach(pr => {
+        if (pr.userId === user.id && !pr.usedAt) {
+          pr.usedAt = new Date().toISOString();
+          persistPasswordReset(pr).catch(() => {});
+        }
+      });
+
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+      const now = new Date().toISOString();
+
+      const record: PasswordResetRecord = {
+        id: uuidv4(),
+        userId: user.id,
+        email: user.email,
+        tokenHash,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+        ipAddress,
+        createdAt: now
+      };
+      db.passwordResets.push(record);
+      persistPasswordReset(record).catch(() => {});
+
+      const member = db.members.find(m => m.userId === user.id);
+      const recipientName = member ? `${member.firstName} ${member.lastName}` : user.email.split('@')[0];
+
+      if (EmailService.isConfigured()) {
+        await EmailService.sendPasswordReset({
+          toEmail: user.email,
+          recipientName,
+          resetToken,
+          expiresInMinutes: 60
+        });
+      }
+
+      AuditService.log(user.email, user.adminLevel || 'member', 'PASSWORD_RESET_REQUESTED', 'user', user.id, user.id);
+    }
+
+    // Always return generic confirmation (prevents email enumeration attacks)
+    return {
+      success: true,
+      message: 'If an account associated with that email exists, password reset instructions have been sent.'
+    };
+  }
+
+  /**
+   * Validates a password reset token without consuming it.
+   */
+  public static async verifyPasswordResetToken(token: string): Promise<{
+    valid: boolean;
+    email?: string;
+    error?: string;
+  }> {
+    if (!token || token.trim().length === 0) {
+      return { valid: false, error: 'Password reset token is missing.' };
+    }
+    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    let record = db.passwordResets.find(
+      pr => pr.tokenHash === tokenHash && !pr.usedAt && new Date(pr.expiresAt).getTime() > Date.now()
+    );
+
+    if (!record) {
+      const dbRecord = await fetchActivePasswordReset(tokenHash);
+      if (dbRecord) {
+        db.passwordResets.push(dbRecord);
+        record = dbRecord;
+      }
+    }
+
+    if (!record) {
+      return {
+        valid: false,
+        error: 'This password reset link is invalid, expired, or has already been used. Please request a new link.'
+      };
+    }
+
+    return {
+      valid: true,
+      email: record.email
+    };
+  }
+
+  /**
+   * Completes the password reset by setting new password and invalidating token.
+   */
+  public static async completePasswordReset(params: {
+    token: string;
+    newPassword: string;
+    ipAddress?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+  }> {
+    const { token, newPassword, ipAddress } = params;
+    if (!token) {
+      return { success: false, message: '', error: 'Password reset token is required.' };
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, message: '', error: 'New password must be at least 6 characters long.' };
+    }
+
+    const verification = await this.verifyPasswordResetToken(token);
+    if (!verification.valid) {
+      return { success: false, message: '', error: verification.error || 'Invalid reset token.' };
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+    const record = db.passwordResets.find(pr => pr.tokenHash === tokenHash && !pr.usedAt);
+    if (!record) {
+      return { success: false, message: '', error: 'Password reset record not found.' };
+    }
+
+    const user = db.users.find(u => u.id === record.userId || u.email.toLowerCase() === record.email.toLowerCase());
+    if (!user) {
+      return { success: false, message: '', error: 'Associated user account could not be found.' };
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    const now = new Date().toISOString();
+
+    user.passwordHash = newHash;
+    user.hasChangedDefaultPassword = true;
+    user.updatedAt = now;
+
+    // Mark token used
+    record.usedAt = now;
+    persistPasswordReset(record).catch(() => {});
+
+    // Invalidate any other active reset tokens for this user
+    db.passwordResets.forEach(pr => {
+      if (pr.userId === user.id && !pr.usedAt) {
+        pr.usedAt = now;
+        persistPasswordReset(pr).catch(() => {});
+      }
+    });
+
+    await persistUser(user);
+
+    AuditService.log(user.email, user.adminLevel || 'member', 'PASSWORD_RESET_COMPLETED', 'user', user.id, user.id);
+
+    return {
+      success: true,
+      message: 'Your password has been successfully reset. You can now log in with your new password.'
     };
   }
 
