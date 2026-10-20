@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "537108762888",
+    "project_id": "fpm-global",
+    "storage_bucket": "fpm-global.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:537108762888:android:a358eb930f1b62a8271cbd",
+        "android_client_info": {
+          "package_name": "org.fpm.one"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgI-Uz4BR4J_IiuP4TkIQKf7mpOnrD8NU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -5,6 +5,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  id("com.google.gms.google-services")
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -81,6 +82,9 @@ android {
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+        freeCompilerArgs.add("-Xskip-metadata-version-check")
+    }
 }
 
 dependencies {
@@ -141,6 +145,11 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+
+  // Firebase
+  implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
+  implementation("com.google.firebase:firebase-analytics")
+  implementation("com.google.firebase:firebase-messaging")
 }
 
 tasks.register<Zip>("packageReleaseNativeDebugSymbolsZip") {
