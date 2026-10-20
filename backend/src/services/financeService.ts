@@ -1246,8 +1246,8 @@ export class FinanceService {
         ['SUMMARY KPI', 'VALUE'],
         ['Total Income (NGN)', txsResult.summary.totalIncome],
         ['Total Expenses (NGN)', txsResult.summary.totalExpenses],
-        ['Net Cash Flow (NGN)', txsResult.summary.netCashFlow],
-        ['Total Transactions Count', txsResult.summary.count],
+        ['Net Cash Flow (NGN)', txsResult.summary.netBalance],
+        ['Total Transactions Count', txsResult.pagination.totalCount],
         [],
         ['Date', 'Branch', 'Type', 'Category', 'Description', 'Reference No', 'Payment Method', 'Amount (NGN)', 'Recorded By', 'Status']
       ];

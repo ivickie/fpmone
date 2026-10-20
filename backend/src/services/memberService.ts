@@ -573,8 +573,8 @@ export class MemberService {
     status?: AccountStatus;
     search?: string;
   }, user: AuthUserSession): Promise<{ filename: string; buffer: Buffer }> {
-    const isSuperAdmin = user.adminLevel === 'super_admin' || user.isSuperAdmin;
-    const isBranchAdmin = user.adminLevel === 'branch_admin' || user.adminLevel === 'branch_pastor' || user.roleCode === 'BRANCH_PASTOR' || user.roleCode === 'BRANCH_ADMIN';
+    const isSuperAdmin = user.adminLevel === 'super_admin' || user.roleCode === 'SUPER_ADMIN';
+    const isBranchAdmin = user.adminLevel === 'branch_admin' || user.roleCode === 'BRANCH_PASTOR' || user.roleCode === 'BRANCH_ADMIN';
     if (!isSuperAdmin && !isBranchAdmin) {
       throw new Error('Forbidden: Insufficient privileges to export members.');
     }
