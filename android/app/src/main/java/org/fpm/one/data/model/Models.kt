@@ -350,5 +350,6 @@ data class NotificationItem(
     val body: String,
     val notificationType: String,
     val createdAt: String,
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val actionUrl: String? = null
 )

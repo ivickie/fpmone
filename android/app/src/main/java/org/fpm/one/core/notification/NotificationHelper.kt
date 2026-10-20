@@ -98,12 +98,16 @@ object NotificationHelper {
         id: Int,
         title: String,
         body: String,
-        channelId: String = CHANNEL_ANNOUNCEMENTS
+        channelId: String = CHANNEL_ANNOUNCEMENTS,
+        actionUrl: String? = null
     ) {
         if (!hasPermission(context)) return
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (!actionUrl.isNullOrBlank()) {
+                putExtra("actionUrl", actionUrl)
+            }
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -154,7 +158,8 @@ object NotificationHelper {
                     id = item.id.hashCode(),
                     title = item.title,
                     body = item.body,
-                    channelId = channel
+                    channelId = channel,
+                    actionUrl = item.actionUrl
                 )
                 notifiedSet.add(item.id)
                 hasNew = true

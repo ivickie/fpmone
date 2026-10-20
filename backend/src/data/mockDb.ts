@@ -1858,6 +1858,7 @@ export class DatabaseStore {
   public financeOpeningBalances: FinanceOpeningBalance[] = [];
   public emailVerifications: EmailVerificationRecord[] = [];
   public passwordResets: PasswordResetRecord[] = [];
+  public deviceTokens: Array<{ userId?: string; deviceToken: string; platform: string; branchId?: string; updatedAt: string }> = [];
 
   private workerCounter = 7;
 

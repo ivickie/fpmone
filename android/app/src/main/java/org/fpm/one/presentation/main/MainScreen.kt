@@ -47,10 +47,24 @@ fun MainScreen(
   testimoniesViewModel: TestimoniesViewModel,
   workerViewModel: WorkerViewModel,
   notificationsViewModel: NotificationsViewModel,
+  initialActionUrl: String? = null,
   onLogout: () -> Unit
 ) {
-  var selectedTab by remember { mutableStateOf<BottomNavTab>(BottomNavTab.Home) }
-  var subScreen by remember { mutableStateOf<String?>(null) } // "worker_hub" | "notifications" | null
+  var selectedTab by remember {
+    mutableStateOf<BottomNavTab>(
+      when {
+        initialActionUrl?.contains("services") == true -> BottomNavTab.Services
+        initialActionUrl?.contains("events") == true -> BottomNavTab.Events
+        initialActionUrl?.contains("testimonies") == true -> BottomNavTab.Testimonies
+        else -> BottomNavTab.Home
+      }
+    )
+  }
+  var subScreen by remember {
+    mutableStateOf<String?>(
+      if (initialActionUrl?.contains("notifications") == true) "notifications" else null
+    )
+  }
   val user = remember { SessionManager.getUserSession() }
 
   val tabs = listOf(

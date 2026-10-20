@@ -49,8 +49,11 @@ import {
   uploadAvatarHandler,
   getDbStatusHandler,
   getSettingsHandler,
-  getSystemHealthHandler
+  getSystemHealthHandler,
+  registerDeviceTokenHandler,
+  unregisterDeviceTokenHandler
 } from './controllers/apiControllers';
+import { FcmService } from './services/fcmService';
 import { SettingsService } from './services/settingsService';
 import { requireCronAuth } from './middleware/authMiddleware';
 import {
@@ -3688,9 +3691,135 @@ async function runTests() {
       const regularWorker = db.users.find(u => u.email === 'worker.john@fpmchurch.org');
       assert(regularWorker?.emailVerified !== false, 'Existing worker account is not blocked by email verification');
 
-      // Clean up test applicant
-      db.users = db.users.filter(u => u.email !== testEmail);
-      db.emailVerifications = db.emailVerifications.filter(v => v.email !== testEmail);
+      // --- Section T: Firebase Cloud Messaging (FCM) Production Pipeline ---
+      console.log('\n--- Section T: Firebase Cloud Messaging (FCM) Production Pipeline ---');
+
+      // 1. Diagnostics and safe unconfigured status
+      const initialFcmStatus = FcmService.getStatus();
+      assert(typeof initialFcmStatus.configured === 'boolean', 'FcmService returns boolean configured status');
+      assert(!('private_key' in initialFcmStatus), 'FcmService diagnostic never leaks private keys');
+      assert(!('client_email' in initialFcmStatus), 'FcmService diagnostic never leaks client secrets');
+
+      // 2. Channel Resolution Mapping
+      assert(FcmService.resolveChannelId('service') === 'fpm_services', 'Service notification maps to fpm_services channel');
+      assert(FcmService.resolveChannelId('upcoming_service') === 'fpm_services', 'Upcoming service notification maps to fpm_services channel');
+      assert(FcmService.resolveChannelId('event') === 'fpm_events', 'Event notification maps to fpm_events channel');
+      assert(FcmService.resolveChannelId('upcoming_event') === 'fpm_events', 'Upcoming event notification maps to fpm_events channel');
+      assert(FcmService.resolveChannelId('announcement') === 'fpm_announcements', 'Announcement maps to fpm_announcements channel');
+      assert(FcmService.resolveChannelId('broadcast') === 'fpm_announcements', 'Broadcast maps to fpm_announcements channel');
+      assert(FcmService.resolveChannelId('general') === 'fpm_general', 'General notification maps to fpm_general channel');
+      assert(FcmService.resolveChannelId('highlight_published') === 'fpm_general', 'Highlight notification maps to fpm_general channel');
+
+      // 3. Device Token Registration Endpoint Validation
+      const mockReqInvalid: any = { body: { deviceToken: 'short' } };
+      let invalidTokenRes: any = null;
+      const mockResInvalid: any = {
+        status: (code: number) => {
+          invalidTokenRes = { code };
+          return {
+            json: (data: any) => { invalidTokenRes.data = data; return invalidTokenRes; }
+          };
+        }
+      };
+      await registerDeviceTokenHandler(mockReqInvalid, mockResInvalid);
+      assert(invalidTokenRes?.code === 400, 'Invalid device token (< 10 chars) rejected with HTTP 400');
+
+      // 4. Successful Device Token Registration (Anonymous / Cold Start)
+      const testTokenA = 'fcm_test_device_token_android_alpha_1234567890';
+      const mockReqRegA: any = {
+        body: { deviceToken: testTokenA, platform: 'android', branchId: IDS.BRANCH_HQ },
+        user: undefined
+      };
+      let regResA: any = null;
+      const mockResRegA: any = {
+        json: (data: any) => { regResA = data; return regResA; },
+        status: (code: number) => ({ json: (d: any) => { regResA = { code, ...d }; return regResA; } })
+      };
+      await registerDeviceTokenHandler(mockReqRegA, mockResRegA);
+      assert(regResA?.success === true, 'Device token registration succeeds');
+      const inMemoryTokenA = db.deviceTokens.find(d => d.deviceToken === testTokenA);
+      assert(!!inMemoryTokenA, 'Device token saved in store');
+      assert(inMemoryTokenA?.branchId === IDS.BRANCH_HQ, 'Device token bound to branch');
+
+      // 5. Authenticated Token Re-registration (Sign-in binding)
+      const mockReqRegAuth: any = {
+        body: { deviceToken: testTokenA, platform: 'android' },
+        user: { userId: IDS.USER_ADMIN, branchId: IDS.BRANCH_HQ }
+      };
+      await registerDeviceTokenHandler(mockReqRegAuth, mockResRegA);
+      const updatedTokenA = db.deviceTokens.find(d => d.deviceToken === testTokenA);
+      assert(updatedTokenA?.userId === IDS.USER_ADMIN, 'Device token updated with authenticated user ID');
+
+      // 6. Token Registration for a Different Branch (Branch Isolation)
+      const testTokenB = 'fcm_test_device_token_android_lagos_9876543210';
+      const mockReqRegB: any = {
+        body: { deviceToken: testTokenB, platform: 'android', branchId: IDS.BRANCH_LAGOS },
+        user: { userId: 'test-user-b', branchId: IDS.BRANCH_LAGOS }
+      };
+      await registerDeviceTokenHandler(mockReqRegB, mockResRegA);
+      const tokenB = db.deviceTokens.find(d => d.deviceToken === testTokenB);
+      assert(tokenB?.branchId === IDS.BRANCH_LAGOS, 'Second device token bound to Lagos branch');
+
+      // 7. Token Scoping Resolution
+      const allScopeNotif: any = {
+        id: uuidv4(),
+        title: 'Global Announcement',
+        body: 'Message to all church members',
+        notificationType: 'announcement',
+        targetScope: 'entire_church'
+      };
+      const allTokens = await FcmService.resolveTargetTokens(allScopeNotif);
+      assert(allTokens.includes(testTokenA) && allTokens.includes(testTokenB), 'entire_church scope targets all device tokens');
+
+      const branchScopeNotif: any = {
+        id: uuidv4(),
+        title: 'HQ Branch Alert',
+        body: 'HQ service starts soon',
+        notificationType: 'service',
+        targetScope: 'branch',
+        targetId: IDS.BRANCH_HQ
+      };
+      const branchTokens = await FcmService.resolveTargetTokens(branchScopeNotif);
+      assert(branchTokens.includes(testTokenA), 'branch scope includes HQ token');
+      assert(!branchTokens.includes(testTokenB), 'branch scope excludes Lagos token');
+
+      const userScopeNotif: any = {
+        id: uuidv4(),
+        title: 'Personal Notification',
+        body: 'Private update',
+        notificationType: 'general',
+        targetScope: 'specific_member',
+        targetId: IDS.USER_ADMIN
+      };
+      const userTokens = await FcmService.resolveTargetTokens(userScopeNotif);
+      assert(userTokens.includes(testTokenA), 'specific_member scope targets correct user device');
+      assert(!userTokens.includes(testTokenB), 'specific_member scope excludes other user devices');
+
+      // 8. Notification Idempotency
+      const duplicateNotif: any = {
+        id: uuidv4(),
+        title: 'Idempotency Test',
+        body: 'Duplicate test',
+        notificationType: 'announcement',
+        targetScope: 'entire_church',
+        createdAt: new Date().toISOString()
+      };
+      const dispatch1 = await FcmService.dispatchNotification(duplicateNotif);
+      const dispatch2 = await FcmService.dispatchNotification(duplicateNotif);
+      assert(dispatch2.skippedReason === 'duplicate_suppressed', 'Duplicate notification dispatch is suppressed by idempotency');
+
+      // 9. Unregister Device Token (Sign-out)
+      const mockReqUnreg: any = { body: { deviceToken: testTokenA } };
+      let unregRes: any = null;
+      const mockResUnreg: any = {
+        json: (data: any) => { unregRes = data; return unregRes; }
+      };
+      await unregisterDeviceTokenHandler(mockReqUnreg, mockResUnreg);
+      assert(unregRes?.success === true, 'Device token unregistration succeeds');
+      assert(!db.deviceTokens.some(d => d.deviceToken === testTokenA), 'Unregistered token removed from store');
+
+      // Clean up test token B
+      db.deviceTokens = db.deviceTokens.filter(d => d.deviceToken !== testTokenB);
 
     } finally {
       testServer.close();

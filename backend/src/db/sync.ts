@@ -6,6 +6,7 @@ import {
   DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment, SundayMomentLike,
   EmailVerificationRecord, PasswordResetRecord
 } from '../types';
+import { FcmService } from '../services/fcmService';
 
 export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
   if (!url) return undefined;
@@ -1457,6 +1458,11 @@ export async function persistNotification(notif: NotificationItem): Promise<void
       notif.createdAt
     ]);
     await recordSystemMutation('notifications');
+
+    // Trigger FCM delivery to registered Android devices asynchronously
+    FcmService.dispatchNotification(notif).catch(err => {
+      console.warn('[FCM DISPATCH BACKGROUND ERROR]', err.message);
+    });
   } catch (err: any) {
     console.error(`[DATABASE PERSIST ERROR: notifications] ${err.message}`);
   }

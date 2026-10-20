@@ -10,6 +10,7 @@ import { AuditService } from '../services/auditService';
 import { StorageService } from '../services/storageService';
 import { FinanceService } from '../services/financeService';
 import { SettingsService } from '../services/settingsService';
+import { FcmService } from '../services/fcmService';
 import {
   Branch, Department, DepartmentPosition, EventItem, PostItem,
   ServiceSchedule, TestimonyItem, NotificationItem, MinistryRole, MediaItem,
@@ -3164,11 +3165,32 @@ export const deleteNotificationHandler = async (req: Request, res: Response) => 
 export const registerDeviceTokenHandler = async (req: Request, res: Response) => {
   try {
     const { deviceToken, platform = 'android', branchId } = req.body;
-    if (!deviceToken || typeof deviceToken !== 'string') {
-      return res.status(400).json({ success: false, error: 'Device token is required.' });
+    if (!deviceToken || typeof deviceToken !== 'string' || deviceToken.trim().length < 10) {
+      return res.status(400).json({ success: false, error: 'Valid device token is required.' });
     }
+    const cleanToken = deviceToken.trim();
     const userId = req.user?.userId;
     const effectiveBranchId = branchId || req.user?.branchId;
+
+    // Update in-memory store
+    const existingIdx = db.deviceTokens.findIndex(d => d.deviceToken === cleanToken);
+    if (existingIdx !== -1) {
+      db.deviceTokens[existingIdx] = {
+        userId: userId || undefined,
+        deviceToken: cleanToken,
+        platform,
+        branchId: effectiveBranchId || undefined,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      db.deviceTokens.push({
+        userId: userId || undefined,
+        deviceToken: cleanToken,
+        platform,
+        branchId: effectiveBranchId || undefined,
+        updatedAt: new Date().toISOString()
+      });
+    }
 
     if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
       await query(`
@@ -3179,7 +3201,7 @@ export const registerDeviceTokenHandler = async (req: Request, res: Response) =>
           platform = EXCLUDED.platform,
           branch_id = EXCLUDED.branch_id,
           updated_at = NOW()
-      `, [userId || null, deviceToken.trim(), platform, effectiveBranchId || null]);
+      `, [userId || null, cleanToken, platform, effectiveBranchId || null]);
     }
 
     return res.json({ success: true, message: 'Device token registered successfully.' });
@@ -3195,8 +3217,14 @@ export const unregisterDeviceTokenHandler = async (req: Request, res: Response) 
       return res.status(400).json({ success: false, error: 'Device token is required.' });
     }
 
+    const cleanToken = deviceToken.trim();
+    const idx = db.deviceTokens.findIndex(d => d.deviceToken === cleanToken);
+    if (idx !== -1) {
+      db.deviceTokens.splice(idx, 1);
+    }
+
     if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
-      await query('DELETE FROM device_tokens WHERE device_token = $1', [deviceToken.trim()]);
+      await query('DELETE FROM device_tokens WHERE device_token = $1', [cleanToken]);
     }
 
     return res.json({ success: true, message: 'Device token unregistered successfully.' });
@@ -3247,7 +3275,7 @@ export const updateSettingsHandler = async (req: Request, res: Response) => {
 export const getSystemHealthHandler = async (req: Request, res: Response) => {
   try {
     const health = await SettingsService.getSystemHealth();
-    return res.json({ success: true, ...health });
+    return res.json({ success: true, ...health, fcm: FcmService.getStatus() });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: 'Failed to retrieve system health metrics.' });
   }

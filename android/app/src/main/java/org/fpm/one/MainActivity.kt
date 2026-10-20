@@ -1,8 +1,10 @@
 package org.fpm.one
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,8 +31,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.fpm.one.R
+import org.fpm.one.core.notification.FpmFirebaseMessagingService
 import org.fpm.one.core.notification.NotificationHelper
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.core.theme.*
@@ -54,8 +61,24 @@ import org.fpm.one.presentation.worker.WorkerViewModel
 
 class MainActivity : FragmentActivity() {
 
+  private var pendingActionUrl by mutableStateOf<String?>(null)
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    val actionUrl = intent.getStringExtra("actionUrl")
+    if (!actionUrl.isNullOrBlank()) {
+      pendingActionUrl = actionUrl
+    }
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    // Capture notification deep link action URL if launched from tray
+    intent.getStringExtra("actionUrl")?.let {
+      if (it.isNotBlank()) pendingActionUrl = it
+    }
 
     // Initialize session manager, theme manager, and notification channels
     val sessionManager = SessionManager.init(applicationContext)
@@ -67,6 +90,29 @@ class MainActivity : FragmentActivity() {
     val churchRepository = ChurchRepository()
     val attendanceRepository = AttendanceRepository()
     val notificationRepository = NotificationRepository()
+
+    // Sync FCM registration token with backend on app startup
+    try {
+      FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        if (task.isSuccessful && !task.result.isNullOrBlank()) {
+          val token = task.result
+          FpmFirebaseMessagingService.saveLocalFcmToken(applicationContext, token)
+          val user = SessionManager.getUserSession()
+          CoroutineScope(Dispatchers.IO).launch {
+            try {
+              notificationRepository.registerDeviceToken(
+                deviceToken = token,
+                branchId = user?.branchId
+              )
+            } catch (e: Exception) {
+              Log.w("FPM_FCM", "Startup device token registration notice: ${e.message}")
+            }
+          }
+        }
+      }
+    } catch (e: Exception) {
+      Log.w("FPM_FCM", "Firebase token acquisition notice: ${e.message}")
+    }
 
     setContent {
       FpmGlobalTheme {
@@ -132,6 +178,7 @@ class MainActivity : FragmentActivity() {
                   viewModel = authViewModel,
                   onLoginSuccess = {
                     val user = SessionManager.getUserSession()
+                    FpmFirebaseMessagingService.syncTokenWithBackend(applicationContext, user?.branchId)
                     if (user?.accountStatus?.lowercase() == "pending_approval") {
                       currentScreen = "PENDING"
                     } else {
@@ -197,7 +244,16 @@ class MainActivity : FragmentActivity() {
                   testimoniesViewModel = testimoniesViewModel,
                   workerViewModel = workerViewModel,
                   notificationsViewModel = notificationsViewModel,
+                  initialActionUrl = pendingActionUrl,
                   onLogout = {
+                    val fcmToken = FpmFirebaseMessagingService.getLocalFcmToken(applicationContext)
+                    if (fcmToken != null) {
+                      CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                          notificationRepository.unregisterDeviceToken(fcmToken)
+                        } catch (_: Exception) {}
+                      }
+                    }
                     currentScreen = "LOGIN"
                   }
                 )
