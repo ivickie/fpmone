@@ -93,6 +93,7 @@ fun HomeScreen(
     var activeHighlightDetail by remember { mutableStateOf<ServiceHighlightItem?>(null) }
 
     // Sunday photo upload dialog state
+    var isPickerOpen by remember { mutableStateOf(false) }
     var selectedPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var photoCaption by remember { mutableStateOf("") }
     var isUploadingSundayPhoto by remember { mutableStateOf(false) }
@@ -101,6 +102,7 @@ fun HomeScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris: List<Uri> ->
+        isPickerOpen = false
         if (uris.isNotEmpty()) {
             selectedPhotoUris = uris
             photoCaption = ""
@@ -1253,6 +1255,7 @@ fun HomeScreen(
             onDismiss = { activeGalleryBranch = null },
             onToggleLike = { momentId -> viewModel.toggleSundayMomentLike(momentId) },
             onStartUpload = {
+                isPickerOpen = true
                 photoPickerLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
@@ -1267,7 +1270,8 @@ fun HomeScreen(
                 }
             },
             currentUserId = currentUser?.userId,
-            isAdmin = currentUser?.isAdmin == true
+            isAdmin = currentUser?.isAdmin == true,
+            isExternalPaused = isPickerOpen || selectedPhotoUris.isNotEmpty() || isUploadingSundayPhoto
         )
     }
 
@@ -1800,7 +1804,8 @@ private fun SundayMomentsStoryViewerDialog(
     onStartUpload: () -> Unit,
     onDeleteMoment: (String) -> Unit,
     currentUserId: String?,
-    isAdmin: Boolean
+    isAdmin: Boolean,
+    isExternalPaused: Boolean = false
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -1914,7 +1919,7 @@ private fun SundayMomentsStoryViewerDialog(
                 val totalMs = 5000L
                 val step = stepMs.toFloat() / totalMs.toFloat()
                 while (progress < 1f) {
-                    if (!isPaused) {
+                    if (!isPaused && !isExternalPaused) {
                         delay(stepMs)
                         progress = (progress + step).coerceAtMost(1f)
                     } else {
@@ -1938,13 +1943,23 @@ private fun SundayMomentsStoryViewerDialog(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(safeIndex) {
+                            var isHoldConsumed = false
                             detectTapGestures(
                                 onPress = {
+                                    val startTime = System.currentTimeMillis()
                                     isPaused = true
-                                    tryAwaitRelease()
+                                    val released = tryAwaitRelease()
+                                    val duration = System.currentTimeMillis() - startTime
                                     isPaused = false
+                                    if (!released || duration >= 220L) {
+                                        isHoldConsumed = true
+                                    }
                                 },
                                 onTap = { offset ->
+                                    if (isHoldConsumed) {
+                                        isHoldConsumed = false
+                                        return@detectTapGestures
+                                    }
                                     val screenWidth = size.width
                                     if (offset.x < screenWidth * 0.35f) {
                                         // Tap left: previous or restart

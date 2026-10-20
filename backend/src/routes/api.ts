@@ -22,6 +22,7 @@ import {
   getHighlightsHandler, createHighlightHandler, updateHighlightHandler, deleteHighlightHandler,
   getApprovedTestimoniesHandler, getTestimoniesQueueHandler, submitTestimonyHandler, reviewTestimonyHandler, deleteTestimonyHandler,
   getNotificationsHandler, broadcastNotificationHandler, markNotificationReadHandler, deleteNotificationHandler,
+  registerDeviceTokenHandler, unregisterDeviceTokenHandler,
   getAuditLogsHandler, getSettingsHandler, updateSettingsHandler, getSystemHealthHandler,
   uploadMediaHandler, uploadAvatarHandler, deleteMediaHandler, listMediaHandler,
   getDbStatusHandler,
@@ -33,7 +34,7 @@ import {
   getFinanceTransactionByIdHandler, createFinanceTransactionHandler, updateFinanceTransactionHandler,
   voidFinanceTransactionHandler, getFinanceOpeningBalanceHandler, setFinanceOpeningBalanceHandler,
   getFinanceMonthlyStatementHandler, getFinanceAnnualStatementHandler, getFinanceCategoryAnalysisHandler,
-  exportFinanceReportHandler
+  exportFinanceReportHandler, exportMembersHandler
 } from '../controllers/apiControllers';
 import { requireAuth, requireAdmin, requireSuperAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
 import {
@@ -105,6 +106,7 @@ router.post('/approvals/:userId/reject', requireAuth, requireAdmin, rejectMember
 router.post('/approvals/:userId/request-changes', requireAuth, requireAdmin, requestChangesHandler);
 
 router.get('/members', requireAuth, requireAdmin, listMembersHandler);
+router.get('/members/export', requireAuth, requireAdmin, exportRateLimiter, exportMembersHandler);
 router.post('/members', requireAuth, requireAdmin, createMemberHandler);
 router.get('/members/:id', requireAuth, requireAdmin, getMemberByIdHandler);
 router.put('/members/:id', requireAuth, requireAdmin, updateMemberHandler);
@@ -170,6 +172,8 @@ router.get('/notifications', requireAuth, getNotificationsHandler);
 router.post('/notifications/broadcast', requireAuth, requireAdmin, broadcastRateLimiter, broadcastNotificationHandler);
 router.put('/notifications/:id/read', requireAuth, markNotificationReadHandler);
 router.delete('/notifications/:id', requireAuth, requireAdmin, deleteNotificationHandler);
+router.post('/notifications/register-token', optionalAuth, registerDeviceTokenHandler);
+router.post('/notifications/unregister-token', optionalAuth, unregisterDeviceTokenHandler);
 
 // --- MEDIA MANAGEMENT (SUPABASE STORAGE) ---
 router.post('/media/upload', requireAuth, uploadRateLimiter, upload.single('file'), uploadMediaHandler);

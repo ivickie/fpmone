@@ -3161,6 +3161,50 @@ export const deleteNotificationHandler = async (req: Request, res: Response) => 
   }
 };
 
+export const registerDeviceTokenHandler = async (req: Request, res: Response) => {
+  try {
+    const { deviceToken, platform = 'android', branchId } = req.body;
+    if (!deviceToken || typeof deviceToken !== 'string') {
+      return res.status(400).json({ success: false, error: 'Device token is required.' });
+    }
+    const userId = req.user?.userId;
+    const effectiveBranchId = branchId || req.user?.branchId;
+
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      await query(`
+        INSERT INTO device_tokens (user_id, device_token, platform, branch_id, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (device_token) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          platform = EXCLUDED.platform,
+          branch_id = EXCLUDED.branch_id,
+          updated_at = NOW()
+      `, [userId || null, deviceToken.trim(), platform, effectiveBranchId || null]);
+    }
+
+    return res.json({ success: true, message: 'Device token registered successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const unregisterDeviceTokenHandler = async (req: Request, res: Response) => {
+  try {
+    const { deviceToken } = req.body;
+    if (!deviceToken || typeof deviceToken !== 'string') {
+      return res.status(400).json({ success: false, error: 'Device token is required.' });
+    }
+
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      await query('DELETE FROM device_tokens WHERE device_token = $1', [deviceToken.trim()]);
+    }
+
+    return res.json({ success: true, message: 'Device token unregistered successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // =============================================================================
 // AUDIT LOGS CONTROLLER
 // =============================================================================
@@ -4535,6 +4579,13 @@ export const exportFinanceReportHandler = (req: Request, res: Response) => {
     const branchId = req.query.branchId as string;
     const format = req.query.format as string;
 
+    if (format === 'xlsx') {
+      const report = FinanceService.exportReportXlsx(reportType, branchId, year, month, user);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+      return res.send(report.buffer);
+    }
+
     const report = FinanceService.exportReportCsv(reportType, branchId, year, month, user);
 
     if (format === 'csv') {
@@ -4549,5 +4600,34 @@ export const exportFinanceReportHandler = (req: Request, res: Response) => {
     return res.status(statusCode).json({ success: false, error: err.message });
   }
 };
+
+export const exportMembersHandler = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized.' });
+
+    const search = req.query.search as string;
+    const branchId = req.query.branchId as string;
+    const roleId = req.query.roleId as string;
+    const departmentId = req.query.departmentId as string;
+    const status = req.query.status as any;
+
+    const exportData = await MemberService.exportMembersXlsx({
+      search,
+      branchId,
+      roleId,
+      departmentId,
+      status
+    }, user);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${exportData.filename}"`);
+    return res.send(exportData.buffer);
+  } catch (err: any) {
+    const statusCode = err.message?.includes('Forbidden') ? 403 : 500;
+    return res.status(statusCode).json({ success: false, error: err.message });
+  }
+};
+
 
 

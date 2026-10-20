@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, UserCheck, Shield, Building2, Eye,
-  Edit2, Ban, CheckCircle, Archive, QrCode, Phone, Mail, MapPin, AlertCircle, X, Users, User, UserPlus, Plus, Lock, Trash2, Key, Copy
+  Edit2, Ban, CheckCircle, Archive, QrCode, Phone, Mail, MapPin, AlertCircle, X, Users, User, UserPlus, Plus, Lock, Trash2, Key, Copy, FileSpreadsheet
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,7 @@ export const MembersPage: React.FC = () => {
   const [roles, setRoles] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -400,6 +401,25 @@ export const MembersPage: React.FC = () => {
     }
   };
 
+  const handleExportMembersExcel = async () => {
+    try {
+      setExportingExcel(true);
+      toast.info('Generating members Excel report...');
+      await api.exportMembersExcel({
+        branchId: branchFilter,
+        roleId: roleFilter,
+        departmentId: deptFilter,
+        status: statusFilter,
+        search
+      });
+      toast.success('Members list exported successfully as Excel (.xlsx)!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export members to Excel');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header with Tab switcher */}
@@ -434,13 +454,25 @@ export const MembersPage: React.FC = () => {
             </button>
           </div>
 
-          <button
-            onClick={openAddMember}
-            className="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Add Member</span>
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleExportMembersExcel}
+              disabled={exportingExcel}
+              title="Export filtered members to Microsoft Excel (.xlsx)"
+              className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>{exportingExcel ? 'Exporting...' : 'Export to Excel'}</span>
+            </button>
+
+            <button
+              onClick={openAddMember}
+              className="flex-1 sm:flex-initial justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Add Member</span>
+            </button>
+          </div>
         </div>
       </div>
 

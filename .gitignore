@@ -52,3 +52,6 @@ logs/
 *.log
 uploads/
 backend/uploads/
+backups/
+backend/backups/
+

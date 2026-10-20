@@ -1,7 +1,11 @@
 package org.fpm.one
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -27,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.delay
 import org.fpm.one.R
+import org.fpm.one.core.notification.NotificationHelper
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.repository.AttendanceRepository
@@ -52,9 +57,10 @@ class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Initialize session manager and theme manager
+    // Initialize session manager, theme manager, and notification channels
     val sessionManager = SessionManager.init(applicationContext)
     ThemeManager.init(applicationContext)
+    NotificationHelper.init(applicationContext)
 
     // Repositories
     val authRepository = AuthRepository(sessionManager)
@@ -81,6 +87,19 @@ class MainActivity : FragmentActivity() {
           var currentScreen by remember { mutableStateOf("SPLASH") }
           var verifyEmailTarget by remember { mutableStateOf("") }
 
+          // Android 13+ (API 33+) Runtime Push Notification Permission
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+              contract = ActivityResultContracts.RequestPermission()
+            ) { /* Permission response handled by OS */ }
+
+            LaunchedEffect(Unit) {
+              if (!NotificationHelper.hasPermission(this@MainActivity)) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+              }
+            }
+          }
+
           // ViewModels
           val authViewModel = remember { AuthViewModel(authRepository) }
           val registrationViewModel = remember { RegistrationViewModel(authRepository, churchRepository) }
@@ -89,7 +108,7 @@ class MainActivity : FragmentActivity() {
           val eventsViewModel = remember { EventsViewModel(churchRepository) }
           val testimoniesViewModel = remember { TestimoniesViewModel(churchRepository) }
           val workerViewModel = remember { WorkerViewModel(attendanceRepository, churchRepository) }
-          val notificationsViewModel = remember { NotificationsViewModel(notificationRepository) }
+          val notificationsViewModel = remember { NotificationsViewModel(notificationRepository, applicationContext) }
 
           Crossfade(
             targetState = currentScreen,

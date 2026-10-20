@@ -559,6 +559,26 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
     }
   };
 
+  // Genuine Excel (.xlsx) Export
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const handleExportExcel = async (reportType: string) => {
+    try {
+      setExportingExcel(true);
+      toast.info('Generating official Excel (.xlsx) workbook...');
+      await api.exportFinanceExcel({
+        reportType,
+        branchId: branchFilter,
+        year: selectedYear,
+        month: selectedMonth
+      });
+      toast.success('Excel workbook downloaded successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export Excel workbook');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Top Header Card */}
@@ -1255,17 +1275,25 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => window.print()}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Statement</span>
               </button>
               <button
+                onClick={() => handleExportExcel('monthly_statement')}
+                disabled={exportingExcel}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{exportingExcel ? 'Exporting...' : 'Export Excel (.xlsx)'}</span>
+              </button>
+              <button
                 onClick={() => handleExportCsv('monthly_statement')}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition flex items-center space-x-1.5"
+                className="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Export CSV</span>
+                <span>CSV</span>
               </button>
             </div>
           </div>
@@ -1452,17 +1480,25 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => window.print()}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print</span>
               </button>
               <button
+                onClick={() => handleExportExcel('annual_statement')}
+                disabled={exportingExcel}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{exportingExcel ? 'Exporting...' : 'Export Excel (.xlsx)'}</span>
+              </button>
+              <button
                 onClick={() => handleExportCsv('annual_statement')}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition flex items-center space-x-1.5"
+                className="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Export CSV</span>
+                <span>CSV</span>
               </button>
             </div>
           </div>
@@ -1641,13 +1677,23 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   Full categorical breakdown of opening balance, active income, operating expenses, and closing balance for {selectedMonth}/{selectedYear}.
                 </p>
               </div>
-              <button
-                onClick={() => handleExportCsv('monthly_statement')}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Statement (CSV)</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleExportExcel('monthly_statement')}
+                  disabled={exportingExcel}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExportCsv('monthly_statement')}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
 
             {/* Card 2: Annual Statement */}
@@ -1661,13 +1707,23 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   12-month sequential balance reconciliation verifying monthly continuity and December closing position for {selectedYear}.
                 </p>
               </div>
-              <button
-                onClick={() => handleExportCsv('annual_statement')}
-                className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Annual (CSV)</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleExportExcel('annual_statement')}
+                  disabled={exportingExcel}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExportCsv('annual_statement')}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
 
             {/* Card 3: Income Ledger */}
@@ -1681,13 +1737,23 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   Line-by-line itemized transaction records of tithes, offerings, POS payments, and donations with audit attribution.
                 </p>
               </div>
-              <button
-                onClick={() => handleExportCsv('income_ledger')}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Income Ledger (CSV)</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleExportExcel('income_ledger')}
+                  disabled={exportingExcel}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExportCsv('income_ledger')}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
 
             {/* Card 4: Expense Ledger */}
@@ -1701,13 +1767,23 @@ export const FinancePage: React.FC<FinancePageProps> = ({ branches = [] }) => {
                   Line-by-line itemized expenditures across transport, salaries, rentals, utilities, and church materials.
                 </p>
               </div>
-              <button
-                onClick={() => handleExportCsv('expense_ledger')}
-                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Expense Ledger (CSV)</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleExportExcel('expense_ledger')}
+                  disabled={exportingExcel}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExportCsv('expense_ledger')}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

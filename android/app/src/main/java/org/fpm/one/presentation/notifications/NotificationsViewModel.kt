@@ -1,11 +1,13 @@
 package org.fpm.one.presentation.notifications
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.fpm.one.core.notification.NotificationHelper
 import org.fpm.one.data.model.NotificationItem
 import org.fpm.one.data.repository.NotificationRepository
 
@@ -16,7 +18,8 @@ data class NotificationsUiState(
 )
 
 class NotificationsViewModel(
-  private val repository: NotificationRepository
+  private val repository: NotificationRepository,
+  private val context: Context? = null
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(NotificationsUiState())
@@ -33,6 +36,9 @@ class NotificationsViewModel(
       result.fold(
         onSuccess = { list ->
           _state.value = _state.value.copy(isLoading = false, notifications = list)
+          context?.let { ctx ->
+            NotificationHelper.syncSystemTray(ctx, list)
+          }
         },
         onFailure = { ex ->
           _state.value = _state.value.copy(isLoading = false, error = ex.message)

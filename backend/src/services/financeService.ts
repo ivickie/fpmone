@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import * as XLSX from 'xlsx';
 import { db, FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_METHODS } from '../data/mockDb';
 import { 
   AuthUserSession, FinanceTransaction, FinanceOpeningBalance,
@@ -1050,5 +1051,243 @@ export class FinanceService {
       filename: `FPM_${txType.toUpperCase()}_Ledger_${year}_${month || 'Full'}.csv`,
       content: lines.join('\n')
     };
+  }
+
+  /**
+   * Export financial reports to genuine Excel (.xlsx) workbook with real numeric amounts,
+   * summary totals, and formula injection sanitization.
+   */
+  public static exportReportXlsx(
+    reportType: 'monthly_statement' | 'annual_statement' | 'income_ledger' | 'expense_ledger' | 'transactions' | 'branch_comparison',
+    branchId: string | undefined,
+    year: number,
+    month: number,
+    user: AuthUserSession
+  ): { filename: string; buffer: Buffer } {
+    if (!this.isAuthorized(user)) {
+      throw new Error('Forbidden: Unauthorized to export financial reports.');
+    }
+
+    const { effectiveBranchId, isGlobal } = this.resolveBranchScope(user, branchId);
+    let branchLabel = 'FPM Global (All Branches)';
+    if (!isGlobal && effectiveBranchId) {
+      const b = db.branches.find(br => br.id === effectiveBranchId);
+      branchLabel = b ? b.name : 'Branch';
+    }
+
+    const dateGenerated = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    const sanitizeCell = (val: any): any => {
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'number' || typeof val === 'boolean') return val;
+      const str = String(val).trim();
+      if (/^[=\+\-@\t\r%]/.test(str)) {
+        return `'${str}`;
+      }
+      return str;
+    };
+
+    const wb = XLSX.utils.book_new();
+
+    if (reportType === 'monthly_statement') {
+      const stmt = this.getMonthlyStatement(effectiveBranchId, year, month, user);
+      const rows: any[][] = [
+        ["FAITH PREACHERS MINISTRIES INT'L (FPM GLOBAL)"],
+        ['MONTHLY FINANCIAL STATEMENT'],
+        [`Branch: ${branchLabel}`],
+        [`Reporting Period: ${stmt.monthName} ${year}`],
+        [`Date Generated: ${dateGenerated}`],
+        [],
+        ['SECTION', 'CATEGORY', 'TRANSACTIONS COUNT', 'AMOUNT (NGN)', 'PERCENTAGE'],
+        ['OPENING BALANCE', '', null, stmt.openingBalance, '100.0%'],
+        [],
+        ['INCOME', '', null, null, '']
+      ];
+
+      for (const item of stmt.incomeCategories) {
+        rows.push(['', sanitizeCell(item.category), item.count, item.amount, `${item.percentage}%`]);
+      }
+      rows.push(['', 'TOTAL INCOME', null, stmt.totalIncome, '100.0%']);
+      rows.push([]);
+      rows.push(['EXPENSES', '', null, null, '']);
+      for (const item of stmt.expenseCategories) {
+        rows.push(['', sanitizeCell(item.category), item.count, item.amount, `${item.percentage}%`]);
+      }
+      rows.push(['', 'TOTAL EXPENSES', null, stmt.totalExpenses, '100.0%']);
+      rows.push([]);
+      rows.push(['SUMMARY', '', null, null, '']);
+      rows.push(['', 'Opening Balance', null, stmt.openingBalance, '']);
+      rows.push(['', 'Total Income', null, stmt.totalIncome, '']);
+      rows.push(['', 'Total Expenses', null, stmt.totalExpenses, '']);
+      rows.push(['', 'Net Change', null, stmt.netChange, '']);
+      rows.push(['', 'CLOSING BALANCE', null, stmt.closingBalance, '']);
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 22 }, { wch: 20 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Monthly Statement');
+
+      // Transactions detail sheet
+      const txsResult = this.getTransactions({
+        branchId: effectiveBranchId,
+        year: String(year),
+        month: `${year}-${month.toString().padStart(2, '0')}`,
+        limit: 10000
+      }, user);
+
+      const txRows: any[][] = [
+        ['Date', 'Branch', 'Type', 'Category', 'Description', 'Reference No', 'Payment Method', 'Amount (NGN)', 'Recorded By', 'Status']
+      ];
+      for (const t of txsResult.transactions) {
+        txRows.push([
+          sanitizeCell(t.transactionDate),
+          sanitizeCell(t.branchName || ''),
+          sanitizeCell(t.transactionType.toUpperCase()),
+          sanitizeCell(t.category),
+          sanitizeCell(t.description),
+          sanitizeCell(t.referenceNumber || ''),
+          sanitizeCell(t.paymentMethod),
+          t.amount,
+          sanitizeCell(t.createdByName),
+          sanitizeCell(t.status)
+        ]);
+      }
+      const wsTx = XLSX.utils.aoa_to_sheet(txRows);
+      wsTx['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 20 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions Detail');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      AuditService.log(
+        user.fullName,
+        user.roleName,
+        'FINANCE_REPORT_EXPORTED',
+        'finance_report',
+        undefined,
+        user.userId,
+        null,
+        { reportType, branchId: effectiveBranchId, year, month, format: 'xlsx' }
+      );
+
+      return {
+        filename: `FPM_Finance_Monthly_Statement_${stmt.monthName}_${year}.xlsx`,
+        buffer
+      };
+    } else if (reportType === 'annual_statement') {
+      const annual = this.getAnnualStatement(effectiveBranchId, year, user);
+      const rows: any[][] = [
+        ["FAITH PREACHERS MINISTRIES INT'L (FPM GLOBAL)"],
+        ['ANNUAL FINANCIAL STATEMENT'],
+        [`Branch: ${branchLabel}`],
+        [`Reporting Year: ${year}`],
+        [`Date Generated: ${dateGenerated}`],
+        [],
+        ['MONTH', 'OPENING BALANCE (NGN)', 'TOTAL INCOME (NGN)', 'TOTAL EXPENSES (NGN)', 'CLOSING BALANCE (NGN)', 'NET CHANGE (NGN)']
+      ];
+
+      for (const m of annual.months) {
+        rows.push([
+          m.monthName,
+          m.openingBalance,
+          m.totalIncome,
+          m.totalExpenses,
+          m.closingBalance,
+          m.netChange
+        ]);
+      }
+
+      rows.push([]);
+      rows.push(['ANNUAL RECONCILIATION SUMMARY', '', '', '', '', '']);
+      rows.push(['Annual Opening Balance (Jan)', annual.annualOpeningBalance, '', '', '', '']);
+      rows.push(['Total Annual Income', annual.totalAnnualIncome, '', '', '', '']);
+      rows.push(['Total Annual Expenses', annual.totalAnnualExpenses, '', '', '', '']);
+      rows.push(['Annual Closing Balance (Dec)', annual.annualClosingBalance, '', '', '', '']);
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 15 }, { wch: 24 }, { wch: 22 }, { wch: 24 }, { wch: 24 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, `Annual ${year}`);
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      AuditService.log(
+        user.fullName,
+        user.roleName,
+        'FINANCE_REPORT_EXPORTED',
+        'finance_report',
+        undefined,
+        user.userId,
+        null,
+        { reportType, branchId: effectiveBranchId, year, format: 'xlsx' }
+      );
+
+      return {
+        filename: `FPM_Finance_Annual_${year}.xlsx`,
+        buffer
+      };
+    } else {
+      const isIncomeOnly = reportType === 'income_ledger';
+      const isExpenseOnly = reportType === 'expense_ledger';
+      const txType = isIncomeOnly ? 'income' : (isExpenseOnly ? 'expense' : undefined);
+
+      const txsResult = this.getTransactions({
+        branchId: effectiveBranchId,
+        transactionType: txType,
+        year: String(year),
+        month: month ? `${year}-${month.toString().padStart(2, '0')}` : undefined,
+        limit: 10000
+      }, user);
+
+      const title = isIncomeOnly ? 'INCOME LEDGER REPORT' : (isExpenseOnly ? 'EXPENSE LEDGER REPORT' : 'TRANSACTIONS & CASH FLOW REPORT');
+
+      const rows: any[][] = [
+        ["FAITH PREACHERS MINISTRIES INT'L (FPM GLOBAL)"],
+        [title],
+        [`Branch: ${branchLabel}`],
+        [`Period: ${month ? MONTH_NAMES[month - 1] + ' ' : ''}${year}`],
+        [`Date Generated: ${dateGenerated}`],
+        [],
+        ['SUMMARY KPI', 'VALUE'],
+        ['Total Income (NGN)', txsResult.summary.totalIncome],
+        ['Total Expenses (NGN)', txsResult.summary.totalExpenses],
+        ['Net Cash Flow (NGN)', txsResult.summary.netCashFlow],
+        ['Total Transactions Count', txsResult.summary.count],
+        [],
+        ['Date', 'Branch', 'Type', 'Category', 'Description', 'Reference No', 'Payment Method', 'Amount (NGN)', 'Recorded By', 'Status']
+      ];
+
+      for (const t of txsResult.transactions) {
+        rows.push([
+          sanitizeCell(t.transactionDate),
+          sanitizeCell(t.branchName || ''),
+          sanitizeCell(t.transactionType.toUpperCase()),
+          sanitizeCell(t.category),
+          sanitizeCell(t.description),
+          sanitizeCell(t.referenceNumber || ''),
+          sanitizeCell(t.paymentMethod),
+          t.amount,
+          sanitizeCell(t.createdByName),
+          sanitizeCell(t.status)
+        ]);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 20 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      AuditService.log(
+        user.fullName,
+        user.roleName,
+        'FINANCE_REPORT_EXPORTED',
+        'finance_report',
+        undefined,
+        user.userId,
+        null,
+        { reportType, branchId: effectiveBranchId, year, month, format: 'xlsx' }
+      );
+
+      const prefix = isIncomeOnly ? 'FPM_Income_Ledger' : (isExpenseOnly ? 'FPM_Expense_Ledger' : 'FPM_Finance_Transactions');
+      return {
+        filename: `${prefix}_${year}_${month || 'Full'}.xlsx`,
+        buffer
+      };
+    }
   }
 }

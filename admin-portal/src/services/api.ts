@@ -82,6 +82,47 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   return data;
 }
 
+export async function downloadFile(endpoint: string, fallbackFilename: string): Promise<void> {
+  const token = getAuthToken();
+  const url = `${API_BASE}${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+  const response = await fetch(url, {
+    headers: {
+      'X-Portal': 'admin',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Failed to download file';
+    try {
+      const errJson = await response.json();
+      errorMsg = errJson.error || errJson.message || errorMsg;
+    } catch {
+      // not JSON
+    }
+    throw new Error(errorMsg);
+  }
+
+  let filename = fallbackFilename;
+  const disposition = response.headers.get('content-disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) {
+      filename = match[1].trim();
+    }
+  }
+
+  const blob = await response.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 export const api = {
   // Auth
   login: (emailOrPhone: string, password: string) =>
@@ -427,6 +468,26 @@ export const api = {
     if (params.month) qs.append('month', String(params.month));
     if (params.format) qs.append('format', params.format);
     return apiRequest(`/finance/export?${qs.toString()}`);
+  },
+  exportFinanceExcel: (params: { reportType: string; branchId?: string; year?: number; month?: number }) => {
+    const qs = new URLSearchParams();
+    qs.append('reportType', params.reportType);
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.year) qs.append('year', String(params.year));
+    if (params.month) qs.append('month', String(params.month));
+    qs.append('format', 'xlsx');
+    const dateStr = new Date().toISOString().split('T')[0];
+    return downloadFile(`/finance/export?${qs.toString()}`, `fpm_finance_report_${dateStr}.xlsx`);
+  },
+  exportMembersExcel: (params: { branchId?: string; roleId?: string; departmentId?: string; status?: string; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.branchId) qs.append('branchId', params.branchId);
+    if (params.roleId) qs.append('roleId', params.roleId);
+    if (params.departmentId) qs.append('departmentId', params.departmentId);
+    if (params.status) qs.append('status', params.status);
+    if (params.search) qs.append('search', params.search);
+    const dateStr = new Date().toISOString().split('T')[0];
+    return downloadFile(`/members/export?${qs.toString()}`, `fpm_members_export_${dateStr}.xlsx`);
   },
 
   // --- EMAIL VERIFICATION & PASSWORD RESET ---

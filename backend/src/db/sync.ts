@@ -202,21 +202,18 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         );
         CREATE INDEX IF NOT EXISTS idx_finance_opening_branch ON finance_opening_balances(branch_id, year, month);
 
-        -- Clean up any stuck mock pending testimonies
-        DELETE FROM testimonies WHERE id = 'a4be349b-127c-42c1-8962-65a89e256314' OR title ILIKE '%Safe Delivery%';
-
-        -- Seed initial approved testimonies into Postgres if absent
-        INSERT INTO testimonies (id, member_id, branch_id, title, content, category, photo_url, allow_publish, status, is_featured_on_feed, created_at, updated_at)
-        VALUES 
-        ('de6300dc-a8b7-4e5d-a4c6-09e466d7373b', 'e1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111', 
-         'Instant Healing from 7 Years of Severe Spinal Pain', 
-         'For seven continuous years I battled degenerative spinal inflammation that prevented me from bending or lifting my child without acute pain. During the communion service last Sunday, as Pastor declared healing, warmth flowed through my back. The pain left instantly! Medical checks confirmed complete restoration!', 
-         'Healing', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400', true, 'approved', true, NOW(), NOW()),
-        ('b5393d0e-16f9-4bd7-8c2a-6aaab37402ef', 'e1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111', 
-         'Miraculous International Employment & Relocation Sponsorship', 
-         'After 2 years of constant job search post-graduation, I committed to serving in the choir faithfully every service. Two weeks ago, I received an unapplied job offer with a multinational firm in London with full visa sponsorship! God honors dedicated kingdom service!', 
-         'Promotion', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400', true, 'approved', true, NOW(), NOW())
-        ON CONFLICT (id) DO NOTHING;
+        CREATE TABLE IF NOT EXISTS device_tokens (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          device_token TEXT NOT NULL UNIQUE,
+          platform TEXT NOT NULL DEFAULT 'android',
+          branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);
+        CREATE INDEX IF NOT EXISTS idx_device_tokens_branch ON device_tokens(branch_id);
+        -- Schema setup complete
       `);
       schemaMigrationsDone = true;
     } catch (err: any) {
@@ -447,7 +444,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (servicesRes.rows.length > 0) {
+    if (servicesRes && Array.isArray(servicesRes.rows)) {
       store.services = servicesRes.rows.map((r: any): ServiceSchedule => ({
         id: r.id,
         branchId: r.branch_id,
@@ -466,7 +463,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (attSettingsRes.rows.length > 0) {
+    if (attSettingsRes && Array.isArray(attSettingsRes.rows) && attSettingsRes.rows.length > 0) {
       store.attendanceSettings = attSettingsRes.rows.map((r: any): AttendanceSettings => ({
         id: r.id,
         branchId: r.branch_id || undefined,
@@ -481,7 +478,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (attRecordsRes.rows.length > 0) {
+    if (attRecordsRes && Array.isArray(attRecordsRes.rows)) {
       store.attendanceRecords = attRecordsRes.rows.map((r: any): AttendanceRecord => ({
         id: r.id,
         workerId: r.worker_id,
@@ -504,7 +501,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (eventsRes.rows.length > 0) {
+    if (eventsRes && Array.isArray(eventsRes.rows)) {
       store.events = eventsRes.rows.map((r: any): EventItem => ({
         id: r.id,
         branchId: r.branch_id || undefined,
@@ -526,7 +523,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (postsRes.rows.length > 0) {
+    if (postsRes && Array.isArray(postsRes.rows)) {
       store.posts = postsRes.rows.map((r: any): PostItem => ({
         id: r.id,
         authorId: r.author_id,
@@ -548,7 +545,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (highlightsRes.rows.length > 0) {
+    if (highlightsRes && Array.isArray(highlightsRes.rows)) {
       store.serviceHighlights = highlightsRes.rows.map((r: any): ServiceHighlightItem => ({
         id: r.id,
         serviceId: r.service_id || undefined,
@@ -592,7 +589,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (notifsRes.rows.length > 0) {
+    if (notifsRes && Array.isArray(notifsRes.rows)) {
       store.notifications = notifsRes.rows.map((r: any): NotificationItem => ({
         id: r.id,
         title: r.title,
@@ -605,7 +602,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (mediaRes.rows.length > 0) {
+    if (mediaRes && Array.isArray(mediaRes.rows)) {
       store.mediaFiles = mediaRes.rows.map((r: any): MediaItem => ({
         id: r.id,
         storagePath: r.storage_path,
@@ -638,7 +635,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }
     }
 
-    if (auditRes.rows.length > 0) {
+    if (auditRes && Array.isArray(auditRes.rows)) {
       store.auditLogs = auditRes.rows.map((r: any): AuditLogItem => ({
         id: r.id,
         actorId: r.actor_id || undefined,
@@ -654,7 +651,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (deptReportsRes && deptReportsRes.rows && deptReportsRes.rows.length > 0) {
+    if (deptReportsRes && Array.isArray(deptReportsRes.rows)) {
       store.departmentReports = deptReportsRes.rows.map((r: any): DepartmentReport => ({
         id: r.id,
         departmentId: r.department_id,
@@ -682,7 +679,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (financeTxRes && financeTxRes.rows && financeTxRes.rows.length > 0) {
+    if (financeTxRes && Array.isArray(financeTxRes.rows)) {
       store.financeTransactions = financeTxRes.rows.map((r: any): FinanceTransaction => ({
         id: r.id,
         branchId: r.branch_id,
@@ -705,7 +702,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (financeBalancesRes && financeBalancesRes.rows && financeBalancesRes.rows.length > 0) {
+    if (financeBalancesRes && Array.isArray(financeBalancesRes.rows)) {
       store.financeOpeningBalances = financeBalancesRes.rows.map((r: any): FinanceOpeningBalance => ({
         id: r.id,
         branchId: r.branch_id,
@@ -722,7 +719,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
-    if (sundayMomentsRes && sundayMomentsRes.rows && sundayMomentsRes.rows.length > 0) {
+    if (sundayMomentsRes && Array.isArray(sundayMomentsRes.rows)) {
       store.sundayMoments = sundayMomentsRes.rows.map((r: any): SundayMoment => ({
         id: r.id,
         branchId: r.branch_id,
@@ -744,18 +741,18 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
       }));
-    } else if (!store.sundayMoments) {
+    } else {
       store.sundayMoments = [];
     }
 
-    if (sundayMomentLikesRes && sundayMomentLikesRes.rows && sundayMomentLikesRes.rows.length > 0) {
+    if (sundayMomentLikesRes && Array.isArray(sundayMomentLikesRes.rows)) {
       store.sundayMomentLikes = sundayMomentLikesRes.rows.map((r: any): SundayMomentLike => ({
         id: r.id,
         momentId: r.moment_id,
         userId: r.user_id,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
       }));
-    } else if (!store.sundayMomentLikes) {
+    } else {
       store.sundayMomentLikes = [];
     }
 

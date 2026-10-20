@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import * as XLSX from 'xlsx';
 import { db, IDS } from '../data/mockDb';
-import { Member, User, Worker, AccountStatus, NotificationItem } from '../types';
+import { Member, User, Worker, AccountStatus, NotificationItem, AuthUserSession } from '../types';
 import { AuditService } from './auditService';
 import { persistUser, persistMember, persistWorker, persistNotification, persistDepartment, sanitizeMediaUrl } from '../db/sync';
 import { query } from '../db/index';
@@ -560,6 +561,125 @@ export class MemberService {
     }
 
     return result;
+  }
+
+  /**
+   * Export Members to genuine Excel (.xlsx) workbook with formula injection protection
+   */
+  public static async exportMembersXlsx(params: {
+    branchId?: string;
+    roleId?: string;
+    departmentId?: string;
+    status?: AccountStatus;
+    search?: string;
+  }, user: AuthUserSession): Promise<{ filename: string; buffer: Buffer }> {
+    const isSuperAdmin = user.adminLevel === 'super_admin' || user.isSuperAdmin;
+    const isBranchAdmin = user.adminLevel === 'branch_admin' || user.adminLevel === 'branch_pastor' || user.roleCode === 'BRANCH_PASTOR' || user.roleCode === 'BRANCH_ADMIN';
+    if (!isSuperAdmin && !isBranchAdmin) {
+      throw new Error('Forbidden: Insufficient privileges to export members.');
+    }
+
+    const effectiveBranchId = isSuperAdmin ? params.branchId : (user.branchId || params.branchId);
+
+    const members = await this.listMembers({
+      ...params,
+      branchId: effectiveBranchId
+    });
+
+    const sanitizeCell = (val: any): any => {
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'number' || typeof val === 'boolean') return val;
+      const str = String(val).trim();
+      if (/^[=\+\-@\t\r%]/.test(str)) {
+        return `'${str}`;
+      }
+      return str;
+    };
+
+    const rows: any[][] = [];
+    rows.push([
+      'S/N',
+      'Full Name',
+      'First Name',
+      'Middle Name',
+      'Last Name',
+      'Email',
+      'Phone',
+      'Branch',
+      'Ministry Role',
+      'Is Worker',
+      'Worker Code',
+      'Department',
+      'Position',
+      'Worker Status',
+      'Gender',
+      'Date of Birth',
+      'Residential Address',
+      'Emergency Contact Name',
+      'Emergency Contact Phone',
+      'Account Status',
+      'Date Registered',
+      'Date Approved'
+    ]);
+
+    members.forEach((m: any, idx: number) => {
+      const w = m.workerDetails || {};
+      rows.push([
+        idx + 1,
+        sanitizeCell(m.fullName),
+        sanitizeCell(m.firstName),
+        sanitizeCell(m.middleName || ''),
+        sanitizeCell(m.lastName),
+        sanitizeCell(m.email),
+        sanitizeCell(m.phone),
+        sanitizeCell(m.branchName),
+        sanitizeCell(m.roleName),
+        m.isWorker ? 'Yes' : 'No',
+        sanitizeCell(w.workerIdCode || w.workerCode || ''),
+        sanitizeCell(w.departmentName || ''),
+        sanitizeCell(w.positionName || ''),
+        sanitizeCell(w.workerStatus || ''),
+        sanitizeCell(m.gender || ''),
+        sanitizeCell(m.dateOfBirth || ''),
+        sanitizeCell(m.address || ''),
+        sanitizeCell(m.emergencyContactName || ''),
+        sanitizeCell(m.emergencyContactPhone || ''),
+        sanitizeCell(m.accountStatus || ''),
+        sanitizeCell(m.registeredAt ? m.registeredAt.split('T')[0] : ''),
+        sanitizeCell(m.approvedAt ? m.approvedAt.split('T')[0] : '')
+      ]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    const colWidths = rows[0].map((_, colIndex) => {
+      const maxLen = Math.max(
+        ...rows.map(row => (row[colIndex] ? String(row[colIndex]).length : 0)),
+        10
+      );
+      return { wch: Math.min(maxLen + 3, 40) };
+    });
+    ws['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Members');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `fpm_members_export_${dateStr}.xlsx`;
+
+    AuditService.log(
+      user.fullName,
+      user.roleName,
+      'MEMBERS_EXPORTED',
+      'member_list',
+      undefined,
+      user.userId,
+      null,
+      { count: members.length, branchId: effectiveBranchId }
+    );
+
+    return { filename, buffer };
   }
 
   /**
