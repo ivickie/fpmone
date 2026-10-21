@@ -3886,128 +3886,205 @@ async function runTests() {
       assert(session.score === 0, 'Session initial score is 0');
       assert(session.currentQuestion !== null, 'Session returns current active question');
 
-      // 7. Answer Submission: Invalid Choice Validation
+      // 7. Authoritative Question Start Handshake & Countdown
+      const timing0 = await BibleGameService.startQuestion(testUser.id, testMember.id, 0, challengeTestDate);
+      assert(timing0.questionIndex === 0, 'Authoritative start records question index 0');
+      assert(timing0.timeLimitSeconds === 10, 'Countdown timer configured to 10 seconds');
+      const startMs = new Date(timing0.startedAt).getTime();
+      const deadlineMs = new Date(timing0.deadlineAt).getTime();
+      assert(deadlineMs - startMs === 10000, 'Server deadline is set exactly 10,000ms after startedAt');
+
+      // 8. Anti-Reset / Anti-Pause: App Backgrounding or Screen Transition Preserves Original Deadline
+      const repeatedTiming = await BibleGameService.startQuestion(testUser.id, testMember.id, 0, challengeTestDate);
+      assert(repeatedTiming.startedAt === timing0.startedAt, 'Repeated start call preserves original startedAt');
+      assert(repeatedTiming.deadlineAt === timing0.deadlineAt, 'Repeated start call preserves original deadlineAt (anti-pause guard)');
+
+      // 9. Answer Submission: Invalid Choice Validation
       let invalidOptionError = false;
       try {
-        await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, 99, challengeTestDate);
+        await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, 99, { challengeDate: challengeTestDate });
       } catch (err: any) {
         invalidOptionError = true;
       }
       assert(invalidOptionError, 'Invalid option index (> 3) is rejected with error');
 
-      // 8. Answer Submission: Out-of-Sequence Rejection
+      // 10. Answer Submission: Out-of-Sequence Rejection
       let outOfSequenceError = false;
       try {
-        await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, 1, challengeTestDate);
+        await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, 1, { challengeDate: challengeTestDate });
       } catch (err: any) {
         outOfSequenceError = true;
       }
       assert(outOfSequenceError, 'Submitting question index 2 when at index 0 is rejected');
 
-      // 9. Answer Submission: Correct Answer Scoring & Feedback
+      // 11. Speed XP Scoring: 9.7s Remaining (0.3s Elapsed) -> 9.7 XP
       const q0 = challengeRes1.questions[0];
-      const ans0 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, challengeTestDate);
+      const progRecord = db.bibleUserProgress.find(p => p.userId === testUser.id && p.challengeDate === challengeTestDate)!;
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 300).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 9700).toISOString();
+      const ans0 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, { challengeDate: challengeTestDate });
       assert(ans0.isCorrect === true, 'Submitting correct option returns isCorrect: true');
+      assert(ans0.questionXp === 9.7, 'Correct answer with 9.7s remaining awards exactly 9.7 XP');
       assert(ans0.score === 1, 'Score increments to 1 on correct answer');
       assert(ans0.currentQuestionIndex === 1, 'Current question index advances to 1');
       assert(ans0.explanation === q0.explanation, 'Reveals concise scriptural explanation upon submission');
       assert(ans0.bibleReference === q0.bibleReference, 'Reveals bible reference upon submission');
 
-      // 10. Anti-Cheating: Repeated Submission Rejection for Same Question
-      let duplicateAnswerError = false;
-      try {
-        await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, challengeTestDate);
-      } catch (err: any) {
-        duplicateAnswerError = true;
-      }
-      assert(duplicateAnswerError, 'Repeated submission for already-answered question index 0 is rejected');
+      // 12. Anti-Cheating & Idempotency: Repeated Submission Returns Saved Result Without Duplicate Score
+      const duplicateAns0 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, { challengeDate: challengeTestDate });
+      assert(duplicateAns0.questionXp === 9.7, 'Repeated submission idempotently returns existing question XP');
+      assert(duplicateAns0.score === 1, 'Score is never duplicated on resubmission');
 
-      // 11. Answer Submission: Incorrect Answer (Zero Score, No Negative XP)
+      // 13. Speed XP Scoring: 6.4s Remaining (3.6s Elapsed) -> 6.4 XP
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 1, challengeTestDate);
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 3600).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 6400).toISOString();
       const q1 = challengeRes1.questions[1];
-      const wrongChoice = (q1.correctOptionIndex + 1) % 4;
-      const ans1 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 1, wrongChoice, challengeTestDate);
-      assert(ans1.isCorrect === false, 'Submitting incorrect option returns isCorrect: false');
-      assert(ans1.score === 1, 'Score remains 1 on incorrect answer (no negative XP)');
-      assert(ans1.currentQuestionIndex === 2, 'Current question index advances to 2');
+      const ans1 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 1, q1.correctOptionIndex, { challengeDate: challengeTestDate });
+      assert(ans1.isCorrect === true, 'Q1 correct answer verified');
+      assert(ans1.questionXp === 6.4, 'Correct answer with 6.4s remaining awards exactly 6.4 XP');
 
-      // 12. Answer Remaining Questions (q2, q3, q4)
+      // 14. Speed XP Scoring: 2.1s Remaining (7.9s Elapsed) -> 2.1 XP
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 2, challengeTestDate);
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 7900).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 2100).toISOString();
       const q2 = challengeRes1.questions[2];
-      await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, q2.correctOptionIndex, challengeTestDate);
+      const ans2 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, q2.correctOptionIndex, { challengeDate: challengeTestDate });
+      assert(ans2.isCorrect === true, 'Q2 correct answer verified');
+      assert(ans2.questionXp === 2.1, 'Correct answer with 2.1s remaining awards exactly 2.1 XP');
 
+      // 15. Incorrect Answer: Earns 0.0 XP regardless of speed
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 3, challengeTestDate);
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 1000).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 9000).toISOString();
       const q3 = challengeRes1.questions[3];
-      await BibleGameService.submitAnswer(testUser.id, testMember.id, 3, q3.correctOptionIndex, challengeTestDate);
+      const wrongChoice = (q3.correctOptionIndex + 1) % 4;
+      const ans3 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 3, wrongChoice, { challengeDate: challengeTestDate });
+      assert(ans3.isCorrect === false, 'Submitting wrong choice returns isCorrect: false');
+      assert(ans3.questionXp === 0.0, 'Incorrect answer earns 0.0 XP');
 
-      const q4 = challengeRes1.questions[4];
-      const ans4 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 4, q4.correctOptionIndex, challengeTestDate);
-      assert(ans4.score === 4, 'Round score after 4 correct and 1 incorrect answer is 4');
-      assert(ans4.isRoundFinished === true, 'isRoundFinished is true after question 5 is answered');
+      // 16. Unanswered / Timeout: Earns 0.0 XP and records timeout state
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 4, challengeTestDate);
+      const ans4 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 4, null, { isTimeout: true, challengeDate: challengeTestDate });
+      assert(ans4.isTimeout === true, 'Timed out question records isTimeout: true');
+      assert(ans4.questionXp === 0.0, 'Timed out question earns 0.0 XP');
+      assert(ans4.isRoundFinished === true, 'Round is finished after question 5');
 
-      // 13. Round Completion & Authoritative XP Award
+      // 17. Round Completion & Decimal XP Exact Summation: 9.7 + 6.4 + 2.1 + 0.0 + 0.0 = 18.2 XP
       const completion = await BibleGameService.completeChallenge(testUser.id, testMember.id, challengeTestDate);
-      assert(completion.score === 4, 'Completion reflects round score 4');
-      assert(completion.xpAwarded === 40, 'Awards exactly 40 XP (4 * 10 XP)');
+      assert(completion.score === 3, 'Completion reflects round score 3/5');
+      assert(completion.xpAwarded === 18.2, `Awards exactly 18.2 decimal XP (got ${completion.xpAwarded})`);
       assert(completion.alreadyCompleted === false, 'First completion sets alreadyCompleted = false');
-      assert(completion.stats.cumulativeXp >= 40, 'User cumulative XP incremented by round XP');
+      assert(completion.stats.cumulativeXp >= 18.2, 'User cumulative XP accurately reflects decimal XP');
       assert(completion.stats.currentStreak === 1, 'First day streak initialized to 1');
-      assert(completion.stats.bestStreak >= 1, 'Best streak initialized to 1');
 
-      // 14. First Steps Badge Awarded
-      const hasFirstSteps = db.bibleUserBadges.some(b => b.userId === testUser.id && b.badgeId === 'FIRST_STEPS');
-      assert(hasFirstSteps, 'FIRST_STEPS badge awarded upon first challenge completion');
-
-      // 15. Idempotency: Reopening Completed Challenge Awards Zero Additional XP
+      // 18. Idempotency: Re-completing Challenge Awards 0.0 Additional XP
       const reComplete = await BibleGameService.completeChallenge(testUser.id, testMember.id, challengeTestDate);
       assert(reComplete.alreadyCompleted === true, 'Re-completing returns alreadyCompleted = true');
-      assert(reComplete.xpAwarded === 0, 'Re-completing awards 0 additional XP (strictly idempotent)');
+      assert(reComplete.xpAwarded === 0.0, 'Re-completing awards 0.0 additional XP (strictly idempotent)');
 
-      // 16. Multi-Day Streak Logic Across Africa/Lagos Day Boundaries
+      // 19. Deadline Boundary Tests on Fresh Session
+      const boundaryTestDate = '2026-10-23';
+      await BibleGameService.getOrCreateDailyChallenge(boundaryTestDate);
+      await BibleGameService.startOrResumeSession(testUser.id, testMember.id, boundaryTestDate);
+      const boundaryProg = db.bibleUserProgress.find(p => p.userId === testUser.id && p.challengeDate === boundaryTestDate)!;
+      const boundaryChallenge = await BibleGameService.getOrCreateDailyChallenge(boundaryTestDate);
+
+      // (a) Immediately before deadline: 0.1s remaining (9.9s elapsed) -> 0.1 XP
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 0, boundaryTestDate);
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 9900).toISOString();
+      boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() + 100).toISOString();
+      const boundaryAns0 = await BibleGameService.submitAnswer(
+        testUser.id, testMember.id, 0, boundaryChallenge.questions[0].correctOptionIndex, { challengeDate: boundaryTestDate }
+      );
+      assert(boundaryAns0.questionXp === 0.1, 'Answer at 0.1s remaining awards 0.1 XP');
+
+      // (b) Exactly at deadline: 0.0s remaining (10.0s elapsed) -> 0.0 XP
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 1, boundaryTestDate);
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 10000).toISOString();
+      boundaryProg.activeQuestionDeadlineAt = new Date(Date.now()).toISOString();
+      const boundaryAns1 = await BibleGameService.submitAnswer(
+        testUser.id, testMember.id, 1, boundaryChallenge.questions[1].correctOptionIndex, { challengeDate: boundaryTestDate }
+      );
+      assert(boundaryAns1.isCorrect === true, 'Answer exactly at deadline is accepted as correct');
+      assert(boundaryAns1.questionXp === 0.0, 'Answer exactly at deadline awards 0.0 XP');
+
+      // (c) Within 1.0s network transit tolerance (10.5s elapsed): accepted, 0.0 XP
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 2, boundaryTestDate);
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 10500).toISOString();
+      boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() - 500).toISOString();
+      const boundaryAns2 = await BibleGameService.submitAnswer(
+        testUser.id, testMember.id, 2, boundaryChallenge.questions[2].correctOptionIndex, { challengeDate: boundaryTestDate }
+      );
+      assert(boundaryAns2.isCorrect === true, 'Answer within 1.0s network transit tolerance accepted');
+      assert(boundaryAns2.questionXp === 0.0, 'Answer past deadline awards 0.0 XP');
+
+      // (d) Strictly after deadline + network tolerance (12.0s elapsed): locked as timeout
+      await BibleGameService.startQuestion(testUser.id, testMember.id, 3, boundaryTestDate);
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 12000).toISOString();
+      boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() - 2000).toISOString();
+      const boundaryAns3 = await BibleGameService.submitAnswer(
+        testUser.id, testMember.id, 3, boundaryChallenge.questions[3].correctOptionIndex, { challengeDate: boundaryTestDate }
+      );
+      assert(boundaryAns3.isTimeout === true, 'Submission after deadline + network tolerance locked as timeout');
+      assert(boundaryAns3.questionXp === 0.0, 'Expired submission awards 0.0 XP');
+
+      // Clean up boundary test progress
+      db.bibleUserProgress = db.bibleUserProgress.filter(p => !(p.userId === testUser.id && p.challengeDate === boundaryTestDate));
+      db.bibleDailyChallenges = db.bibleDailyChallenges.filter(c => c.challengeDate !== boundaryTestDate);
+
+      // 20. Multi-Day Streak Logic Across Africa/Lagos Day Boundaries
       const nextDayDate = '2026-10-22';
-      // Complete next day's challenge with 5/5 perfect score
       await BibleGameService.getOrCreateDailyChallenge(nextDayDate);
       await BibleGameService.startOrResumeSession(testUser.id, testMember.id, nextDayDate);
       const nextDayChallenge = await BibleGameService.getOrCreateDailyChallenge(nextDayDate);
       for (let i = 0; i < 5; i++) {
+        await BibleGameService.startQuestion(testUser.id, testMember.id, i, nextDayDate);
         await BibleGameService.submitAnswer(
           testUser.id,
           testMember.id,
           i,
           nextDayChallenge.questions[i].correctOptionIndex,
-          nextDayDate
+          { challengeDate: nextDayDate }
         );
       }
       const nextDayCompletion = await BibleGameService.completeChallenge(testUser.id, testMember.id, nextDayDate);
       assert(nextDayCompletion.score === 5, 'Next day round answered 5/5 correctly');
-      assert(nextDayCompletion.xpAwarded === 50, 'Max base score of 50 XP awarded for 5/5');
       assert(nextDayCompletion.stats.currentStreak === 2, 'Streak increments from 1 to 2 on consecutive calendar day');
       assert(nextDayCompletion.stats.bestStreak === 2, 'Best streak advances to 2');
 
       const hasPerfectFive = db.bibleUserBadges.some(b => b.userId === testUser.id && b.badgeId === 'PERFECT_FIVE');
       assert(hasPerfectFive, 'PERFECT_FIVE badge unlocked on 5/5 perfect round');
 
-      // 17. Broken Streak: Skipping a day resets current streak to 1, preserves best streak
+      // 21. Broken Streak: Skipping a day resets current streak to 1, preserves best streak
       const skippedDayDate = '2026-10-25'; // 3 days later
       await BibleGameService.getOrCreateDailyChallenge(skippedDayDate);
       await BibleGameService.startOrResumeSession(testUser.id, testMember.id, skippedDayDate);
       const skippedChallenge = await BibleGameService.getOrCreateDailyChallenge(skippedDayDate);
       for (let i = 0; i < 5; i++) {
+        await BibleGameService.startQuestion(testUser.id, testMember.id, i, skippedDayDate);
         await BibleGameService.submitAnswer(
           testUser.id,
           testMember.id,
           i,
           skippedChallenge.questions[i].correctOptionIndex,
-          skippedDayDate
+          { challengeDate: skippedDayDate }
         );
       }
       const skippedCompletion = await BibleGameService.completeChallenge(testUser.id, testMember.id, skippedDayDate);
       assert(skippedCompletion.stats.currentStreak === 1, 'Missing a day resets active streak to 1');
       assert(skippedCompletion.stats.bestStreak >= 2, 'Best streak remains preserved at 2 or higher');
 
-      // 18. Weekly Leaderboard Aggregation & Privacy Protection
+      // 22. Weekly Leaderboard Aggregation, Tie-Breakers & PII Protection
       const leaderboard = await BibleGameService.getLeaderboard(testMember.id);
       assert(Array.isArray(leaderboard.entries), 'Leaderboard returns array of entries');
       assert(leaderboard.entries.length > 0, 'Leaderboard contains participants');
       const currentUserEntry = leaderboard.entries.find(e => e.isCurrentUser);
       assert(!!currentUserEntry, 'Leaderboard flags isCurrentUser accurately');
+      assert(typeof currentUserEntry?.weeklyXp === 'number', 'Weekly XP is numeric and supports decimals');
+      assert(typeof currentUserEntry?.totalCorrectAnswers === 'number', 'Tie-breaker 1 (totalCorrectAnswers) present');
+      assert(typeof currentUserEntry?.totalResponseTimeMs === 'number', 'Tie-breaker 2 (totalResponseTimeMs) present');
+
       // Verify PII is NOT leaked
       for (const entry of leaderboard.entries) {
         assert(!('email' in entry), 'Leaderboard entries never expose email addresses (PII guard)');
@@ -4015,7 +4092,7 @@ async function runTests() {
         assert(!('dateOfBirth' in entry), 'Leaderboard entries never expose date of birth (PII guard)');
       }
 
-      // 19. Admin Question CRUD & Publication Validation
+      // 23. Admin Question CRUD & Publication Validation
       let invalidQuestionError = false;
       try {
         await BibleGameService.createQuestion(

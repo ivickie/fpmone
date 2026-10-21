@@ -30,26 +30,53 @@ export const startOrResumeSessionHandler = async (req: Request, res: Response) =
   }
 };
 
+export const startQuestionHandler = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+    const { questionIndex, date } = req.body;
+    if (typeof questionIndex !== 'number') {
+      return res.status(400).json({ success: false, error: 'questionIndex is required and must be a number.' });
+    }
+    const timing = await BibleGameService.startQuestion(
+      req.user.userId,
+      req.user.memberId,
+      questionIndex,
+      typeof date === 'string' ? date : undefined
+    );
+    return res.status(200).json({ success: true, data: timing });
+  } catch (err: any) {
+    console.error('[BIBLE GAME ERROR] startQuestionHandler:', err.message);
+    return res.status(400).json({ success: false, error: err.message || 'Failed to start question timer.' });
+  }
+};
+
 export const submitAnswerHandler = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ success: false, error: 'Authentication required.' });
     }
-    const { questionIndex, selectedOptionIndex, date } = req.body;
+    const { questionIndex, selectedOptionIndex, isTimeout, date } = req.body;
 
-    if (typeof questionIndex !== 'number' || typeof selectedOptionIndex !== 'number') {
+    if (typeof questionIndex !== 'number') {
       return res.status(400).json({
         success: false,
-        error: 'questionIndex and selectedOptionIndex are required and must be numbers.'
+        error: 'questionIndex is required and must be a number.'
       });
     }
+
+    const optIndex = (typeof selectedOptionIndex === 'number') ? selectedOptionIndex : null;
 
     const result = await BibleGameService.submitAnswer(
       req.user.userId,
       req.user.memberId,
       questionIndex,
-      selectedOptionIndex,
-      typeof date === 'string' ? date : undefined
+      optIndex,
+      {
+        isTimeout: Boolean(isTimeout || optIndex === null || optIndex === -1),
+        challengeDate: typeof date === 'string' ? date : undefined
+      }
     );
 
     return res.status(200).json({ success: true, data: result });

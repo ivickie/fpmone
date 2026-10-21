@@ -39,6 +39,7 @@ import {
 import {
   getTodayChallengeHandler,
   startOrResumeSessionHandler,
+  startQuestionHandler,
   submitAnswerHandler,
   completeChallengeHandler,
   getProgressHandler,
@@ -243,6 +244,8 @@ router.get('/finance/export', requireAuth, exportRateLimiter, exportFinanceRepor
 // --- BIBLE CHALLENGE GAME ---
 router.get('/bible-game/today', requireAuth, getTodayChallengeHandler);
 router.post('/bible-game/start', requireAuth, startOrResumeSessionHandler);
+router.post('/bible-game/question/start', requireAuth, startQuestionHandler);
+router.post('/bible-game/start-question', requireAuth, startQuestionHandler);
 router.post('/bible-game/answer', requireAuth, submitAnswerHandler);
 router.post('/bible-game/complete', requireAuth, completeChallengeHandler);
 router.get('/bible-game/progress', requireAuth, getProgressHandler);

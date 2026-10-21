@@ -314,6 +314,14 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         ALTER TABLE bible_game_badges ENABLE ROW LEVEL SECURITY;
         ALTER TABLE bible_game_user_badges ENABLE ROW LEVEL SECURITY;
         ALTER TABLE bible_game_settings ENABLE ROW LEVEL SECURITY;
+
+        -- Timed questions & decimal XP migrations
+        ALTER TABLE bible_game_user_progress ADD COLUMN IF NOT EXISTS active_question_index INT;
+        ALTER TABLE bible_game_user_progress ADD COLUMN IF NOT EXISTS active_question_started_at TIMESTAMPTZ;
+        ALTER TABLE bible_game_user_progress ADD COLUMN IF NOT EXISTS active_question_deadline_at TIMESTAMPTZ;
+        ALTER TABLE bible_game_user_progress ADD COLUMN IF NOT EXISTS total_response_time_ms INT NOT NULL DEFAULT 0;
+        ALTER TABLE bible_game_user_progress ALTER COLUMN xp_awarded TYPE NUMERIC(6, 1);
+        ALTER TABLE bible_game_user_stats ALTER COLUMN cumulative_xp TYPE NUMERIC(8, 1);
         -- Schema setup complete
       `);
       schemaMigrationsDone = true;
@@ -1871,20 +1879,27 @@ export async function persistBibleUserProgress(p: BibleUserProgress): Promise<vo
     await query(`
       INSERT INTO bible_game_user_progress (
         id, user_id, member_id, challenge_date, challenge_id,
-        current_question_index, answers, score, xp_awarded,
-        is_completed, started_at, completed_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        current_question_index, active_question_index, active_question_started_at,
+        active_question_deadline_at, answers, score, total_response_time_ms,
+        xp_awarded, is_completed, started_at, completed_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       ON CONFLICT (user_id, challenge_date) DO UPDATE SET
         current_question_index = EXCLUDED.current_question_index,
+        active_question_index = EXCLUDED.active_question_index,
+        active_question_started_at = EXCLUDED.active_question_started_at,
+        active_question_deadline_at = EXCLUDED.active_question_deadline_at,
         answers = EXCLUDED.answers,
         score = EXCLUDED.score,
+        total_response_time_ms = EXCLUDED.total_response_time_ms,
         xp_awarded = EXCLUDED.xp_awarded,
         is_completed = EXCLUDED.is_completed,
         completed_at = EXCLUDED.completed_at,
         updated_at = EXCLUDED.updated_at
     `, [
       p.id, p.userId, p.memberId, p.challengeDate, p.challengeId,
-      p.currentQuestionIndex, JSON.stringify(p.answers), p.score,
+      p.currentQuestionIndex, p.activeQuestionIndex ?? null,
+      p.activeQuestionStartedAt || null, p.activeQuestionDeadlineAt || null,
+      JSON.stringify(p.answers), p.score, p.totalResponseTimeMs || 0,
       p.xpAwarded, p.isCompleted, p.startedAt, p.completedAt || null,
       p.createdAt, p.updatedAt
     ]);

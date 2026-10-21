@@ -362,11 +362,11 @@ data class NotificationItem(
 data class BibleUserStats(
     val userId: String,
     val memberId: String,
-    val cumulativeXp: Int = 0,
+    val cumulativeXp: Double = 0.0,
     val level: Int = 1,
     val levelTitle: String = "Scripture Seeker",
-    val xpInCurrentLevel: Int = 0,
-    val xpForNextLevel: Int = 100,
+    val xpInCurrentLevel: Double = 0.0,
+    val xpForNextLevel: Double = 100.0,
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,
     val lastCompletedDate: String? = null,
@@ -395,10 +395,21 @@ data class BibleLeaderboardItem(
     val profilePictureUrl: String? = null,
     val branchId: String,
     val branchName: String? = null,
-    val weeklyXp: Int = 0,
-    val totalXp: Int = 0,
+    val weeklyXp: Double = 0.0,
+    val totalXp: Double = 0.0,
+    val totalCorrectAnswers: Int = 0,
+    val totalResponseTimeMs: Long = 0L,
     val level: Int = 1,
     val isCurrentUser: Boolean = false
+)
+
+@Serializable
+data class BibleQuestionTiming(
+    val questionIndex: Int,
+    val startedAt: String,
+    val deadlineAt: String,
+    val timeLimitSeconds: Int = 10,
+    val serverTime: String? = null
 )
 
 @Serializable
@@ -410,7 +421,11 @@ data class BibleReviewedQuestion(
     val correctOptionIndex: Int,
     val isCorrect: Boolean,
     val explanation: String,
-    val bibleReference: String
+    val bibleReference: String,
+    val responseTimeMs: Long? = null,
+    val remainingTimeMs: Long? = null,
+    val questionXp: Double = 0.0,
+    val isTimeout: Boolean = false
 )
 
 @Serializable
@@ -439,11 +454,15 @@ data class BibleQuestionView(
 @Serializable
 data class BibleAnsweredQuestion(
     val questionId: String,
-    val selectedIndex: Int,
+    val selectedIndex: Int? = null,
     val isCorrect: Boolean,
     val correctOptionIndex: Int,
     val explanation: String,
-    val bibleReference: String
+    val bibleReference: String,
+    val responseTimeMs: Long? = null,
+    val remainingTimeMs: Long? = null,
+    val questionXp: Double = 0.0,
+    val isTimeout: Boolean = false
 )
 
 @Serializable
@@ -454,7 +473,9 @@ data class BibleGameSession(
     val totalQuestions: Int = 5,
     val isCompleted: Boolean,
     val score: Int,
+    val totalXp: Double = 0.0,
     val currentQuestion: BibleQuestionView? = null,
+    val activeQuestionTiming: BibleQuestionTiming? = null,
     val answeredQuestions: List<BibleAnsweredQuestion> = emptyList()
 )
 
@@ -466,7 +487,11 @@ data class BibleAnswerFeedback(
     val bibleReference: String,
     val score: Int,
     val currentQuestionIndex: Int,
-    val isRoundFinished: Boolean
+    val isRoundFinished: Boolean,
+    val questionXp: Double = 0.0,
+    val responseTimeMs: Long = 0L,
+    val remainingTimeMs: Long = 0L,
+    val isTimeout: Boolean = false
 )
 
 @Serializable
@@ -474,7 +499,7 @@ data class BibleChallengeCompletion(
     val challengeDate: String,
     val score: Int,
     val totalQuestions: Int = 5,
-    val xpAwarded: Int,
+    val xpAwarded: Double,
     val alreadyCompleted: Boolean,
     val stats: BibleUserStats,
     val newlyUnlockedBadges: List<BibleBadgeItem> = emptyList(),
@@ -492,7 +517,7 @@ data class BibleProgressHistory(
 data class BibleRecentChallenge(
     val challengeDate: String,
     val score: Int,
-    val xpAwarded: Int,
+    val xpAwarded: Double,
     val isCompleted: Boolean,
     val completedAt: String? = null
 )

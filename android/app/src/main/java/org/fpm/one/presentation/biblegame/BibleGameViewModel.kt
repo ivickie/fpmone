@@ -2,13 +2,17 @@ package org.fpm.one.presentation.biblegame
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.fpm.one.data.model.*
 import org.fpm.one.data.repository.BibleGameRepository
+import java.time.Instant
 
 enum class BibleGameView {
     HOME,
@@ -29,6 +33,10 @@ data class BibleGameState(
     val session: BibleGameSession? = null,
     val activeQuestion: BibleQuestionView? = null,
     val selectedOptionIndex: Int? = null,
+    val isQuestionLocked: Boolean = false,
+    val remainingSeconds: Float = 10.0f,
+    val isQuestionTimerRunning: Boolean = false,
+    val activeTiming: BibleQuestionTiming? = null,
     val lastAnswerFeedback: BibleAnswerFeedback? = null,
     val completionResult: BibleChallengeCompletion? = null,
     val progressHistory: BibleProgressHistory? = null,
@@ -43,8 +51,15 @@ class BibleGameViewModel(
     private val _state = MutableStateFlow(BibleGameState())
     val state: StateFlow<BibleGameState> = _state.asStateFlow()
 
+    private var timerJob: Job? = null
+
     init {
         loadTodayOverview()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        timerJob?.cancel()
     }
 
     fun loadTodayOverview() {
@@ -75,19 +90,20 @@ class BibleGameViewModel(
     }
 
     fun startChallenge() {
+        timerJob?.cancel()
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, errorMessage = null) }
             val result = repository.startOrResumeSession()
             result.fold(
                 onSuccess = { session ->
                     if (session.isCompleted) {
-                        // Already completed, review results
                         _state.update {
                             it.copy(
                                 isLoading = false,
                                 session = session,
                                 activeQuestion = null,
                                 selectedOptionIndex = null,
+                                isQuestionLocked = false,
                                 lastAnswerFeedback = null,
                                 currentView = BibleGameView.RESULTS
                             )
@@ -99,9 +115,17 @@ class BibleGameViewModel(
                                 session = session,
                                 activeQuestion = session.currentQuestion,
                                 selectedOptionIndex = null,
+                                isQuestionLocked = false,
                                 lastAnswerFeedback = null,
                                 currentView = BibleGameView.QUIZ
                             )
+                        }
+                        val timing = session.activeQuestionTiming
+                        if (timing != null) {
+                            startQuestionCountdown(timing)
+                        } else {
+                            val timingRes = repository.startQuestion(session.currentQuestionIndex)
+                            timingRes.getOrNull()?.let { startQuestionCountdown(it) }
                         }
                     }
                 },
@@ -117,22 +141,77 @@ class BibleGameViewModel(
         }
     }
 
-    fun selectOption(index: Int) {
-        // Only permit selection if answer has not yet been submitted for this question
-        if (_state.value.lastAnswerFeedback == null && !_state.value.isSubmittingAnswer) {
-            _state.update { it.copy(selectedOptionIndex = index) }
+    fun startQuestionCountdown(timing: BibleQuestionTiming) {
+        timerJob?.cancel()
+        _state.update {
+            it.copy(
+                activeTiming = timing,
+                isQuestionLocked = false,
+                isQuestionTimerRunning = true,
+                remainingSeconds = 10.0f
+            )
+        }
+
+        val deadlineEpoch = try {
+            Instant.parse(timing.deadlineAt).toEpochMilli()
+        } catch (e: Exception) {
+            System.currentTimeMillis() + 10000L
+        }
+        val serverEpoch = try {
+            timing.serverTime?.let { Instant.parse(it).toEpochMilli() } ?: System.currentTimeMillis()
+        } catch (e: Exception) {
+            System.currentTimeMillis()
+        }
+        val clockOffset = serverEpoch - System.currentTimeMillis()
+
+        timerJob = viewModelScope.launch {
+            while (isActive) {
+                val nowServer = System.currentTimeMillis() + clockOffset
+                val remainingMs = (deadlineEpoch - nowServer).coerceAtLeast(0L)
+                val remainingSec = (remainingMs / 1000f).coerceIn(0f, 10f)
+
+                _state.update {
+                    it.copy(
+                        remainingSeconds = remainingSec,
+                        isQuestionTimerRunning = remainingMs > 0
+                    )
+                }
+
+                if (remainingMs <= 0L) {
+                    handleTimeoutSubmission(timing.questionIndex)
+                    break
+                }
+                delay(50L)
+            }
         }
     }
 
-    fun submitAnswer() {
-        val selected = _state.value.selectedOptionIndex ?: return
-        val session = _state.value.session ?: return
-        if (_state.value.lastAnswerFeedback != null || _state.value.isSubmittingAnswer) return
+    fun selectOption(index: Int) {
+        val currentState = _state.value
+        if (currentState.isQuestionLocked || currentState.lastAnswerFeedback != null || currentState.isSubmittingAnswer) {
+            return
+        }
+
+        // Immediately lock question and cancel local timer
+        timerJob?.cancel()
+        _state.update {
+            it.copy(
+                selectedOptionIndex = index,
+                isQuestionLocked = true,
+                isQuestionTimerRunning = false
+            )
+        }
+
+        val session = currentState.session ?: return
+        val questionIndex = session.currentQuestionIndex
 
         viewModelScope.launch {
             _state.update { it.copy(isSubmittingAnswer = true, errorMessage = null) }
-            val questionIndex = session.currentQuestionIndex
-            val result = repository.submitAnswer(questionIndex, selected)
+            val result = repository.submitAnswer(
+                questionIndex = questionIndex,
+                selectedOptionIndex = index,
+                isTimeout = false
+            )
             result.fold(
                 onSuccess = { feedback ->
                     _state.update {
@@ -154,18 +233,92 @@ class BibleGameViewModel(
         }
     }
 
+    private fun handleTimeoutSubmission(questionIndex: Int) {
+        val currentState = _state.value
+        if (currentState.lastAnswerFeedback != null || currentState.isSubmittingAnswer) return
+
+        timerJob?.cancel()
+        _state.update {
+            it.copy(
+                isQuestionLocked = true,
+                isQuestionTimerRunning = false,
+                remainingSeconds = 0.0f,
+                isSubmittingAnswer = true
+            )
+        }
+
+        viewModelScope.launch {
+            val result = repository.submitAnswer(
+                questionIndex = questionIndex,
+                selectedOptionIndex = null,
+                isTimeout = true
+            )
+            result.fold(
+                onSuccess = { feedback ->
+                    _state.update {
+                        it.copy(
+                            isSubmittingAnswer = false,
+                            lastAnswerFeedback = feedback
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    _state.update {
+                        it.copy(
+                            isSubmittingAnswer = false,
+                            errorMessage = err.message ?: "Time expired. Could not record response."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     fun continueToNextQuestion() {
         val feedback = _state.value.lastAnswerFeedback ?: return
+        timerJob?.cancel()
         if (feedback.isRoundFinished) {
-            // Completed 5/5 questions, finalize round
             finalizeChallengeRound()
         } else {
-            // Move to next question by refreshing session
-            startChallenge()
+            val nextIndex = feedback.currentQuestionIndex
+            viewModelScope.launch {
+                _state.update { it.copy(isLoading = true, errorMessage = null) }
+                val timingResult = repository.startQuestion(nextIndex)
+                val sessionResult = repository.startOrResumeSession()
+
+                sessionResult.fold(
+                    onSuccess = { session ->
+                        val timing = timingResult.getOrNull() ?: session.activeQuestionTiming
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                session = session,
+                                activeQuestion = session.currentQuestion,
+                                selectedOptionIndex = null,
+                                isQuestionLocked = false,
+                                lastAnswerFeedback = null,
+                                currentView = BibleGameView.QUIZ
+                            )
+                        }
+                        if (timing != null) {
+                            startQuestionCountdown(timing)
+                        }
+                    },
+                    onFailure = { err ->
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = err.message ?: "Failed to load next question."
+                            )
+                        }
+                    }
+                )
+            }
         }
     }
 
     private fun finalizeChallengeRound() {
+        timerJob?.cancel()
         viewModelScope.launch {
             _state.update { it.copy(isCompletingRound = true, errorMessage = null) }
             val result = repository.completeChallenge()
@@ -178,7 +331,6 @@ class BibleGameViewModel(
                             currentView = BibleGameView.RESULTS
                         )
                     }
-                    // Refresh overview in background
                     loadTodayOverview()
                 },
                 onFailure = { err ->
@@ -200,7 +352,7 @@ class BibleGameViewModel(
                 challengeDate = overview.challengeDate,
                 score = overview.score,
                 totalQuestions = overview.totalQuestions,
-                xpAwarded = 0,
+                xpAwarded = 0.0,
                 alreadyCompleted = true,
                 stats = overview.stats,
                 newlyUnlockedBadges = emptyList(),
@@ -268,6 +420,9 @@ class BibleGameViewModel(
     }
 
     fun navigateTo(view: BibleGameView) {
+        if (view != BibleGameView.QUIZ) {
+            timerJob?.cancel()
+        }
         _state.update {
             it.copy(
                 currentView = view,

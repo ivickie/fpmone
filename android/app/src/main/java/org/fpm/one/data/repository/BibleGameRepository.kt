@@ -50,15 +50,40 @@ class BibleGameRepository {
         }
     }
 
+    suspend fun startQuestion(
+        questionIndex: Int,
+        date: String? = null
+    ): Result<BibleQuestionTiming> = withContext(Dispatchers.IO) {
+        try {
+            val jsonBody = buildJsonObject {
+                put("questionIndex", questionIndex)
+                if (date != null) put("date", date)
+            }.toString()
+            val responseText = ApiClient.post("/bible-game/question/start", jsonBody)
+            val parsed = ApiClient.json.decodeFromString<BibleApiResponse<BibleQuestionTiming>>(responseText)
+            if (parsed.success && parsed.data != null) {
+                Result.success(parsed.data)
+            } else {
+                Result.failure(Exception(parsed.error ?: "Failed to start question timer."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun submitAnswer(
         questionIndex: Int,
-        selectedOptionIndex: Int,
+        selectedOptionIndex: Int?,
+        isTimeout: Boolean = false,
         date: String? = null
     ): Result<BibleAnswerFeedback> = withContext(Dispatchers.IO) {
         try {
             val jsonBody = buildJsonObject {
                 put("questionIndex", questionIndex)
-                put("selectedOptionIndex", selectedOptionIndex)
+                if (selectedOptionIndex != null) {
+                    put("selectedOptionIndex", selectedOptionIndex)
+                }
+                put("isTimeout", isTimeout)
                 if (date != null) put("date", date)
             }.toString()
             val responseText = ApiClient.post("/bible-game/answer", jsonBody)

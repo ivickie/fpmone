@@ -117,7 +117,6 @@ fun BibleGameScreen(
                 BibleGameView.QUIZ -> BibleQuizScreen(
                     state = state,
                     onSelectOption = { viewModel.selectOption(it) },
-                    onSubmitAnswer = { viewModel.submitAnswer() },
                     onContinue = { viewModel.continueToNextQuestion() }
                 )
                 BibleGameView.RESULTS -> BibleResultsScreen(
@@ -296,13 +295,18 @@ fun BibleGameHomeScreen(
                                     color = FpmGoldLight
                                 )
                                 Text(
-                                    text = "${stats?.cumulativeXp ?: 0} Total XP",
+                                    text = String.format(java.util.Locale.US, "%.1f Total XP", stats?.cumulativeXp ?: 0.0),
                                     fontSize = 11.sp,
                                     color = FpmTextMuted
                                 )
                             }
                             Text(
-                                text = "${stats?.xpInCurrentLevel ?: 0} / ${((stats?.xpInCurrentLevel ?: 0) + (stats?.xpForNextLevel ?: 100))} XP",
+                                text = String.format(
+                                    java.util.Locale.US,
+                                    "%.1f / %.1f XP",
+                                    stats?.xpInCurrentLevel ?: 0.0,
+                                    ((stats?.xpInCurrentLevel ?: 0.0) + (stats?.xpForNextLevel ?: 100.0))
+                                ),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = FpmTextOnDark
@@ -312,9 +316,11 @@ fun BibleGameHomeScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Linear progress indicator
-                        val totalInLevel = (stats?.xpInCurrentLevel ?: 0) + (stats?.xpForNextLevel ?: 100)
-                        val progressRatio = if (totalInLevel > 0) {
-                            (stats?.xpInCurrentLevel ?: 0).toFloat() / totalInLevel.toFloat()
+                        val currentXp = stats?.xpInCurrentLevel ?: 0.0
+                        val nextXp = stats?.xpForNextLevel ?: 100.0
+                        val totalInLevel = currentXp + nextXp
+                        val progressRatio = if (totalInLevel > 0.0) {
+                            (currentXp / totalInLevel).toFloat()
                         } else 0f
 
                         LinearProgressIndicator(
@@ -587,7 +593,7 @@ fun BibleGameHomeScreen(
                                     }
                                 }
                                 Text(
-                                    text = "${entry.weeklyXp} XP",
+                                    text = String.format(java.util.Locale.US, "%.1f XP", entry.weeklyXp),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = FpmGoldDark
@@ -692,7 +698,6 @@ fun BibleGameHomeScreen(
 fun BibleQuizScreen(
     state: BibleGameState,
     onSelectOption: (Int) -> Unit,
-    onSubmitAnswer: () -> Unit,
     onContinue: () -> Unit
 ) {
     val session = state.session ?: return
@@ -709,7 +714,13 @@ fun BibleQuizScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Progress Indicator Bar
+        // Timer countdown row
+        val timerColor = when {
+            state.remainingSeconds <= 3.0f -> FpmError
+            state.remainingSeconds <= 6.0f -> FpmAmber
+            else -> FpmGold
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -721,28 +732,60 @@ fun BibleQuizScreen(
                 fontWeight = FontWeight.Bold,
                 color = FpmGoldDark
             )
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = FpmGold.copy(alpha = 0.15f),
-                border = BorderStroke(0.5.dp, FpmGold.copy(alpha = 0.4f))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = question.category.uppercase(),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = FpmNavyDark,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                )
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = timerColor.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, timerColor.copy(alpha = 0.6f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Timer,
+                            contentDescription = null,
+                            tint = timerColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.1fs", state.remainingSeconds),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            color = timerColor
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = FpmGold.copy(alpha = 0.15f),
+                    border = BorderStroke(0.5.dp, FpmGold.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = question.category.uppercase(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FpmNavyDark,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
         }
 
+        // Animated Smooth 10s Timer Countdown Bar
         LinearProgressIndicator(
-            progress = { questionNumber.toFloat() / 5f },
+            progress = { (state.remainingSeconds / 10f).coerceIn(0f, 1f) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
-            color = FpmGold,
+            color = timerColor,
             trackColor = FpmTheme.cardBorder
         )
 
@@ -796,7 +839,7 @@ fun BibleQuizScreen(
             }
 
             Surface(
-                onClick = { if (!hasAnswered) onSelectOption(index) },
+                onClick = { if (!hasAnswered && !state.isQuestionLocked) onSelectOption(index) },
                 shape = RoundedCornerShape(14.dp),
                 color = containerColor,
                 border = BorderStroke(if (isSelected || isCorrect || isChosenIncorrect) 1.5.dp else 1.dp, borderColor),
@@ -865,12 +908,38 @@ fun BibleQuizScreen(
 
         // Feedback / Scripture Explanation Card
         if (hasAnswered) {
+            val isTimeout = feedback.isTimeout
+            val titleText = when {
+                isTimeout -> "⏱ Time Expired (0.0 XP)"
+                feedback.isCorrect -> String.format(java.util.Locale.US, "✓ Amen! Correct (+%.1f XP)", feedback.questionXp)
+                else -> "✗ Missed (0.0 XP)"
+            }
+            val speedSubtext = if (feedback.isCorrect && feedback.responseTimeMs > 0) {
+                String.format(
+                    java.util.Locale.US,
+                    "Speed: %.1fs · Remaining: %.1fs",
+                    feedback.responseTimeMs / 1000f,
+                    feedback.remainingTimeMs / 1000f
+                )
+            } else null
+
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (feedback.isCorrect) FpmSuccessBg else FpmGoldSubtle
+                    containerColor = when {
+                        feedback.isCorrect -> FpmSuccessBg
+                        isTimeout -> FpmErrorBg
+                        else -> FpmGoldSubtle
+                    }
                 ),
-                border = BorderStroke(1.dp, if (feedback.isCorrect) FpmSuccess.copy(alpha = 0.4f) else FpmGoldMuted),
+                border = BorderStroke(
+                    1.dp,
+                    when {
+                        feedback.isCorrect -> FpmSuccess.copy(alpha = 0.4f)
+                        isTimeout -> FpmError.copy(alpha = 0.4f)
+                        else -> FpmGoldMuted
+                    }
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -879,12 +948,26 @@ fun BibleQuizScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (feedback.isCorrect) "Amen! That's correct (+10 XP)" else "Encouraging Word",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (feedback.isCorrect) FpmSuccess else FpmGoldDark
-                        )
+                        Column {
+                            Text(
+                                text = titleText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    feedback.isCorrect -> FpmSuccess
+                                    isTimeout -> FpmError
+                                    else -> FpmGoldDark
+                                }
+                            )
+                            speedSubtext?.let { sub ->
+                                Text(
+                                    text = sub,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = FpmTheme.textSecondary
+                                )
+                            }
+                        }
                         Text(
                             text = feedback.bibleReference,
                             fontSize = 12.sp,
@@ -922,33 +1005,30 @@ fun BibleQuizScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
-        } else {
-            // Submit Button
-            Button(
-                onClick = onSubmitAnswer,
-                enabled = state.selectedOptionIndex != null && !state.isSubmittingAnswer,
+        } else if (state.isSubmittingAnswer) {
+            Surface(
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = FpmGold,
-                    contentColor = FpmNavyDark,
-                    disabledContainerColor = FpmTheme.cardBorder,
-                    disabledContentColor = FpmTheme.textMuted
-                ),
+                color = FpmNavyDark.copy(alpha = 0.05f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                if (state.isSubmittingAnswer) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = FpmNavyDark
+                        color = FpmGold
                     )
-                } else {
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Submit Answer",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "Recording answer...",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FpmTheme.textSecondary
                     )
                 }
             }
@@ -968,7 +1048,7 @@ fun BibleResultsScreen(
     val completion = state.completionResult
     val score = completion?.score ?: 0
     val total = completion?.totalQuestions ?: 5
-    val xpEarned = completion?.xpAwarded ?: 0
+    val xpEarned = completion?.xpAwarded ?: 0.0
     val stats = completion?.stats
 
     var showReviewDetails by remember { mutableStateOf(false) }
@@ -1051,7 +1131,7 @@ fun BibleResultsScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "+$xpEarned XP",
+                                    text = String.format(java.util.Locale.US, "+%.1f XP", xpEarned),
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Black,
                                     color = FpmGoldLight
@@ -1170,20 +1250,44 @@ fun BibleResultsScreen(
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val statusLabel = when {
+                                q.isTimeout -> "⏱ Time Expired (0.0 XP)"
+                                q.isCorrect -> String.format(java.util.Locale.US, "✓ Correct (+%.1f XP)", q.questionXp)
+                                else -> "✗ Missed (0.0 XP)"
+                            }
+                            val statusColor = when {
+                                q.isCorrect -> FpmSuccess
+                                q.isTimeout -> FpmError
+                                else -> FpmError
+                            }
                             Text(
-                                text = if (q.isCorrect) "✓ Correct" else "✗ Missed",
+                                text = statusLabel,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (q.isCorrect) FpmSuccess else FpmError
+                                color = statusColor
                             )
-                            Text(
-                                text = q.bibleReference,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = FpmGoldDark
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (q.responseTimeMs != null && q.responseTimeMs > 0L) {
+                                    Text(
+                                        text = String.format(java.util.Locale.US, "%.1fs", q.responseTimeMs / 1000f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = FpmTheme.textMuted
+                                    )
+                                }
+                                Text(
+                                    text = q.bibleReference,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FpmGoldDark
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1276,16 +1380,18 @@ fun BibleProgressScreen(
                         color = FpmTextOnDark
                     )
                     Text(
-                        text = "${stats?.cumulativeXp ?: 0} Cumulative XP earned",
+                        text = String.format(java.util.Locale.US, "%.1f Cumulative XP earned", stats?.cumulativeXp ?: 0.0),
                         fontSize = 12.sp,
                         color = FpmTextMuted
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    val totalInLevel = (stats?.xpInCurrentLevel ?: 0) + (stats?.xpForNextLevel ?: 100)
-                    val progressRatio = if (totalInLevel > 0) {
-                        (stats?.xpInCurrentLevel ?: 0).toFloat() / totalInLevel.toFloat()
+                    val currentXp = stats?.xpInCurrentLevel ?: 0.0
+                    val nextXp = stats?.xpForNextLevel ?: 100.0
+                    val totalInLevel = currentXp + nextXp
+                    val progressRatio = if (totalInLevel > 0.0) {
+                        (currentXp / totalInLevel).toFloat()
                     } else 0f
 
                     LinearProgressIndicator(
@@ -1301,7 +1407,7 @@ fun BibleProgressScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "${stats?.xpForNextLevel ?: 100} XP needed to reach next rank",
+                        text = String.format(java.util.Locale.US, "%.1f XP needed to reach next rank", stats?.xpForNextLevel ?: 100.0),
                         fontSize = 11.sp,
                         color = FpmTextMuted
                     )
@@ -1507,7 +1613,11 @@ fun BibleLeaderboardScreen(
                                     color = if (entry.isCurrentUser) FpmGoldDark else FpmTheme.textPrimary
                                 )
                                 Text(
-                                    text = "${entry.branchName ?: "FPM Global"} · Level ${entry.level}",
+                                    text = if (entry.totalCorrectAnswers > 0 || entry.totalResponseTimeMs > 0L) {
+                                        "${entry.branchName ?: "FPM Global"} · Level ${entry.level} · ${entry.totalCorrectAnswers} correct (${String.format(java.util.Locale.US, "%.1fs", entry.totalResponseTimeMs / 1000f)})"
+                                    } else {
+                                        "${entry.branchName ?: "FPM Global"} · Level ${entry.level}"
+                                    },
                                     fontSize = 11.sp,
                                     color = FpmTheme.textMuted
                                 )
@@ -1515,7 +1625,7 @@ fun BibleLeaderboardScreen(
                         }
 
                         Text(
-                            text = "${entry.weeklyXp} XP",
+                            text = String.format(java.util.Locale.US, "%.1f XP", entry.weeklyXp),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Black,
                             color = FpmGoldDark

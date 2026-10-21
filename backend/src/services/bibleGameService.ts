@@ -12,7 +12,8 @@ import {
   BibleQuestionCategory,
   BibleQuestionDifficulty,
   BibleQuestionStatus,
-  BibleGameSettings
+  BibleGameSettings,
+  BibleQuestionTiming
 } from '../types';
 import {
   persistBibleQuestion,
@@ -108,9 +109,9 @@ export class BibleGameService {
       }
     }
 
-    const xpInCurrentLevel = safeXp - matchedTier.minXp;
+    const xpInCurrentLevel = Math.round((safeXp - matchedTier.minXp) * 10) / 10;
     const levelSpan = matchedTier.nextLevelXp - matchedTier.minXp;
-    const xpForNextLevel = Math.max(0, matchedTier.nextLevelXp - safeXp);
+    const xpForNextLevel = Math.round(Math.max(0, matchedTier.nextLevelXp - safeXp) * 10) / 10;
     const progressPercent = Math.min(100, Math.round((xpInCurrentLevel / levelSpan) * 100));
 
     return {
@@ -319,11 +320,15 @@ export class BibleGameService {
           id: q.id,
           questionText: q.questionText,
           options: q.options,
-          selectedIndex: ans?.selectedIndex,
+          selectedIndex: ans ? ans.selectedIndex : -1,
           correctOptionIndex: q.correctOptionIndex,
           isCorrect: Boolean(ans?.isCorrect),
           explanation: q.explanation,
-          bibleReference: q.bibleReference
+          bibleReference: q.bibleReference,
+          responseTimeMs: ans?.responseTimeMs || 0,
+          remainingTimeMs: ans?.remainingTimeMs || 0,
+          questionXp: ans?.questionXp || 0.0,
+          isTimeout: Boolean(ans?.isTimeout)
         };
       });
     }
@@ -334,6 +339,8 @@ export class BibleGameService {
       totalQuestions: 5,
       isCompleted: Boolean(progress?.isCompleted),
       score: progress?.score || 0,
+      totalXp: progress?.xpAwarded || 0.0,
+      totalResponseTimeMs: progress?.totalResponseTimeMs || 0,
       currentQuestionIndex: progress?.currentQuestionIndex || 0,
       stats,
       badges: badgesWithStatus,
@@ -352,7 +359,9 @@ export class BibleGameService {
     totalQuestions: number;
     isCompleted: boolean;
     score: number;
+    totalXp: number;
     currentQuestion: BibleQuestionClientView | null;
+    activeQuestionTiming?: BibleQuestionTiming;
     answeredQuestions: Array<{
       questionId: string;
       selectedIndex: number;
@@ -360,6 +369,10 @@ export class BibleGameService {
       correctOptionIndex: number;
       explanation: string;
       bibleReference: string;
+      responseTimeMs: number;
+      remainingTimeMs: number;
+      questionXp: number;
+      isTimeout: boolean;
     }>;
   }> {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
@@ -379,7 +392,8 @@ export class BibleGameService {
         currentQuestionIndex: 0,
         answers: [],
         score: 0,
-        xpAwarded: 0,
+        totalResponseTimeMs: 0,
+        xpAwarded: 0.0,
         isCompleted: false,
         startedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -397,13 +411,38 @@ export class BibleGameService {
         isCorrect: ans.isCorrect,
         correctOptionIndex: q ? q.correctOptionIndex : 0,
         explanation: q ? q.explanation : '',
-        bibleReference: q ? q.bibleReference : ''
+        bibleReference: q ? q.bibleReference : '',
+        responseTimeMs: ans.responseTimeMs || 0,
+        remainingTimeMs: ans.remainingTimeMs || 0,
+        questionXp: ans.questionXp || 0.0,
+        isTimeout: Boolean(ans.isTimeout)
       };
     });
 
     const activeQuestion = (!progress.isCompleted && progress.currentQuestionIndex < questions.length)
       ? BibleGameService.toClientQuestionView(questions[progress.currentQuestionIndex])
       : null;
+
+    let activeQuestionTiming: BibleQuestionTiming | undefined = undefined;
+    if (
+      !progress.isCompleted &&
+      progress.activeQuestionIndex === progress.currentQuestionIndex &&
+      progress.activeQuestionStartedAt &&
+      progress.activeQuestionDeadlineAt &&
+      activeQuestion
+    ) {
+      activeQuestionTiming = {
+        questionIndex: progress.currentQuestionIndex,
+        questionId: activeQuestion.id,
+        startedAt: progress.activeQuestionStartedAt,
+        deadlineAt: progress.activeQuestionDeadlineAt,
+        serverTime: new Date().toISOString(),
+        timeLimitSeconds: 10,
+        timeLimitMs: 10000
+      };
+    }
+
+    const totalXp = Math.round(progress.answers.reduce((sum, a) => sum + (a.questionXp || 0), 0) * 10) / 10;
 
     return {
       challengeDate: targetDate,
@@ -412,22 +451,114 @@ export class BibleGameService {
       totalQuestions: 5,
       isCompleted: progress.isCompleted,
       score: progress.score,
+      totalXp,
       currentQuestion: activeQuestion,
+      activeQuestionTiming,
       answeredQuestions
     };
   }
 
   /**
-   * Submits an answer for the current active question index.
-   * Strictly enforces sequence, locks answered questions against resubmission,
-   * validates choice index (0..3), and reveals answer details only upon submission.
+   * Authoritative start handshake for timed questions.
+   * Starts the 10-second countdown when the client renders the question and answer choices.
+   * Idempotent & persistent: if called multiple times or after backgrounding/network interruption,
+   * returns the existing deadline so elapsed time continues without resetting.
+   */
+  public static async startQuestion(
+    userId: string,
+    memberId: string,
+    questionIndex: number,
+    challengeDate?: string
+  ): Promise<BibleQuestionTiming> {
+    const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
+    const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
+
+    let progress = db.bibleUserProgress.find(
+      p => p.userId === userId && p.challengeDate === targetDate
+    );
+
+    if (!progress) {
+      await BibleGameService.startOrResumeSession(userId, memberId, targetDate);
+      progress = db.bibleUserProgress.find(
+        p => p.userId === userId && p.challengeDate === targetDate
+      )!;
+    }
+
+    if (progress.isCompleted) {
+      throw new Error('This daily challenge has already been completed.');
+    }
+
+    if (questionIndex !== progress.currentQuestionIndex) {
+      throw new Error(`Invalid question start sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
+    }
+
+    if (questionIndex < 0 || questionIndex >= questions.length) {
+      throw new Error('Question index is out of bounds.');
+    }
+
+    const currentQuestion = questions[questionIndex];
+    const now = Date.now();
+    const timeLimitMs = 10000; // 10 seconds
+
+    // If timer already started for this active question, return existing deadline (anti-reset guard)
+    if (
+      progress.activeQuestionIndex === questionIndex &&
+      progress.activeQuestionStartedAt &&
+      progress.activeQuestionDeadlineAt
+    ) {
+      return {
+        questionIndex,
+        questionId: currentQuestion.id,
+        startedAt: progress.activeQuestionStartedAt,
+        deadlineAt: progress.activeQuestionDeadlineAt,
+        serverTime: new Date(now).toISOString(),
+        timeLimitSeconds: 10,
+        timeLimitMs
+      };
+    }
+
+    const startedAt = new Date(now).toISOString();
+    const deadlineAt = new Date(now + timeLimitMs).toISOString();
+
+    progress.activeQuestionIndex = questionIndex;
+    progress.activeQuestionStartedAt = startedAt;
+    progress.activeQuestionDeadlineAt = deadlineAt;
+    progress.updatedAt = startedAt;
+
+    await persistBibleUserProgress(progress);
+
+    return {
+      questionIndex,
+      questionId: currentQuestion.id,
+      startedAt,
+      deadlineAt,
+      serverTime: new Date(now).toISOString(),
+      timeLimitSeconds: 10,
+      timeLimitMs
+    };
+  }
+
+  /**
+   * Submits an answer or handles timeout for the active question index.
+   * Strictly enforces server-authoritative 10-second deadline with documented 1.0s network transit tolerance.
+   * Calculates speed-based XP:
+   *   Question XP = round(10 * remaining time / 10, 1) = round(remainingSeconds, 1)
+   * Examples:
+   *   9.7s remaining -> 9.7 XP
+   *   6.4s remaining -> 6.4 XP
+   *   2.1s remaining -> 2.1 XP
+   *   Deadline expired / Incorrect / Timeout -> 0.0 XP
+   * Idempotent: protects against concurrent submissions racing against timeout or network retries.
    */
   public static async submitAnswer(
     userId: string,
     memberId: string,
     questionIndex: number,
-    selectedOptionIndex: number,
-    challengeDate?: string
+    selectedOptionIndex: number | null,
+    options?: {
+      isTimeout?: boolean;
+      challengeDate?: string;
+    }
   ): Promise<{
     isCorrect: boolean;
     correctOptionIndex: number;
@@ -436,12 +567,20 @@ export class BibleGameService {
     score: number;
     currentQuestionIndex: number;
     isRoundFinished: boolean;
+    questionXp: number;
+    responseTimeMs: number;
+    remainingTimeMs: number;
+    isTimeout: boolean;
   }> {
-    if (!Number.isInteger(selectedOptionIndex) || selectedOptionIndex < 0 || selectedOptionIndex > 3) {
-      throw new Error('Invalid option index. Must be between 0 and 3.');
+    const isTimeout = Boolean(options?.isTimeout || selectedOptionIndex === null || selectedOptionIndex === -1);
+
+    if (!isTimeout) {
+      if (!Number.isInteger(selectedOptionIndex) || selectedOptionIndex! < 0 || selectedOptionIndex! > 3) {
+        throw new Error('Invalid option index. Must be between 0 and 3.');
+      }
     }
 
-    const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
+    const targetDate = options?.challengeDate || BibleGameService.getTodayLagosDate();
     const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
     let progress = db.bibleUserProgress.find(
@@ -456,37 +595,116 @@ export class BibleGameService {
       throw new Error('This daily challenge has already been completed.');
     }
 
-    if (questionIndex !== progress.currentQuestionIndex) {
-      throw new Error(`Invalid question submission sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
-    }
-
     if (questionIndex < 0 || questionIndex >= questions.length) {
       throw new Error('Question index is out of bounds.');
     }
 
     const currentQuestion = questions[questionIndex];
 
-    // Verify whether this question has already been recorded in answers
-    const alreadyAnswered = progress.answers.some(a => a.questionId === currentQuestion.id);
-    if (alreadyAnswered) {
-      throw new Error('This question has already been answered.');
+    // Idempotency: check if this question was already answered (e.g. answer raced with timeout)
+    const existingAnswer = progress.answers.find(a => a.questionId === currentQuestion.id);
+    if (existingAnswer) {
+      return {
+        isCorrect: existingAnswer.isCorrect,
+        correctOptionIndex: currentQuestion.correctOptionIndex,
+        explanation: currentQuestion.explanation,
+        bibleReference: currentQuestion.bibleReference,
+        score: progress.score,
+        currentQuestionIndex: progress.currentQuestionIndex,
+        isRoundFinished: progress.currentQuestionIndex >= 5,
+        questionXp: existingAnswer.questionXp,
+        responseTimeMs: existingAnswer.responseTimeMs,
+        remainingTimeMs: existingAnswer.remainingTimeMs,
+        isTimeout: Boolean(existingAnswer.isTimeout)
+      };
     }
 
-    const isCorrect = selectedOptionIndex === currentQuestion.correctOptionIndex;
+    if (questionIndex !== progress.currentQuestionIndex) {
+      throw new Error(`Invalid question submission sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
+    }
 
-    progress.answers.push({
+    const receivedAt = Date.now();
+    const NETWORK_TOLERANCE_MS = 1000; // 1.0 second documented network transit tolerance
+
+    let startedAtMs = receivedAt - 10000;
+    let deadlineAtMs = receivedAt;
+
+    if (
+      progress.activeQuestionIndex === questionIndex &&
+      progress.activeQuestionStartedAt
+    ) {
+      startedAtMs = new Date(progress.activeQuestionStartedAt).getTime();
+      deadlineAtMs = progress.activeQuestionDeadlineAt
+        ? new Date(progress.activeQuestionDeadlineAt).getTime()
+        : startedAtMs + 10000;
+    }
+
+    let selectedIndex = -1;
+    let isCorrect = false;
+    let responseTimeMs = 10000;
+    let remainingTimeMs = 0;
+    let questionXp = 0.0;
+    let isTimeoutResult = false;
+
+    if (isTimeout) {
+      selectedIndex = -1;
+      isCorrect = false;
+      responseTimeMs = Math.min(10000, Math.max(0, receivedAt - startedAtMs));
+      remainingTimeMs = 0;
+      questionXp = 0.0;
+      isTimeoutResult = true;
+    } else if (receivedAt > deadlineAtMs + NETWORK_TOLERANCE_MS) {
+      // Received strictly after deadline + network tolerance: locked as timeout/unanswered
+      selectedIndex = -1;
+      isCorrect = false;
+      responseTimeMs = 10000;
+      remainingTimeMs = 0;
+      questionXp = 0.0;
+      isTimeoutResult = true;
+    } else {
+      // Received within deadline window (or within 1.0s network transit tolerance)
+      const remainingMs = Math.max(0, Math.min(10000, deadlineAtMs - receivedAt));
+      const respTimeMs = Math.max(0, Math.min(10000, 10000 - remainingMs));
+      const answerCorrect = selectedOptionIndex === currentQuestion.correctOptionIndex;
+
+      // Integer tenths rounding: 9.7s -> 9.7 XP, 6.4s -> 6.4 XP, 2.1s -> 2.1 XP
+      const remainingTenths = Math.max(0, Math.min(100, Math.round(remainingMs / 100)));
+      const qXp = answerCorrect ? Math.round(remainingTenths) / 10 : 0.0;
+
+      selectedIndex = selectedOptionIndex!;
+      isCorrect = answerCorrect;
+      responseTimeMs = respTimeMs;
+      remainingTimeMs = remainingMs;
+      questionXp = qXp;
+      isTimeoutResult = false;
+    }
+
+    const answerRecord = {
       questionId: currentQuestion.id,
-      selectedIndex: selectedOptionIndex,
+      selectedIndex,
       isCorrect,
-      answeredAt: new Date().toISOString()
-    });
+      answeredAt: new Date(receivedAt).toISOString(),
+      startedAt: progress.activeQuestionStartedAt,
+      deadlineAt: progress.activeQuestionDeadlineAt,
+      responseTimeMs,
+      remainingTimeMs,
+      questionXp,
+      isTimeout: isTimeoutResult
+    };
+
+    progress.answers.push(answerRecord);
 
     if (isCorrect) {
       progress.score += 1;
+      progress.totalResponseTimeMs = (progress.totalResponseTimeMs || 0) + responseTimeMs;
     }
 
     progress.currentQuestionIndex += 1;
-    progress.updatedAt = new Date().toISOString();
+    // Clear active question countdown for next question
+    progress.activeQuestionIndex = undefined;
+    progress.activeQuestionStartedAt = undefined;
+    progress.activeQuestionDeadlineAt = undefined;
+    progress.updatedAt = new Date(receivedAt).toISOString();
 
     const isRoundFinished = progress.currentQuestionIndex >= 5;
 
@@ -499,12 +717,16 @@ export class BibleGameService {
       bibleReference: currentQuestion.bibleReference,
       score: progress.score,
       currentQuestionIndex: progress.currentQuestionIndex,
-      isRoundFinished
+      isRoundFinished,
+      questionXp,
+      responseTimeMs,
+      remainingTimeMs,
+      isTimeout: isTimeoutResult
     };
   }
 
   /**
-   * Completes the challenge round, awards XP idempotently, updates streaks,
+   * Completes the challenge round, awards speed-based XP idempotently, updates streaks,
    * calculates level progression, and awards unlocked badges.
    */
   public static async completeChallenge(userId: string, memberId: string, challengeDate?: string): Promise<{
@@ -524,6 +746,10 @@ export class BibleGameService {
       isCorrect: boolean;
       explanation: string;
       bibleReference: string;
+      responseTimeMs: number;
+      remainingTimeMs: number;
+      questionXp: number;
+      isTimeout: boolean;
     }>;
   }> {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
@@ -544,37 +770,48 @@ export class BibleGameService {
     const stats = await BibleGameService.getOrCreateUserStats(userId, memberId);
     const newlyUnlockedBadges: BibleBadge[] = [];
 
-    // Idempotency: if already marked completed, never award XP or increment streaks again
-    if (progress.isCompleted) {
-      const reviewed = questions.map(q => {
-        const a = progress.answers.find(ans => ans.questionId === q.id)!;
+    // Helper to format reviewed questions with timing & decimal XP
+    const buildReviewedQuestions = () => {
+      return questions.map(q => {
+        const a = progress.answers.find(ans => ans.questionId === q.id);
         return {
           id: q.id,
           questionText: q.questionText,
           options: q.options,
-          selectedIndex: a.selectedIndex,
+          selectedIndex: a ? a.selectedIndex : -1,
           correctOptionIndex: q.correctOptionIndex,
-          isCorrect: a.isCorrect,
+          isCorrect: Boolean(a?.isCorrect),
           explanation: q.explanation,
-          bibleReference: q.bibleReference
+          bibleReference: q.bibleReference,
+          responseTimeMs: a?.responseTimeMs || 0,
+          remainingTimeMs: a?.remainingTimeMs || 0,
+          questionXp: a?.questionXp || 0.0,
+          isTimeout: Boolean(a?.isTimeout)
         };
       });
+    };
 
+    // Idempotency: if already marked completed, never award XP or increment streaks again
+    if (progress.isCompleted) {
       return {
         challengeDate: targetDate,
         score: progress.score,
         totalQuestions: 5,
-        xpAwarded: 0,
+        xpAwarded: 0.0,
         alreadyCompleted: true,
         stats,
         newlyUnlockedBadges: [],
-        reviewedQuestions: reviewed
+        reviewedQuestions: buildReviewedQuestions()
       };
     }
 
     // First time completion for this daily challenge
-    const xpPerCorrect = db.bibleSettings.xpPerCorrectAnswer || 10;
-    const roundXp = Math.min(50, progress.score * xpPerCorrect);
+    // Sum exact integer tenths of question XP to guarantee precise decimal score
+    const totalTenths = progress.answers.reduce(
+      (sum, a) => sum + Math.round((a.questionXp || 0) * 10),
+      0
+    );
+    const roundXp = Math.min(50.0, Math.round(totalTenths) / 10);
 
     progress.isCompleted = true;
     progress.completedAt = new Date().toISOString();
@@ -590,7 +827,6 @@ export class BibleGameService {
       stats.bestStreak = Math.max(1, stats.bestStreak);
     } else if (stats.lastCompletedDate === targetDate) {
       // Already completed today earlier (safety guard)
-      // Leave streak as is
     } else if (stats.lastCompletedDate === yesterday) {
       // Consecutive day!
       stats.currentStreak += 1;
@@ -602,7 +838,7 @@ export class BibleGameService {
     }
 
     stats.lastCompletedDate = targetDate;
-    stats.cumulativeXp += roundXp;
+    stats.cumulativeXp = Math.round((stats.cumulativeXp + roundXp) * 10) / 10;
     stats.totalChallengesCompleted += 1;
     if (progress.score === 5) {
       stats.perfectScoresCount += 1;
@@ -634,7 +870,7 @@ export class BibleGameService {
 
           // If badge carries bonus XP
           if (badgeDef.xpReward > 0) {
-            stats.cumulativeXp += badgeDef.xpReward;
+            stats.cumulativeXp = Math.round((stats.cumulativeXp + badgeDef.xpReward) * 10) / 10;
             const recheckLevel = BibleGameService.calculateLevel(stats.cumulativeXp);
             stats.level = recheckLevel.level;
             stats.levelTitle = recheckLevel.levelTitle;
@@ -683,20 +919,6 @@ export class BibleGameService {
 
     await persistBibleUserStats(stats);
 
-    const reviewedQuestions = questions.map(q => {
-      const a = progress.answers.find(ans => ans.questionId === q.id)!;
-      return {
-        id: q.id,
-        questionText: q.questionText,
-        options: q.options,
-        selectedIndex: a.selectedIndex,
-        correctOptionIndex: q.correctOptionIndex,
-        isCorrect: a.isCorrect,
-        explanation: q.explanation,
-        bibleReference: q.bibleReference
-      };
-    });
-
     return {
       challengeDate: targetDate,
       score: progress.score,
@@ -705,7 +927,7 @@ export class BibleGameService {
       alreadyCompleted: false,
       stats,
       newlyUnlockedBadges,
-      reviewedQuestions
+      reviewedQuestions: buildReviewedQuestions()
     };
   }
 
@@ -719,6 +941,7 @@ export class BibleGameService {
       challengeDate: string;
       score: number;
       xpAwarded: number;
+      totalResponseTimeMs: number;
       isCompleted: boolean;
       completedAt?: string;
     }>;
@@ -744,6 +967,7 @@ export class BibleGameService {
       challengeDate: p.challengeDate,
       score: p.score,
       xpAwarded: p.xpAwarded,
+      totalResponseTimeMs: p.totalResponseTimeMs || 0,
       isCompleted: p.isCompleted,
       completedAt: p.completedAt
     }));
@@ -754,6 +978,12 @@ export class BibleGameService {
   /**
    * Aggregates weekly XP leaderboard strictly within the current week in Africa/Lagos.
    * Respects branch filtering when specified. Privacy-safe: hides email, phone, DOB.
+   * Multi-tier tie-breakers:
+   *   1. weeklyXp (descending)
+   *   2. totalCorrectAnswers (descending)
+   *   3. totalResponseTimeMs (ascending - lowest response time across correct answers)
+   *   4. earliestCompletion (ascending - earliest completion timestamp in week)
+   *   5. displayName (alphabetical)
    */
   public static async getLeaderboard(
     currentUserMemberId?: string,
@@ -771,16 +1001,16 @@ export class BibleGameService {
       p => p.isCompleted && p.challengeDate >= startOfWeek && p.challengeDate <= endOfWeek
     );
 
-    // Sum weekly XP per member
-    const weeklyXpMap = new Map<string, number>();
+    // Group progress by member
+    const memberProgressMap = new Map<string, BibleUserProgress[]>();
     for (const prog of weeklyProgress) {
-      const current = weeklyXpMap.get(prog.memberId) || 0;
-      weeklyXpMap.set(prog.memberId, current + prog.xpAwarded);
+      const list = memberProgressMap.get(prog.memberId) || [];
+      list.push(prog);
+      memberProgressMap.set(prog.memberId, list);
     }
 
-    // Build leaderboard candidates from members who have stats or earned weekly XP
     const candidateMemberIds = new Set<string>([
-      ...weeklyXpMap.keys(),
+      ...memberProgressMap.keys(),
       ...db.bibleUserStats.map(s => s.memberId)
     ]);
 
@@ -793,6 +1023,9 @@ export class BibleGameService {
       branchName?: string;
       weeklyXp: number;
       totalXp: number;
+      totalCorrectAnswers: number;
+      totalResponseTimeMs: number;
+      earliestCompletion: string;
       level: number;
     }> = [];
 
@@ -807,8 +1040,26 @@ export class BibleGameService {
       const branch = db.branches.find(b => b.id === member.primaryBranchId);
       const stats = db.bibleUserStats.find(s => s.memberId === mId);
       const totalXp = stats?.cumulativeXp || 0;
-      const weeklyXp = weeklyXpMap.get(mId) || 0;
       const level = stats?.level || 1;
+
+      const progs = memberProgressMap.get(mId) || [];
+      let weeklyXp = 0;
+      let totalCorrectAnswers = 0;
+      let totalResponseTimeMs = 0;
+      let earliestCompletion = '9999-99-99T99:99:99.999Z';
+
+      for (const p of progs) {
+        weeklyXp += p.xpAwarded;
+        totalCorrectAnswers += p.score;
+        const correctTime = p.answers
+          .filter(a => a.isCorrect)
+          .reduce((sum, a) => sum + (a.responseTimeMs || 0), 0);
+        totalResponseTimeMs += correctTime;
+        if (p.completedAt && p.completedAt < earliestCompletion) {
+          earliestCompletion = p.completedAt;
+        }
+      }
+      weeklyXp = Math.round(weeklyXp * 10) / 10;
 
       candidates.push({
         memberId: member.id,
@@ -818,15 +1069,25 @@ export class BibleGameService {
         branchId: member.primaryBranchId,
         branchName: branch?.name || 'FPM Global',
         weeklyXp,
-        totalXp,
+        totalXp: Math.round(totalXp * 10) / 10,
+        totalCorrectAnswers,
+        totalResponseTimeMs,
+        earliestCompletion,
         level
       });
     }
 
-    // Sort by: 1) weeklyXp DESC, 2) totalXp DESC, 3) displayName ASC
+    // Sort order:
+    // 1) weeklyXp DESC
+    // 2) totalCorrectAnswers DESC (tie-breaker 1)
+    // 3) totalResponseTimeMs ASC (tie-breaker 2)
+    // 4) earliestCompletion ASC (tie-breaker 3)
+    // 5) displayName ASC
     candidates.sort((a, b) => {
       if (b.weeklyXp !== a.weeklyXp) return b.weeklyXp - a.weeklyXp;
-      if (b.totalXp !== a.totalXp) return b.totalXp - a.totalXp;
+      if (b.totalCorrectAnswers !== a.totalCorrectAnswers) return b.totalCorrectAnswers - a.totalCorrectAnswers;
+      if (a.totalResponseTimeMs !== b.totalResponseTimeMs) return a.totalResponseTimeMs - b.totalResponseTimeMs;
+      if (a.earliestCompletion !== b.earliestCompletion) return a.earliestCompletion.localeCompare(b.earliestCompletion);
       return a.displayName.localeCompare(b.displayName);
     });
 
@@ -834,7 +1095,11 @@ export class BibleGameService {
     const entries: BibleLeaderboardEntry[] = candidates.map((item, index) => {
       if (index > 0) {
         const prev = candidates[index - 1];
-        if (prev.weeklyXp !== item.weeklyXp || prev.totalXp !== item.totalXp) {
+        if (
+          prev.weeklyXp !== item.weeklyXp ||
+          prev.totalCorrectAnswers !== item.totalCorrectAnswers ||
+          prev.totalResponseTimeMs !== item.totalResponseTimeMs
+        ) {
           currentRank = index + 1;
         }
       }
@@ -848,6 +1113,8 @@ export class BibleGameService {
         branchName: item.branchName,
         weeklyXp: item.weeklyXp,
         totalXp: item.totalXp,
+        totalCorrectAnswers: item.totalCorrectAnswers,
+        totalResponseTimeMs: item.totalResponseTimeMs,
         level: item.level,
         isCurrentUser: item.memberId === currentUserMemberId
       };

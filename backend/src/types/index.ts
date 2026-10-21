@@ -639,11 +639,27 @@ export interface BibleDailyChallenge {
   updatedAt: string;
 }
 
+export interface BibleQuestionTiming {
+  questionIndex: number;
+  questionId: string;
+  startedAt: string;
+  deadlineAt: string;
+  serverTime: string;
+  timeLimitSeconds: number;
+  timeLimitMs: number;
+}
+
 export interface BibleUserAnswer {
   questionId: string;
   selectedIndex: number;
   isCorrect: boolean;
   answeredAt: string;
+  startedAt?: string;
+  deadlineAt?: string;
+  responseTimeMs: number;
+  remainingTimeMs: number;
+  questionXp: number;
+  isTimeout?: boolean;
 }
 
 export interface BibleUserProgress {
@@ -653,8 +669,12 @@ export interface BibleUserProgress {
   challengeDate: string;
   challengeId: string;
   currentQuestionIndex: number;
+  activeQuestionIndex?: number;
+  activeQuestionStartedAt?: string;
+  activeQuestionDeadlineAt?: string;
   answers: BibleUserAnswer[];
   score: number;
+  totalResponseTimeMs?: number;
   xpAwarded: number;
   isCompleted: boolean;
   startedAt: string;
@@ -710,13 +730,15 @@ export interface BibleLeaderboardEntry {
   branchName?: string;
   weeklyXp: number;
   totalXp: number;
+  totalCorrectAnswers: number;
+  totalResponseTimeMs: number;
   level: number;
   isCurrentUser: boolean;
 }
 
 export interface BibleGameSettings {
   questionsPerRound: number;
-  xpPerCorrectAnswer: number;
+  timeLimitSeconds: number;
   maxBaseXp: number;
   timezone: string;
 }

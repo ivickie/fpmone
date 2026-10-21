@@ -74,7 +74,35 @@ export const BibleChallengePage: React.FC = () => {
 
   // Settings form
   const [xpPerCorrect, setXpPerCorrect] = useState(10);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState(10);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Live preview timer simulation
+  const [previewRemainingMs, setPreviewRemainingMs] = useState(10000);
+  const [previewTimerActive, setPreviewTimerActive] = useState(false);
+  const [previewEarnedXp, setPreviewEarnedXp] = useState<number>(0);
+  const [previewIsTimeout, setPreviewIsTimeout] = useState(false);
+
+  useEffect(() => {
+    let interval: any;
+    if (previewQuestion && previewTimerActive && previewRemainingMs > 0 && !previewRevealed) {
+      interval = setInterval(() => {
+        setPreviewRemainingMs((prev) => {
+          if (prev <= 100) {
+            clearInterval(interval);
+            setPreviewRevealed(true);
+            setPreviewIsTimeout(true);
+            setPreviewEarnedXp(0);
+            return 0;
+          }
+          return prev - 100;
+        });
+      }, 100);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [previewQuestion, previewTimerActive, previewRemainingMs, previewRevealed]);
 
   const loadData = async () => {
     setLoading(true);
@@ -97,6 +125,7 @@ export const BibleChallengePage: React.FC = () => {
       if (settingsRes?.data) {
         setSettings(settingsRes.data);
         setXpPerCorrect(settingsRes.data.xpPerCorrectAnswer || 10);
+        setTimeLimitSeconds(settingsRes.data.timeLimitSeconds || 10);
       }
     } catch (err: any) {
       console.error('Failed to load Bible Challenge admin data:', err);
@@ -224,6 +253,36 @@ export const BibleChallengePage: React.FC = () => {
     setPreviewQuestion(q);
     setPreviewSelectedOption(null);
     setPreviewRevealed(false);
+    setPreviewRemainingMs(10000);
+    setPreviewTimerActive(true);
+    setPreviewEarnedXp(0);
+    setPreviewIsTimeout(false);
+  };
+
+  const handleSelectPreviewOption = (optionIndex: number) => {
+    if (previewRevealed || !previewQuestion) return;
+    setPreviewSelectedOption(optionIndex);
+    setPreviewTimerActive(false);
+    setPreviewRevealed(true);
+    setPreviewIsTimeout(false);
+
+    // Speed-based XP: round(10 * remaining / 10, 1) = round(remainingSeconds, 1)
+    if (optionIndex === previewQuestion.correctOptionIndex) {
+      const remainingSeconds = Math.max(0, Math.min(10, previewRemainingMs / 1000));
+      const tenths = Math.round(remainingSeconds * 10);
+      setPreviewEarnedXp(tenths / 10);
+    } else {
+      setPreviewEarnedXp(0);
+    }
+  };
+
+  const handleResetPreview = () => {
+    setPreviewSelectedOption(null);
+    setPreviewRevealed(false);
+    setPreviewRemainingMs(10000);
+    setPreviewTimerActive(true);
+    setPreviewEarnedXp(0);
+    setPreviewIsTimeout(false);
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -232,7 +291,8 @@ export const BibleChallengePage: React.FC = () => {
     try {
       await api.updateBibleSettings({
         xpPerCorrectAnswer: Number(xpPerCorrect),
-        maxBaseXp: Number(xpPerCorrect) * 5
+        maxBaseXp: Number(xpPerCorrect) * 5,
+        timeLimitSeconds: Number(timeLimitSeconds)
       });
       showToast('Bible Challenge settings updated.', 'success');
       loadData();
@@ -254,7 +314,7 @@ export const BibleChallengePage: React.FC = () => {
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Bible Challenge Management</h1>
           <p className="text-slate-300 text-sm max-w-2xl">
-            Authoritative Scripture quiz portal. Curate verified questions, monitor daily participation, inspect challenge completion rates, and configure gameplay rules.
+            Authoritative Scripture quiz portal. Curate verified questions, monitor daily participation, inspect speed-based scoring, and configure gameplay rules.
           </p>
         </div>
         <div className="flex items-center gap-2.5 self-start md:self-auto">
@@ -306,8 +366,10 @@ export const BibleChallengePage: React.FC = () => {
               <Flame className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-500">XP Awarded</p>
-              <span className="text-xl font-bold text-slate-900">{stats.totalXpAwarded.toLocaleString()} XP</span>
+              <p className="text-xs font-medium text-slate-500">Total XP Awarded</p>
+              <span className="text-xl font-bold text-slate-900">
+                {Number(stats.totalXpAwarded || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} XP
+              </span>
             </div>
           </div>
 
@@ -632,6 +694,32 @@ export const BibleChallengePage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
+                Question Time Limit (Seconds)
+              </label>
+              <input
+                type="number"
+                min="5"
+                max="30"
+                value={timeLimitSeconds}
+                onChange={e => setTimeLimitSeconds(Number(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Authoritative 10-second countdown per question with a 1.0s network transit grace period.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
+              <span className="font-bold flex items-center gap-1.5 text-amber-800">
+                <Sparkles className="w-4 h-4" /> Speed-Based XP Formula
+              </span>
+              <p className="text-[11px] text-amber-900/80 leading-relaxed">
+                <code>Question XP = round(10 × remaining time / 10, 1)</code>. A correct answer with 9.7s remaining awards 9.7 XP, 6.4s awards 6.4 XP, 2.1s awards 2.1 XP, and deadline expiry (or wrong answers) awards 0.0 XP. Maximum base score is 50.0 XP.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Authoritative Calendar Timezone
               </label>
               <input
@@ -848,12 +936,22 @@ export const BibleChallengePage: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
                 <span className="text-amber-300 uppercase tracking-wider">{previewQuestion.category}</span>
+                <span className={`px-2 py-0.5 rounded-full font-mono text-xs font-bold ${
+                  previewRemainingMs <= 3000 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                }`}>
+                  ⏱ {(previewRemainingMs / 1000).toFixed(1)}s
+                </span>
                 <span>Question 1 of 5</span>
               </div>
 
-              {/* Progress bar */}
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-amber-400 h-full w-1/5 rounded-full" />
+              {/* 10-second Countdown bar */}
+              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                <div
+                  className={`h-full transition-all duration-100 ${
+                    previewRemainingMs <= 3000 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-400 to-amber-500'
+                  }`}
+                  style={{ width: `${Math.max(0, Math.min(100, (previewRemainingMs / 10000) * 100))}%` }}
+                />
               </div>
 
               <div className="bg-slate-800/90 p-4 rounded-2xl border border-slate-700/60 shadow-inner">
@@ -868,19 +966,18 @@ export const BibleChallengePage: React.FC = () => {
                   const isSelected = previewSelectedOption === i;
                   const isCorrect = i === previewQuestion.correctOptionIndex;
 
-                  let borderClass = 'border-slate-700/80 bg-slate-800/50 text-slate-200';
+                  let borderClass = 'border-slate-700/80 bg-slate-800/50 text-slate-200 hover:border-amber-400/60 cursor-pointer';
                   if (previewRevealed) {
                     if (isCorrect) borderClass = 'border-emerald-500 bg-emerald-950/60 text-emerald-300 font-bold';
                     else if (isSelected && !isCorrect) borderClass = 'border-rose-500 bg-rose-950/60 text-rose-300';
-                  } else if (isSelected) {
-                    borderClass = 'border-amber-400 bg-amber-950/40 text-amber-300 font-semibold';
+                    else borderClass = 'border-slate-800 bg-slate-900/40 text-slate-500 opacity-60';
                   }
 
                   return (
                     <button
                       key={i}
                       disabled={previewRevealed}
-                      onClick={() => setPreviewSelectedOption(i)}
+                      onClick={() => handleSelectPreviewOption(i)}
                       className={`w-full p-3 rounded-xl border text-left text-xs transition flex items-center justify-between ${borderClass}`}
                     >
                       <div className="flex items-center gap-2.5">
@@ -897,24 +994,22 @@ export const BibleChallengePage: React.FC = () => {
                 })}
               </div>
 
-              {/* Action / Reveal */}
-              {!previewRevealed ? (
-                <button
-                  disabled={previewSelectedOption === null}
-                  onClick={() => setPreviewRevealed(true)}
-                  className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition ${
-                    previewSelectedOption !== null
-                      ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                  }`}
-                >
-                  Submit Answer
-                </button>
-              ) : (
-                <div className="p-3 rounded-xl bg-slate-800/90 border border-slate-700 space-y-1.5 text-xs">
+              {/* Feedback Breakdown */}
+              {previewRevealed && (
+                <div className="p-3.5 rounded-xl bg-slate-800/90 border border-slate-700 space-y-2 text-xs">
                   <div className="flex items-center justify-between font-bold">
-                    <span className={previewSelectedOption === previewQuestion.correctOptionIndex ? 'text-emerald-400' : 'text-amber-400'}>
-                      {previewSelectedOption === previewQuestion.correctOptionIndex ? '✓ Correct! +10 XP' : 'Encouraging Scripture Note'}
+                    <span className={
+                      previewIsTimeout
+                        ? 'text-rose-400'
+                        : previewSelectedOption === previewQuestion.correctOptionIndex
+                        ? 'text-emerald-400'
+                        : 'text-amber-400'
+                    }>
+                      {previewIsTimeout
+                        ? '⏱ Time Expired (0.0 XP)'
+                        : previewSelectedOption === previewQuestion.correctOptionIndex
+                        ? `✓ Correct! +${previewEarnedXp.toFixed(1)} XP`
+                        : '✗ Incorrect (0.0 XP)'}
                     </span>
                     <span className="text-amber-300">{previewQuestion.bibleReference}</span>
                   </div>
@@ -922,13 +1017,10 @@ export const BibleChallengePage: React.FC = () => {
                     {previewQuestion.explanation}
                   </p>
                   <button
-                    onClick={() => {
-                      setPreviewSelectedOption(null);
-                      setPreviewRevealed(false);
-                    }}
+                    onClick={handleResetPreview}
                     className="w-full mt-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold"
                   >
-                    Reset Question Preview
+                    Restart 10s Timer Simulation
                   </button>
                 </div>
               )}
