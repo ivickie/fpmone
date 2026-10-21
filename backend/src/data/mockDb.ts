@@ -4,8 +4,10 @@ import {
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ReactionItem, CommentItem, ServiceHighlightItem, TestimonyItem, NotificationItem,
   AuditLogItem, MediaItem, DepartmentReport, SundayMoment, SundayMomentLike,
-  FinanceTransaction, FinanceOpeningBalance, EmailVerificationRecord, PasswordResetRecord
+  FinanceTransaction, FinanceOpeningBalance, EmailVerificationRecord, PasswordResetRecord,
+  BibleQuestion, BibleDailyChallenge, BibleUserProgress, BibleUserStats, BibleBadge, BibleUserBadgeRecord, BibleGameSettings
 } from '../types';
+import { SEED_BIBLE_QUESTIONS } from './bibleQuestionsSeed';
 
 // Finance Constants & Seed Categories
 export const FINANCE_INCOME_CATEGORIES = [
@@ -1859,6 +1861,73 @@ export class DatabaseStore {
   public emailVerifications: EmailVerificationRecord[] = [];
   public passwordResets: PasswordResetRecord[] = [];
   public deviceTokens: Array<{ userId?: string; deviceToken: string; platform: string; branchId?: string; updatedAt: string }> = [];
+  public bibleQuestions: BibleQuestion[] = [...SEED_BIBLE_QUESTIONS.map(q => ({
+    ...q,
+    createdBy: IDS.USER_ADMIN,
+    createdByName: 'FPM System Admin',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z'
+  }))];
+  public bibleDailyChallenges: BibleDailyChallenge[] = [];
+  public bibleUserProgress: BibleUserProgress[] = [];
+  public bibleUserStats: BibleUserStats[] = [];
+  public bibleBadges: BibleBadge[] = [
+    {
+      id: 'FIRST_STEPS',
+      name: 'First Steps',
+      description: 'Completed your first daily Bible challenge.',
+      icon: 'Footprints',
+      xpReward: 10,
+      displayOrder: 1
+    },
+    {
+      id: 'PERFECT_FIVE',
+      name: 'Perfect Five',
+      description: 'Answered all 5 questions correctly in a challenge.',
+      icon: 'Award',
+      xpReward: 25,
+      displayOrder: 2
+    },
+    {
+      id: 'STREAK_3',
+      name: 'Three-Day Streak',
+      description: 'Completed daily challenges on 3 consecutive days.',
+      icon: 'Flame',
+      xpReward: 15,
+      displayOrder: 3
+    },
+    {
+      id: 'STREAK_7',
+      name: 'Seven-Day Streak',
+      description: 'Completed daily challenges on 7 consecutive days.',
+      icon: 'Zap',
+      xpReward: 30,
+      displayOrder: 4
+    },
+    {
+      id: 'BIBLE_EXPLORER',
+      name: 'Bible Explorer',
+      description: 'Completed 25 daily Bible challenges.',
+      icon: 'Compass',
+      xpReward: 50,
+      displayOrder: 5
+    },
+    {
+      id: 'CENTURION_XP',
+      name: 'Centurion',
+      description: 'Earned 100 or more cumulative XP in Scripture knowledge.',
+      icon: 'Shield',
+      xpReward: 20,
+      displayOrder: 6
+    }
+  ];
+  public bibleUserBadges: BibleUserBadgeRecord[] = [];
+  public bibleSettings: BibleGameSettings = {
+    questionsPerRound: 5,
+    xpPerCorrectAnswer: 10,
+    maxBaseXp: 50,
+    timezone: 'Africa/Lagos'
+  };
 
   private workerCounter = 7;
 

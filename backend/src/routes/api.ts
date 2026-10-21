@@ -36,6 +36,23 @@ import {
   getFinanceMonthlyStatementHandler, getFinanceAnnualStatementHandler, getFinanceCategoryAnalysisHandler,
   exportFinanceReportHandler, exportMembersHandler
 } from '../controllers/apiControllers';
+import {
+  getTodayChallengeHandler,
+  startOrResumeSessionHandler,
+  submitAnswerHandler,
+  completeChallengeHandler,
+  getProgressHandler,
+  getLeaderboardHandler,
+  listAdminQuestionsHandler,
+  getAdminQuestionByIdHandler,
+  createAdminQuestionHandler,
+  updateAdminQuestionHandler,
+  archiveAdminQuestionHandler,
+  getAdminDailyChallengeHandler,
+  getAdminStatsHandler,
+  getAdminSettingsHandler,
+  updateAdminSettingsHandler
+} from '../controllers/bibleGameController';
 import { requireAuth, requireAdmin, requireSuperAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
 import {
   loginRateLimiter,
@@ -222,5 +239,24 @@ router.get('/finance/statements/monthly', requireAuth, getFinanceMonthlyStatemen
 router.get('/finance/statements/annual', requireAuth, getFinanceAnnualStatementHandler);
 router.get('/finance/analysis', requireAuth, getFinanceCategoryAnalysisHandler);
 router.get('/finance/export', requireAuth, exportRateLimiter, exportFinanceReportHandler);
+
+// --- BIBLE CHALLENGE GAME ---
+router.get('/bible-game/today', requireAuth, getTodayChallengeHandler);
+router.post('/bible-game/start', requireAuth, startOrResumeSessionHandler);
+router.post('/bible-game/answer', requireAuth, submitAnswerHandler);
+router.post('/bible-game/complete', requireAuth, completeChallengeHandler);
+router.get('/bible-game/progress', requireAuth, getProgressHandler);
+router.get('/bible-game/leaderboard', optionalAuth, getLeaderboardHandler);
+
+// --- BIBLE CHALLENGE ADMIN PORTAL ---
+router.get('/bible-game/admin/questions', requireAuth, requireAdmin, listAdminQuestionsHandler);
+router.post('/bible-game/admin/questions', requireAuth, requireAdmin, createAdminQuestionHandler);
+router.get('/bible-game/admin/questions/:id', requireAuth, requireAdmin, getAdminQuestionByIdHandler);
+router.put('/bible-game/admin/questions/:id', requireAuth, requireAdmin, updateAdminQuestionHandler);
+router.delete('/bible-game/admin/questions/:id', requireAuth, requireAdmin, archiveAdminQuestionHandler);
+router.get('/bible-game/admin/daily-challenge', requireAuth, requireAdmin, getAdminDailyChallengeHandler);
+router.get('/bible-game/admin/stats', requireAuth, requireAdmin, getAdminStatsHandler);
+router.get('/bible-game/admin/settings', requireAuth, requireAdmin, getAdminSettingsHandler);
+router.put('/bible-game/admin/settings', requireAuth, requireAdmin, updateAdminSettingsHandler);
 
 export default router;

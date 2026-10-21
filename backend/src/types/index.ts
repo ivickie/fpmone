@@ -590,4 +590,133 @@ export interface FinanceDashboardSummary {
   }>;
 }
 
+// =============================================================================
+// BIBLE CHALLENGE GAME TYPES
+// =============================================================================
 
+export type BibleQuestionCategory =
+  | 'Bible Characters'
+  | 'Old Testament'
+  | 'New Testament'
+  | 'Life and Teachings of Jesus'
+  | 'Miracles and Parables'
+  | 'Books of the Bible'
+  | 'Scripture Knowledge';
+
+export type BibleQuestionDifficulty = 'easy' | 'medium' | 'hard';
+export type BibleQuestionStatus = 'draft' | 'published' | 'archived';
+
+export interface BibleQuestion {
+  id: string;
+  questionText: string;
+  options: [string, string, string, string];
+  correctOptionIndex: number;
+  explanation: string;
+  bibleReference: string;
+  category: BibleQuestionCategory;
+  difficulty: BibleQuestionDifficulty;
+  status: BibleQuestionStatus;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BibleQuestionClientView {
+  id: string;
+  questionText: string;
+  options: [string, string, string, string];
+  category: BibleQuestionCategory;
+  difficulty: BibleQuestionDifficulty;
+}
+
+export interface BibleDailyChallenge {
+  id: string;
+  challengeDate: string; // YYYY-MM-DD in Africa/Lagos
+  questionIds: string[]; // exactly 5 IDs
+  status: 'draft' | 'published' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BibleUserAnswer {
+  questionId: string;
+  selectedIndex: number;
+  isCorrect: boolean;
+  answeredAt: string;
+}
+
+export interface BibleUserProgress {
+  id: string;
+  userId: string;
+  memberId: string;
+  challengeDate: string;
+  challengeId: string;
+  currentQuestionIndex: number;
+  answers: BibleUserAnswer[];
+  score: number;
+  xpAwarded: number;
+  isCompleted: boolean;
+  startedAt: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BibleUserStats {
+  userId: string;
+  memberId: string;
+  cumulativeXp: number;
+  level: number;
+  levelTitle: string;
+  xpInCurrentLevel: number;
+  xpForNextLevel: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastCompletedDate?: string;
+  totalChallengesCompleted: number;
+  perfectScoresCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BibleBadge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  xpReward: number;
+  displayOrder: number;
+  earned?: boolean;
+  awardedAt?: string;
+}
+
+export interface BibleUserBadgeRecord {
+  id: string;
+  userId: string;
+  memberId: string;
+  badgeId: string;
+  awardedAt: string;
+  challengeDate?: string;
+}
+
+export interface BibleLeaderboardEntry {
+  rank: number;
+  memberId: string;
+  userId: string;
+  displayName: string;
+  profilePictureUrl?: string;
+  branchId: string;
+  branchName?: string;
+  weeklyXp: number;
+  totalXp: number;
+  level: number;
+  isCurrentUser: boolean;
+}
+
+export interface BibleGameSettings {
+  questionsPerRound: number;
+  xpPerCorrectAnswer: number;
+  maxBaseXp: number;
+  timezone: string;
+}

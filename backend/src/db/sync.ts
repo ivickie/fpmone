@@ -4,7 +4,8 @@ import {
   ServiceSchedule, AttendanceRecord, AttendanceSettings, EventItem, PostItem,
   ServiceHighlightItem, TestimonyItem, NotificationItem, AuditLogItem, MediaItem,
   DepartmentReport, FinanceTransaction, FinanceOpeningBalance, SundayMoment, SundayMomentLike,
-  EmailVerificationRecord, PasswordResetRecord
+  EmailVerificationRecord, PasswordResetRecord,
+  BibleQuestion, BibleDailyChallenge, BibleUserProgress, BibleUserStats, BibleBadge, BibleUserBadgeRecord, BibleGameSettings
 } from '../types';
 import { FcmService } from '../services/fcmService';
 
@@ -214,6 +215,105 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         );
         CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);
         CREATE INDEX IF NOT EXISTS idx_device_tokens_branch ON device_tokens(branch_id);
+
+        -- BIBLE CHALLENGE GAME TABLES
+        CREATE TABLE IF NOT EXISTS bible_game_questions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          question_text TEXT NOT NULL,
+          options JSONB NOT NULL,
+          correct_option_index INT NOT NULL,
+          explanation TEXT NOT NULL,
+          bible_reference VARCHAR(150) NOT NULL,
+          category VARCHAR(50) NOT NULL,
+          difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+          status VARCHAR(20) NOT NULL DEFAULT 'published',
+          created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+          created_by_name VARCHAR(255),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_bg_questions_status ON bible_game_questions(status);
+        CREATE INDEX IF NOT EXISTS idx_bg_questions_category ON bible_game_questions(category);
+
+        CREATE TABLE IF NOT EXISTS bible_game_daily_challenges (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          challenge_date DATE NOT NULL UNIQUE,
+          question_ids JSONB NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'published',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_bg_challenges_date ON bible_game_daily_challenges(challenge_date DESC);
+
+        CREATE TABLE IF NOT EXISTS bible_game_user_progress (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          challenge_date DATE NOT NULL,
+          challenge_id UUID NOT NULL REFERENCES bible_game_daily_challenges(id) ON DELETE CASCADE,
+          current_question_index INT NOT NULL DEFAULT 0,
+          answers JSONB NOT NULL DEFAULT '[]'::jsonb,
+          score INT NOT NULL DEFAULT 0,
+          xp_awarded INT NOT NULL DEFAULT 0,
+          is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+          started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          completed_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT uq_bg_user_challenge_date UNIQUE (user_id, challenge_date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_bg_progress_user ON bible_game_user_progress(user_id);
+        CREATE INDEX IF NOT EXISTS idx_bg_progress_date ON bible_game_user_progress(challenge_date);
+
+        CREATE TABLE IF NOT EXISTS bible_game_user_stats (
+          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          member_id UUID NOT NULL UNIQUE REFERENCES members(id) ON DELETE CASCADE,
+          cumulative_xp INT NOT NULL DEFAULT 0,
+          level INT NOT NULL DEFAULT 1,
+          current_streak INT NOT NULL DEFAULT 0,
+          best_streak INT NOT NULL DEFAULT 0,
+          last_completed_date DATE,
+          total_challenges_completed INT NOT NULL DEFAULT 0,
+          perfect_scores_count INT NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_bg_stats_xp ON bible_game_user_stats(cumulative_xp DESC);
+
+        CREATE TABLE IF NOT EXISTS bible_game_badges (
+          id VARCHAR(50) PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          description TEXT NOT NULL,
+          icon VARCHAR(50) NOT NULL,
+          xp_reward INT NOT NULL DEFAULT 0,
+          display_order INT NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS bible_game_user_badges (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          badge_id VARCHAR(50) NOT NULL REFERENCES bible_game_badges(id) ON DELETE CASCADE,
+          awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          challenge_date DATE,
+          CONSTRAINT uq_bg_user_badge UNIQUE (user_id, badge_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS bible_game_settings (
+          key VARCHAR(50) PRIMARY KEY,
+          value JSONB NOT NULL,
+          description TEXT,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        ALTER TABLE bible_game_questions ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bible_game_daily_challenges ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bible_game_user_progress ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bible_game_user_stats ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bible_game_badges ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bible_game_user_badges ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bible_game_settings ENABLE ROW LEVEL SECURITY;
         -- Schema setup complete
       `);
       schemaMigrationsDone = true;
@@ -1700,7 +1800,9 @@ export async function persistDelete(table: string, id: string): Promise<void> {
       'events', 'posts', 'comments', 'reactions', 'service_highlights',
       'testimonies', 'notifications', 'media_items', 'department_reports',
       'finance_transactions', 'finance_opening_balances', 'sunday_moments',
-      'sunday_moment_likes'
+      'sunday_moment_likes', 'bible_game_questions', 'bible_game_daily_challenges',
+      'bible_game_user_progress', 'bible_game_user_stats', 'bible_game_badges',
+      'bible_game_user_badges', 'bible_game_settings'
     ];
     if (!safeTables.includes(table)) {
       throw new Error(`Invalid table name for persistDelete: ${table}`);
@@ -1709,5 +1811,147 @@ export async function persistDelete(table: string, id: string): Promise<void> {
     await recordSystemMutation(table);
   } catch (err: any) {
     console.error(`[DATABASE PERSIST DELETE ERROR: ${table}] ${err.message}`);
+  }
+}
+
+export async function persistBibleQuestion(q: BibleQuestion): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO bible_game_questions (
+        id, question_text, options, correct_option_index, explanation,
+        bible_reference, category, difficulty, status, created_by, created_by_name,
+        created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ON CONFLICT (id) DO UPDATE SET
+        question_text = EXCLUDED.question_text,
+        options = EXCLUDED.options,
+        correct_option_index = EXCLUDED.correct_option_index,
+        explanation = EXCLUDED.explanation,
+        bible_reference = EXCLUDED.bible_reference,
+        category = EXCLUDED.category,
+        difficulty = EXCLUDED.difficulty,
+        status = EXCLUDED.status,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      q.id, q.questionText, JSON.stringify(q.options), q.correctOptionIndex,
+      q.explanation, q.bibleReference, q.category, q.difficulty, q.status,
+      q.createdBy || null, q.createdByName || null, q.createdAt, q.updatedAt
+    ]);
+    await recordSystemMutation('bible_game_questions');
+  } catch (err: any) {
+    console.error('[DATABASE PERSIST ERROR: bible_game_questions]', err.message);
+  }
+}
+
+export async function persistBibleDailyChallenge(c: BibleDailyChallenge): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO bible_game_daily_challenges (
+        id, challenge_date, question_ids, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (challenge_date) DO UPDATE SET
+        question_ids = EXCLUDED.question_ids,
+        status = EXCLUDED.status,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      c.id, c.challengeDate, JSON.stringify(c.questionIds),
+      c.status, c.createdAt, c.updatedAt
+    ]);
+    await recordSystemMutation('bible_game_daily_challenges');
+  } catch (err: any) {
+    console.error('[DATABASE PERSIST ERROR: bible_game_daily_challenges]', err.message);
+  }
+}
+
+export async function persistBibleUserProgress(p: BibleUserProgress): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO bible_game_user_progress (
+        id, user_id, member_id, challenge_date, challenge_id,
+        current_question_index, answers, score, xp_awarded,
+        is_completed, started_at, completed_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ON CONFLICT (user_id, challenge_date) DO UPDATE SET
+        current_question_index = EXCLUDED.current_question_index,
+        answers = EXCLUDED.answers,
+        score = EXCLUDED.score,
+        xp_awarded = EXCLUDED.xp_awarded,
+        is_completed = EXCLUDED.is_completed,
+        completed_at = EXCLUDED.completed_at,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      p.id, p.userId, p.memberId, p.challengeDate, p.challengeId,
+      p.currentQuestionIndex, JSON.stringify(p.answers), p.score,
+      p.xpAwarded, p.isCompleted, p.startedAt, p.completedAt || null,
+      p.createdAt, p.updatedAt
+    ]);
+    await recordSystemMutation('bible_game_user_progress');
+  } catch (err: any) {
+    console.error('[DATABASE PERSIST ERROR: bible_game_user_progress]', err.message);
+  }
+}
+
+export async function persistBibleUserStats(s: BibleUserStats): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO bible_game_user_stats (
+        user_id, member_id, cumulative_xp, level, current_streak,
+        best_streak, last_completed_date, total_challenges_completed,
+        perfect_scores_count, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (user_id) DO UPDATE SET
+        cumulative_xp = EXCLUDED.cumulative_xp,
+        level = EXCLUDED.level,
+        current_streak = EXCLUDED.current_streak,
+        best_streak = EXCLUDED.best_streak,
+        last_completed_date = EXCLUDED.last_completed_date,
+        total_challenges_completed = EXCLUDED.total_challenges_completed,
+        perfect_scores_count = EXCLUDED.perfect_scores_count,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      s.userId, s.memberId, s.cumulativeXp, s.level, s.currentStreak,
+      s.bestStreak, s.lastCompletedDate || null, s.totalChallengesCompleted,
+      s.perfectScoresCount, s.createdAt, s.updatedAt
+    ]);
+    await recordSystemMutation('bible_game_user_stats');
+  } catch (err: any) {
+    console.error('[DATABASE PERSIST ERROR: bible_game_user_stats]', err.message);
+  }
+}
+
+export async function persistBibleUserBadge(b: BibleUserBadgeRecord): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO bible_game_user_badges (
+        id, user_id, member_id, badge_id, awarded_at, challenge_date
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (user_id, badge_id) DO NOTHING
+    `, [
+      b.id, b.userId, b.memberId, b.badgeId, b.awardedAt, b.challengeDate || null
+    ]);
+    await recordSystemMutation('bible_game_user_badges');
+  } catch (err: any) {
+    console.error('[DATABASE PERSIST ERROR: bible_game_user_badges]', err.message);
+  }
+}
+
+export async function persistBibleSettings(settings: BibleGameSettings): Promise<void> {
+  if (!process.env.DATABASE_URL || process.env.IS_TEST_RUN === 'true') return;
+  try {
+    await query(`
+      INSERT INTO bible_game_settings (key, value, description, updated_at)
+      VALUES ('general', $1, 'Bible challenge gameplay rules & configuration', NOW())
+      ON CONFLICT (key) DO UPDATE SET
+        value = EXCLUDED.value,
+        updated_at = NOW()
+    `, [JSON.stringify(settings)]);
+    await recordSystemMutation('bible_game_settings');
+  } catch (err: any) {
+    console.error('[DATABASE PERSIST ERROR: bible_game_settings]', err.message);
   }
 }

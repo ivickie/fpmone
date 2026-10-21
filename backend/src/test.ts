@@ -68,6 +68,7 @@ import { FINANCE_INCOME_CATEGORIES, FINANCE_EXPENSE_CATEGORIES, FINANCE_PAYMENT_
 import http from 'http';
 import { AddressInfo } from 'net';
 import { persistBranch, runSchemaMigrationsOnce } from './db/sync';
+import { BibleGameService } from './services/bibleGameService';
 import app, { isOriginAllowed, isAllowedCustomDomain, isAllowedVercelDomain, isAllowedDevHost, getExplicitAllowedOrigins } from './server';
 
 async function runTests() {
@@ -3820,6 +3821,276 @@ async function runTests() {
 
       // Clean up test token B
       db.deviceTokens = db.deviceTokens.filter(d => d.deviceToken !== testTokenB);
+
+      // --- Section U: Bible Challenge Game Engine, Scoring, Streaks & Anti-Cheating Tests ---
+      console.log('\n--- Section U: Bible Challenge Game Engine, Scoring, Streaks & Anti-Cheating Tests ---');
+
+      // 1. Timezone & Lagos Date Handling
+      const lagosDate = BibleGameService.getTodayLagosDate();
+      assert(/^\d{4}-\d{2}-\d{2}$/.test(lagosDate), `Authoritative Africa/Lagos date is valid YYYY-MM-DD: ${lagosDate}`);
+
+      const yesterdayLagos = BibleGameService.getYesterdayLagosDate(lagosDate);
+      assert(/^\d{4}-\d{2}-\d{2}$/.test(yesterdayLagos), `Yesterday Lagos date is valid YYYY-MM-DD: ${yesterdayLagos}`);
+      assert(yesterdayLagos < lagosDate, 'Yesterday is strictly earlier than today');
+
+      const weekRange = BibleGameService.getWeekRangeLagos(lagosDate);
+      assert(weekRange.startOfWeek <= lagosDate && lagosDate <= weekRange.endOfWeek, 'Current date falls within Africa/Lagos week boundaries');
+
+      // 2. Level Progression Calculation
+      const level0 = BibleGameService.calculateLevel(0);
+      assert(level0.level === 1 && level0.levelTitle === 'Scripture Seeker', '0 XP starts at Level 1 Scripture Seeker');
+
+      const level150 = BibleGameService.calculateLevel(150);
+      assert(level150.level === 2 && level150.levelTitle === 'Faith Disciple', '150 XP resolves to Level 2 Faith Disciple');
+
+      const level5000 = BibleGameService.calculateLevel(5000);
+      assert(level5000.level === 10 && level5000.levelTitle === 'Master of the Word', '5000 XP reaches Level 10 Master of the Word');
+
+      // 3. Question Bank Seed Verification
+      assert(db.bibleQuestions.length >= 35, `Question bank seeded with at least 35 verified questions (count: ${db.bibleQuestions.length})`);
+      const publishedCount = db.bibleQuestions.filter(q => q.status === 'published').length;
+      assert(publishedCount >= 35, `All initial seed questions are published (count: ${publishedCount})`);
+
+      // 4. Daily Challenge Selection & Determinism (Stable Assignment)
+      const challengeTestDate = '2026-10-21';
+      const challengeRes1 = await BibleGameService.getOrCreateDailyChallenge(challengeTestDate);
+      assert(challengeRes1.challenge.challengeDate === challengeTestDate, 'Challenge created with correct Africa/Lagos date');
+      assert(challengeRes1.questions.length === 5, 'Daily challenge contains exactly 5 questions');
+
+      const challengeRes2 = await BibleGameService.getOrCreateDailyChallenge(challengeTestDate);
+      assert(challengeRes2.challenge.id === challengeRes1.challenge.id, 'Subsequent request returns the exact same challenge ID (stable)');
+      assert(
+        JSON.stringify(challengeRes2.challenge.questionIds) === JSON.stringify(challengeRes1.challenge.questionIds),
+        'Question sequence is fixed and identical for all players on that date'
+      );
+
+      // 5. Anti-Cheating: Unanswered Payload Strips Correct Answers
+      const testUser = db.users.find(u => u.email === 'member.john@fpmchurch.org') || db.users[1];
+      const testMember = db.members.find(m => m.userId === testUser.id)!;
+
+      const clientView = BibleGameService.toClientQuestionView(challengeRes1.questions[0]);
+      assert(!('correctOptionIndex' in clientView), 'Client view strictly omits correctOptionIndex before submission');
+      assert(!('explanation' in clientView), 'Client view strictly omits explanation before submission');
+      assert(!('bibleReference' in clientView), 'Client view strictly omits bibleReference before submission');
+      assert(clientView.options.length === 4, 'Client view contains exactly 4 answer options');
+
+      // 6. Session Start / Resume
+      // Reset any prior progress for this user on this test date
+      db.bibleUserProgress = db.bibleUserProgress.filter(
+        p => !(p.userId === testUser.id && p.challengeDate === challengeTestDate)
+      );
+
+      const session = await BibleGameService.startOrResumeSession(testUser.id, testMember.id, challengeTestDate);
+      assert(session.currentQuestionIndex === 0, 'New session starts at question index 0');
+      assert(session.isCompleted === false, 'Session initially marked incomplete');
+      assert(session.score === 0, 'Session initial score is 0');
+      assert(session.currentQuestion !== null, 'Session returns current active question');
+
+      // 7. Answer Submission: Invalid Choice Validation
+      let invalidOptionError = false;
+      try {
+        await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, 99, challengeTestDate);
+      } catch (err: any) {
+        invalidOptionError = true;
+      }
+      assert(invalidOptionError, 'Invalid option index (> 3) is rejected with error');
+
+      // 8. Answer Submission: Out-of-Sequence Rejection
+      let outOfSequenceError = false;
+      try {
+        await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, 1, challengeTestDate);
+      } catch (err: any) {
+        outOfSequenceError = true;
+      }
+      assert(outOfSequenceError, 'Submitting question index 2 when at index 0 is rejected');
+
+      // 9. Answer Submission: Correct Answer Scoring & Feedback
+      const q0 = challengeRes1.questions[0];
+      const ans0 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, challengeTestDate);
+      assert(ans0.isCorrect === true, 'Submitting correct option returns isCorrect: true');
+      assert(ans0.score === 1, 'Score increments to 1 on correct answer');
+      assert(ans0.currentQuestionIndex === 1, 'Current question index advances to 1');
+      assert(ans0.explanation === q0.explanation, 'Reveals concise scriptural explanation upon submission');
+      assert(ans0.bibleReference === q0.bibleReference, 'Reveals bible reference upon submission');
+
+      // 10. Anti-Cheating: Repeated Submission Rejection for Same Question
+      let duplicateAnswerError = false;
+      try {
+        await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, challengeTestDate);
+      } catch (err: any) {
+        duplicateAnswerError = true;
+      }
+      assert(duplicateAnswerError, 'Repeated submission for already-answered question index 0 is rejected');
+
+      // 11. Answer Submission: Incorrect Answer (Zero Score, No Negative XP)
+      const q1 = challengeRes1.questions[1];
+      const wrongChoice = (q1.correctOptionIndex + 1) % 4;
+      const ans1 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 1, wrongChoice, challengeTestDate);
+      assert(ans1.isCorrect === false, 'Submitting incorrect option returns isCorrect: false');
+      assert(ans1.score === 1, 'Score remains 1 on incorrect answer (no negative XP)');
+      assert(ans1.currentQuestionIndex === 2, 'Current question index advances to 2');
+
+      // 12. Answer Remaining Questions (q2, q3, q4)
+      const q2 = challengeRes1.questions[2];
+      await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, q2.correctOptionIndex, challengeTestDate);
+
+      const q3 = challengeRes1.questions[3];
+      await BibleGameService.submitAnswer(testUser.id, testMember.id, 3, q3.correctOptionIndex, challengeTestDate);
+
+      const q4 = challengeRes1.questions[4];
+      const ans4 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 4, q4.correctOptionIndex, challengeTestDate);
+      assert(ans4.score === 4, 'Round score after 4 correct and 1 incorrect answer is 4');
+      assert(ans4.isRoundFinished === true, 'isRoundFinished is true after question 5 is answered');
+
+      // 13. Round Completion & Authoritative XP Award
+      const completion = await BibleGameService.completeChallenge(testUser.id, testMember.id, challengeTestDate);
+      assert(completion.score === 4, 'Completion reflects round score 4');
+      assert(completion.xpAwarded === 40, 'Awards exactly 40 XP (4 * 10 XP)');
+      assert(completion.alreadyCompleted === false, 'First completion sets alreadyCompleted = false');
+      assert(completion.stats.cumulativeXp >= 40, 'User cumulative XP incremented by round XP');
+      assert(completion.stats.currentStreak === 1, 'First day streak initialized to 1');
+      assert(completion.stats.bestStreak >= 1, 'Best streak initialized to 1');
+
+      // 14. First Steps Badge Awarded
+      const hasFirstSteps = db.bibleUserBadges.some(b => b.userId === testUser.id && b.badgeId === 'FIRST_STEPS');
+      assert(hasFirstSteps, 'FIRST_STEPS badge awarded upon first challenge completion');
+
+      // 15. Idempotency: Reopening Completed Challenge Awards Zero Additional XP
+      const reComplete = await BibleGameService.completeChallenge(testUser.id, testMember.id, challengeTestDate);
+      assert(reComplete.alreadyCompleted === true, 'Re-completing returns alreadyCompleted = true');
+      assert(reComplete.xpAwarded === 0, 'Re-completing awards 0 additional XP (strictly idempotent)');
+
+      // 16. Multi-Day Streak Logic Across Africa/Lagos Day Boundaries
+      const nextDayDate = '2026-10-22';
+      // Complete next day's challenge with 5/5 perfect score
+      await BibleGameService.getOrCreateDailyChallenge(nextDayDate);
+      await BibleGameService.startOrResumeSession(testUser.id, testMember.id, nextDayDate);
+      const nextDayChallenge = await BibleGameService.getOrCreateDailyChallenge(nextDayDate);
+      for (let i = 0; i < 5; i++) {
+        await BibleGameService.submitAnswer(
+          testUser.id,
+          testMember.id,
+          i,
+          nextDayChallenge.questions[i].correctOptionIndex,
+          nextDayDate
+        );
+      }
+      const nextDayCompletion = await BibleGameService.completeChallenge(testUser.id, testMember.id, nextDayDate);
+      assert(nextDayCompletion.score === 5, 'Next day round answered 5/5 correctly');
+      assert(nextDayCompletion.xpAwarded === 50, 'Max base score of 50 XP awarded for 5/5');
+      assert(nextDayCompletion.stats.currentStreak === 2, 'Streak increments from 1 to 2 on consecutive calendar day');
+      assert(nextDayCompletion.stats.bestStreak === 2, 'Best streak advances to 2');
+
+      const hasPerfectFive = db.bibleUserBadges.some(b => b.userId === testUser.id && b.badgeId === 'PERFECT_FIVE');
+      assert(hasPerfectFive, 'PERFECT_FIVE badge unlocked on 5/5 perfect round');
+
+      // 17. Broken Streak: Skipping a day resets current streak to 1, preserves best streak
+      const skippedDayDate = '2026-10-25'; // 3 days later
+      await BibleGameService.getOrCreateDailyChallenge(skippedDayDate);
+      await BibleGameService.startOrResumeSession(testUser.id, testMember.id, skippedDayDate);
+      const skippedChallenge = await BibleGameService.getOrCreateDailyChallenge(skippedDayDate);
+      for (let i = 0; i < 5; i++) {
+        await BibleGameService.submitAnswer(
+          testUser.id,
+          testMember.id,
+          i,
+          skippedChallenge.questions[i].correctOptionIndex,
+          skippedDayDate
+        );
+      }
+      const skippedCompletion = await BibleGameService.completeChallenge(testUser.id, testMember.id, skippedDayDate);
+      assert(skippedCompletion.stats.currentStreak === 1, 'Missing a day resets active streak to 1');
+      assert(skippedCompletion.stats.bestStreak >= 2, 'Best streak remains preserved at 2 or higher');
+
+      // 18. Weekly Leaderboard Aggregation & Privacy Protection
+      const leaderboard = await BibleGameService.getLeaderboard(testMember.id);
+      assert(Array.isArray(leaderboard.entries), 'Leaderboard returns array of entries');
+      assert(leaderboard.entries.length > 0, 'Leaderboard contains participants');
+      const currentUserEntry = leaderboard.entries.find(e => e.isCurrentUser);
+      assert(!!currentUserEntry, 'Leaderboard flags isCurrentUser accurately');
+      // Verify PII is NOT leaked
+      for (const entry of leaderboard.entries) {
+        assert(!('email' in entry), 'Leaderboard entries never expose email addresses (PII guard)');
+        assert(!('phone' in entry), 'Leaderboard entries never expose phone numbers (PII guard)');
+        assert(!('dateOfBirth' in entry), 'Leaderboard entries never expose date of birth (PII guard)');
+      }
+
+      // 19. Admin Question CRUD & Publication Validation
+      let invalidQuestionError = false;
+      try {
+        await BibleGameService.createQuestion(
+          {
+            questionText: 'Invalid Question',
+            options: ['Option 1', 'Option 2', 'Option 3', 'Option 1'], // duplicate option!
+            correctOptionIndex: 0,
+            explanation: 'Some explanation',
+            bibleReference: 'John 1:1',
+            category: 'New Testament',
+            difficulty: 'easy'
+          },
+          IDS.USER_ADMIN,
+          'Admin'
+        );
+      } catch (err: any) {
+        invalidQuestionError = true;
+      }
+      assert(invalidQuestionError, 'Admin question creation rejects duplicate answer options');
+
+      const validNewQuestion = await BibleGameService.createQuestion(
+        {
+          questionText: 'Who was the oldest person mentioned in the Bible?',
+          options: ['Enoch', 'Methuselah', 'Noah', 'Jared'],
+          correctOptionIndex: 1,
+          explanation: 'Genesis 5:27 records that Methuselah lived a total of 969 years before he died.',
+          bibleReference: 'Genesis 5:27',
+          category: 'Old Testament',
+          difficulty: 'easy',
+          status: 'published'
+        },
+        IDS.USER_ADMIN,
+        'Admin'
+      );
+      assert(validNewQuestion.id.length > 0, 'Admin can create a valid published Bible question');
+
+      const archived = await BibleGameService.archiveQuestion(validNewQuestion.id);
+      assert(archived.status === 'archived', 'Question successfully archived (soft-delete preserves history)');
+
+      // 20. Admin Aggregate Statistics
+      const adminStats = await BibleGameService.getAdminAggregateStats();
+      assert(adminStats.totalQuestions >= 36, `Admin aggregate stats report correct question count (total: ${adminStats.totalQuestions})`);
+      assert(adminStats.totalChallengesCompleted >= 3, 'Admin stats count completed challenges');
+      assert(adminStats.totalXpAwarded > 0, 'Admin stats report total XP awarded');
+
+      // 21. HTTP Endpoint Integration via Test Server
+      const testServerAddress = testServer.address() as AddressInfo;
+      const baseUrl = `http://127.0.0.1:${testServerAddress.port}/api`;
+
+      // Unauthenticated request to /api/bible-game/today returns HTTP 401
+      const unauthRes = await fetch(`${baseUrl}/bible-game/today`);
+      assert(unauthRes.status === 401, 'Unauthenticated request to /api/bible-game/today returns HTTP 401');
+
+      // Authenticated request to /api/bible-game/today
+      const authUserLogin = await AuthService.login('admin@fpmchurch.org', 'Password123!');
+      const todayRes = await fetch(`${baseUrl}/bible-game/today`, {
+        headers: { Authorization: `Bearer ${authUserLogin.token}` }
+      });
+      const todayData: any = await todayRes.json();
+      if (!todayData?.success) {
+        console.error('TODAY FAILED:', todayRes.status, todayData);
+      }
+      assert(todayData.success === true, 'Response contains success: true');
+      assert(todayData.data?.totalQuestions === 5, 'Response returns 5 daily questions overview');
+
+      // Clean up test data
+      db.bibleUserProgress = db.bibleUserProgress.filter(
+        p => !(p.userId === testUser.id && (p.challengeDate === challengeTestDate || p.challengeDate === nextDayDate || p.challengeDate === skippedDayDate))
+      );
+      db.bibleDailyChallenges = db.bibleDailyChallenges.filter(
+        c => c.challengeDate !== challengeTestDate && c.challengeDate !== nextDayDate && c.challengeDate !== skippedDayDate
+      );
+      db.bibleQuestions = db.bibleQuestions.filter(q => q.id !== validNewQuestion.id);
+      db.bibleUserBadges = db.bibleUserBadges.filter(b => b.userId !== testUser.id);
+      db.bibleUserStats = db.bibleUserStats.filter(s => s.userId !== testUser.id);
 
     } finally {
       testServer.close();

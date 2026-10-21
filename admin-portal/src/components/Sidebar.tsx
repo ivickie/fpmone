@@ -2,13 +2,13 @@ import React from 'react';
 import {
   LayoutDashboard, UserCheck, Users, Building2, Layers, Shield,
   Calendar, Clock, Newspaper, Sparkles, HeartHandshake, UserCog,
-  FileSpreadsheet, Bell, History, Settings, LogOut, Wallet, X
+  FileSpreadsheet, Bell, History, Settings, LogOut, Wallet, X, BookOpen
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export type NavTab = 
   | 'dashboard' | 'approvals' | 'members' | 'branches' | 'departments' | 'roles'
-  | 'services' | 'events' | 'feed' | 'highlights' | 'testimonies' | 'attendance'
+  | 'services' | 'events' | 'feed' | 'highlights' | 'testimonies' | 'bible-challenge' | 'attendance'
   | 'reports' | 'finance' | 'notifications' | 'audit' | 'settings';
 
 interface SidebarProps {
@@ -61,7 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'events' as NavTab, label: 'Events', icon: Calendar },
         { id: 'feed' as NavTab, label: 'Posts & Feed', icon: Newspaper },
         { id: 'highlights' as NavTab, label: 'Service Highlights', icon: Sparkles },
-        { id: 'testimonies' as NavTab, label: 'Testimonies', icon: HeartHandshake, badge: pendingTestimoniesCount }
+        { id: 'testimonies' as NavTab, label: 'Testimonies', icon: HeartHandshake, badge: pendingTestimoniesCount },
+        { id: 'bible-challenge' as NavTab, label: 'Bible Challenge', icon: BookOpen }
       ]
     },
     {

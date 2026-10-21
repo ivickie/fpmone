@@ -27,6 +27,8 @@ import org.fpm.one.presentation.profile.ProfileScreen
 import org.fpm.one.presentation.services.ServicesScreen
 import org.fpm.one.presentation.services.ServicesViewModel
 import org.fpm.one.presentation.testimonies.TestimoniesScreen
+import org.fpm.one.presentation.biblegame.BibleGameScreen
+import org.fpm.one.presentation.biblegame.BibleGameViewModel
 import org.fpm.one.presentation.testimonies.TestimoniesViewModel
 import org.fpm.one.presentation.worker.WorkerHubScreen
 import org.fpm.one.presentation.worker.WorkerViewModel
@@ -47,6 +49,7 @@ fun MainScreen(
   testimoniesViewModel: TestimoniesViewModel,
   workerViewModel: WorkerViewModel,
   notificationsViewModel: NotificationsViewModel,
+  bibleGameViewModel: BibleGameViewModel = remember { BibleGameViewModel() },
   initialActionUrl: String? = null,
   onLogout: () -> Unit
 ) {
@@ -62,7 +65,11 @@ fun MainScreen(
   }
   var subScreen by remember {
     mutableStateOf<String?>(
-      if (initialActionUrl?.contains("notifications") == true) "notifications" else null
+      when {
+        initialActionUrl?.contains("notifications") == true -> "notifications"
+        initialActionUrl?.contains("bible") == true -> "bible_challenge"
+        else -> null
+      }
     )
   }
   val user = remember { SessionManager.getUserSession() }
@@ -91,6 +98,12 @@ fun MainScreen(
         NotificationsScreen(
           viewModel = notificationsViewModel,
           onBackClick = { subScreen = null }
+        )
+      }
+      "bible_challenge" -> {
+        BibleGameScreen(
+          viewModel = bibleGameViewModel,
+          onNavigateBack = { subScreen = null }
         )
       }
       else -> {
@@ -161,7 +174,8 @@ fun MainScreen(
                     currentUser = user,
                     onNavigateToServices = { selectedTab = BottomNavTab.Services },
                     onNavigateToNotifications = { subScreen = "notifications" },
-                    onOpenWorkerHub = { subScreen = "worker_hub" }
+                    onOpenWorkerHub = { subScreen = "worker_hub" },
+                    onOpenBibleChallenge = { subScreen = "bible_challenge" }
                   )
                 }
                 BottomNavTab.Services -> {

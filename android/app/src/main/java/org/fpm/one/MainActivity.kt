@@ -57,6 +57,7 @@ import org.fpm.one.presentation.registration.RegistrationViewModel
 import org.fpm.one.presentation.registration.RegistrationWizardScreen
 import org.fpm.one.presentation.services.ServicesViewModel
 import org.fpm.one.presentation.testimonies.TestimoniesViewModel
+import org.fpm.one.presentation.biblegame.BibleGameViewModel
 import org.fpm.one.presentation.worker.WorkerViewModel
 
 class MainActivity : FragmentActivity() {
@@ -155,6 +156,7 @@ class MainActivity : FragmentActivity() {
           val testimoniesViewModel = remember { TestimoniesViewModel(churchRepository) }
           val workerViewModel = remember { WorkerViewModel(attendanceRepository, churchRepository) }
           val notificationsViewModel = remember { NotificationsViewModel(notificationRepository, applicationContext) }
+          val bibleGameViewModel = remember { BibleGameViewModel() }
 
           Crossfade(
             targetState = currentScreen,
@@ -244,6 +246,7 @@ class MainActivity : FragmentActivity() {
                   testimoniesViewModel = testimoniesViewModel,
                   workerViewModel = workerViewModel,
                   notificationsViewModel = notificationsViewModel,
+                  bibleGameViewModel = bibleGameViewModel,
                   initialActionUrl = pendingActionUrl,
                   onLogout = {
                     val fcmToken = FpmFirebaseMessagingService.getLocalFcmToken(applicationContext)

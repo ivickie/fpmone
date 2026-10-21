@@ -353,3 +353,159 @@ data class NotificationItem(
     val isRead: Boolean = false,
     val actionUrl: String? = null
 )
+
+// =============================================================================
+// BIBLE CHALLENGE GAME MODELS
+// =============================================================================
+
+@Serializable
+data class BibleUserStats(
+    val userId: String,
+    val memberId: String,
+    val cumulativeXp: Int = 0,
+    val level: Int = 1,
+    val levelTitle: String = "Scripture Seeker",
+    val xpInCurrentLevel: Int = 0,
+    val xpForNextLevel: Int = 100,
+    val currentStreak: Int = 0,
+    val bestStreak: Int = 0,
+    val lastCompletedDate: String? = null,
+    val totalChallengesCompleted: Int = 0,
+    val perfectScoresCount: Int = 0
+)
+
+@Serializable
+data class BibleBadgeItem(
+    val id: String,
+    val name: String,
+    val description: String,
+    val icon: String,
+    val xpReward: Int = 0,
+    val displayOrder: Int = 0,
+    val earned: Boolean = false,
+    val awardedAt: String? = null
+)
+
+@Serializable
+data class BibleLeaderboardItem(
+    val rank: Int,
+    val memberId: String,
+    val userId: String,
+    val displayName: String,
+    val profilePictureUrl: String? = null,
+    val branchId: String,
+    val branchName: String? = null,
+    val weeklyXp: Int = 0,
+    val totalXp: Int = 0,
+    val level: Int = 1,
+    val isCurrentUser: Boolean = false
+)
+
+@Serializable
+data class BibleReviewedQuestion(
+    val id: String,
+    val questionText: String,
+    val options: List<String>,
+    val selectedIndex: Int? = null,
+    val correctOptionIndex: Int,
+    val isCorrect: Boolean,
+    val explanation: String,
+    val bibleReference: String
+)
+
+@Serializable
+data class BibleTodayOverview(
+    val challengeDate: String,
+    val challengeId: String,
+    val totalQuestions: Int = 5,
+    val isCompleted: Boolean = false,
+    val score: Int = 0,
+    val currentQuestionIndex: Int = 0,
+    val stats: BibleUserStats,
+    val badges: List<BibleBadgeItem> = emptyList(),
+    val weeklyLeaderboardPreview: List<BibleLeaderboardItem> = emptyList(),
+    val reviewedQuestions: List<BibleReviewedQuestion>? = null
+)
+
+@Serializable
+data class BibleQuestionView(
+    val id: String,
+    val questionText: String,
+    val options: List<String>,
+    val category: String,
+    val difficulty: String
+)
+
+@Serializable
+data class BibleAnsweredQuestion(
+    val questionId: String,
+    val selectedIndex: Int,
+    val isCorrect: Boolean,
+    val correctOptionIndex: Int,
+    val explanation: String,
+    val bibleReference: String
+)
+
+@Serializable
+data class BibleGameSession(
+    val challengeDate: String,
+    val challengeId: String,
+    val currentQuestionIndex: Int,
+    val totalQuestions: Int = 5,
+    val isCompleted: Boolean,
+    val score: Int,
+    val currentQuestion: BibleQuestionView? = null,
+    val answeredQuestions: List<BibleAnsweredQuestion> = emptyList()
+)
+
+@Serializable
+data class BibleAnswerFeedback(
+    val isCorrect: Boolean,
+    val correctOptionIndex: Int,
+    val explanation: String,
+    val bibleReference: String,
+    val score: Int,
+    val currentQuestionIndex: Int,
+    val isRoundFinished: Boolean
+)
+
+@Serializable
+data class BibleChallengeCompletion(
+    val challengeDate: String,
+    val score: Int,
+    val totalQuestions: Int = 5,
+    val xpAwarded: Int,
+    val alreadyCompleted: Boolean,
+    val stats: BibleUserStats,
+    val newlyUnlockedBadges: List<BibleBadgeItem> = emptyList(),
+    val reviewedQuestions: List<BibleReviewedQuestion> = emptyList()
+)
+
+@Serializable
+data class BibleProgressHistory(
+    val stats: BibleUserStats,
+    val badges: List<BibleBadgeItem> = emptyList(),
+    val recentChallenges: List<BibleRecentChallenge> = emptyList()
+)
+
+@Serializable
+data class BibleRecentChallenge(
+    val challengeDate: String,
+    val score: Int,
+    val xpAwarded: Int,
+    val isCompleted: Boolean,
+    val completedAt: String? = null
+)
+
+@Serializable
+data class BibleWeekRange(
+    val start: String,
+    val end: String
+)
+
+@Serializable
+data class BibleLeaderboardData(
+    val entries: List<BibleLeaderboardItem> = emptyList(),
+    val userRank: BibleLeaderboardItem? = null,
+    val weekRange: BibleWeekRange? = null
+)

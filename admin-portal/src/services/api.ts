@@ -516,5 +516,38 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ token, newPassword })
     }),
-  getBrevoStatus: () => apiRequest('/auth/brevo-status')
+  getBrevoStatus: () => apiRequest('/auth/brevo-status'),
+
+  // --- BIBLE CHALLENGE ---
+  getBibleQuestions: (params?: { category?: string; difficulty?: string; status?: string; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.append('category', params.category);
+    if (params?.difficulty) qs.append('difficulty', params.difficulty);
+    if (params?.status) qs.append('status', params.status);
+    if (params?.search) qs.append('search', params.search);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return apiRequest<{ success: boolean; data: any[] }>(`/bible-game/admin/questions${query}`);
+  },
+  getBibleQuestionById: (id: string) => apiRequest<{ success: boolean; data: any }>(`/bible-game/admin/questions/${id}`),
+  createBibleQuestion: (data: any) => apiRequest<{ success: boolean; data: any }>('/bible-game/admin/questions', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  updateBibleQuestion: (id: string, data: any) => apiRequest<{ success: boolean; data: any }>(`/bible-game/admin/questions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  archiveBibleQuestion: (id: string) => apiRequest<{ success: boolean; data: any; message?: string }>(`/bible-game/admin/questions/${id}`, {
+    method: 'DELETE'
+  }),
+  getBibleDailyChallenge: (date?: string) => {
+    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    return apiRequest<{ success: boolean; data: any }>(`/bible-game/admin/daily-challenge${query}`);
+  },
+  getBibleAdminStats: () => apiRequest<{ success: boolean; data: any }>('/bible-game/admin/stats'),
+  getBibleSettings: () => apiRequest<{ success: boolean; data: any }>('/bible-game/admin/settings'),
+  updateBibleSettings: (data: any) => apiRequest<{ success: boolean; data: any }>('/bible-game/admin/settings', {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  })
 };

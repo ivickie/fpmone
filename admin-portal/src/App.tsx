@@ -17,6 +17,7 @@ import { EventsPage } from './pages/EventsPage';
 import { FeedPage } from './pages/FeedPage';
 import { HighlightsPage } from './pages/HighlightsPage';
 import { TestimoniesPage } from './pages/TestimoniesPage';
+import { BibleChallengePage } from './pages/BibleChallengePage';
 import { AttendancePage } from './pages/AttendancePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
@@ -158,6 +159,7 @@ const AppContent: React.FC = () => {
     feed: { title: 'Church Feed & Announcements', subtitle: 'Publish pastoral messages and targeted church notices' },
     highlights: { title: 'Post-Service Sermon Highlights', subtitle: 'Recap sermon scriptures, key takeaways, and pastoral quotes' },
     testimonies: { title: 'Testimonies Moderation Queue', subtitle: 'Review member miracle testimonies prior to public dissemination' },
+    'bible-challenge': { title: 'Bible Challenge Game & Question Bank', subtitle: 'Curate Scripture questions, review daily rounds, and monitor member participation' },
     attendance: { title: 'Live Worker Attendance Console', subtitle: 'Monitor today\'s clock-ins, grace periods, late tagging, and timeouts' },
     reports: { title: 'Monthly Attendance Matrix & Analytics', subtitle: 'Worker punctuality rates, matrix grid (✓, L, A, E), and exports' },
     finance: { title: 'Finance, Treasury & General Ledger', subtitle: 'Authoritative financial ledger, income & expenses, monthly/annual statements, and audit analytics' },
@@ -225,6 +227,7 @@ const AppContent: React.FC = () => {
           {currentTab === 'feed' && <FeedPage />}
           {currentTab === 'highlights' && <HighlightsPage />}
           {currentTab === 'testimonies' && <TestimoniesPage />}
+          {currentTab === 'bible-challenge' && <BibleChallengePage />}
           {currentTab === 'attendance' && <AttendancePage />}
           {currentTab === 'reports' && <ReportsPage />}
           {currentTab === 'finance' && <FinancePage branches={branches} />}

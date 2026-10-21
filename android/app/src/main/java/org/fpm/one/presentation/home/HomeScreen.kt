@@ -76,7 +76,8 @@ fun HomeScreen(
     onNavigateToServices: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onOpenWorkerHub: () -> Unit,
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onOpenBibleChallenge: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -379,6 +380,166 @@ fun HomeScreen(
                                         latestMomentUrl = latestEligibleMoment?.mediaUrl,
                                         onClick = { activeGalleryBranch = branch }
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // -------------------------------------------------------------
+                // SECTION 2B: DAILY BIBLE CHALLENGE SPOTLIGHT
+                // -------------------------------------------------------------
+                item(key = "daily_bible_challenge_spotlight") {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(22.dp))
+                                .clickable(onClick = onOpenBibleChallenge),
+                            shape = RoundedCornerShape(22.dp),
+                            colors = CardDefaults.cardColors(containerColor = FpmNavyDark),
+                            border = BorderStroke(1.dp, FpmGold.copy(alpha = 0.45f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(
+                                                FpmNavyDeep,
+                                                Color(0xFF13223B),
+                                                FpmNavySurface
+                                            )
+                                        )
+                                    )
+                                    .padding(18.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    // Row with Category Badge & Streak badge
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            color = FpmGold.copy(alpha = 0.18f),
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = BorderStroke(1.dp, FpmGold.copy(alpha = 0.45f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                            ) {
+                                                Text(
+                                                    text = "📖",
+                                                    fontSize = 12.sp
+                                                )
+                                                Text(
+                                                    text = "BIBLE CHALLENGE",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = FpmGoldLight,
+                                                    letterSpacing = 0.8.sp
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            color = FpmGold.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(12.dp),
+                                            border = BorderStroke(0.5.dp, FpmGold.copy(alpha = 0.35f))
+                                        ) {
+                                            Text(
+                                                text = "⚡ Daily Trivia",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = FpmGoldLight,
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // Title & Tagline with Trophy Illustration
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Today's Bible Challenge",
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color.White
+                                            )
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = "5 questions to sharpen Scripture knowledge, maintain your streak & climb the weekly ranks.",
+                                                fontSize = 12.sp,
+                                                color = Color.White.copy(alpha = 0.85f),
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        // Badge / Avatar circular emblem
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = FpmGold.copy(alpha = 0.15f),
+                                            border = BorderStroke(1.5.dp, FpmGold.copy(alpha = 0.5f)),
+                                            modifier = Modifier.size(52.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "🏆",
+                                                    fontSize = 26.sp
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Action bar
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Earn up to 50 XP today",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = FpmGoldLight
+                                        )
+
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = FpmGold,
+                                            border = BorderStroke(0.5.dp, FpmGoldLight),
+                                            modifier = Modifier.clickable(onClick = onOpenBibleChallenge)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Play Challenge",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = FpmNavyDark
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.ArrowForward,
+                                                    contentDescription = null,
+                                                    tint = FpmNavyDark,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
