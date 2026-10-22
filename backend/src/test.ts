@@ -69,6 +69,7 @@ import http from 'http';
 import { AddressInfo } from 'net';
 import { persistBranch, runSchemaMigrationsOnce } from './db/sync';
 import { BibleGameService } from './services/bibleGameService';
+import { BibleAiService } from './services/bibleAiService';
 import app, { isOriginAllowed, isAllowedCustomDomain, isAllowedVercelDomain, isAllowedDevHost, getExplicitAllowedOrigins } from './server';
 
 async function runTests() {
@@ -4309,6 +4310,212 @@ async function runTests() {
       assert(day1Recheck.xpAwarded === 0.0, 'Scenario 10: Day 1 awards 0.0 additional XP');
       const finalStats = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
       assert(finalStats.cumulativeXp === day2TotalXp, `Scenario 10: Final cumulative XP remains exactly ${day2TotalXp} XP`);
+
+      // =========================================================================
+      // --- Section W: Bible Challenge AI Question Generation & Admin Form Tests ---
+      // =========================================================================
+      console.log('\n--- Section W: Bible Challenge AI Question Generation & Admin Form Tests ---');
+
+      // Scenario 1: Generate a question for Bible Characters at Easy difficulty
+      const easyCharactersRaw = JSON.stringify({
+        questionText: 'Who was swallowed by a great fish after fleeing from the Lord\'s command to go to Nineveh?',
+        options: ['Jonah', 'Elijah', 'Daniel', 'Moses'],
+        correctAnswer: 'A',
+        bibleReference: 'Jonah 1:17',
+        explanation: 'The Lord provided a great fish to swallow Jonah, and Jonah was inside the fish three days and three nights.'
+      });
+      const aiQ1 = BibleAiService.parseAndValidateResponse(easyCharactersRaw, 'Bible Characters', 'easy');
+      assert(aiQ1.category === 'Bible Characters', 'Scenario 1: Category matches requested Bible Characters');
+      assert(aiQ1.difficulty === 'easy', 'Scenario 1: Difficulty matches requested Easy');
+      assert(aiQ1.questionText.includes('great fish'), 'Scenario 1: Question prompt populated');
+      assert(aiQ1.options.length === 4, 'Scenario 1: Exactly four answer choices provided');
+      assert(aiQ1.correctOptionIndex === 0, 'Scenario 1: Correct answer A maps to index 0');
+      assert(aiQ1.bibleReference === 'Jonah 1:17', 'Scenario 1: Accurate Scripture reference populated');
+      assert(aiQ1.explanation.length > 10, 'Scenario 1: Concise explanation populated');
+
+      // Scenario 2: Generate a question for New Testament at Medium difficulty
+      const mediumNTRaw = JSON.stringify({
+        questionText: 'On the island of Patmos, who received the prophetic revelation of Jesus Christ recorded in Revelation?',
+        options: ['Peter', 'John', 'Paul', 'Barnabas'],
+        correctAnswer: 'B',
+        bibleReference: 'Revelation 1:9-10',
+        explanation: 'John was on the island called Patmos on the Lord\'s day when he heard a voice like a trumpet giving him the revelation.'
+      });
+      const aiQ2 = BibleAiService.parseAndValidateResponse(mediumNTRaw, 'New Testament', 'medium');
+      assert(aiQ2.category === 'New Testament', 'Scenario 2: Category matches New Testament');
+      assert(aiQ2.difficulty === 'medium', 'Scenario 2: Difficulty matches Medium');
+      assert(aiQ2.correctOptionIndex === 1, 'Scenario 2: Correct answer B maps to index 1');
+      assert(aiQ2.options[1] === 'John', 'Scenario 2: Option B matches John');
+
+      // Scenario 3: Generate a question for Books of the Bible at Hard difficulty
+      const hardBooksRaw = JSON.stringify({
+        questionText: 'Which Old Testament prophetic book ends with the question: "And should I not have concern for the great city of Nineveh...?"',
+        options: ['Nahum', 'Habakkuk', 'Zephaniah', 'Jonah'],
+        correctAnswer: 'D',
+        bibleReference: 'Jonah 4:11',
+        explanation: 'The final verse of Jonah records God rebuking Jonah\'s anger by affirming His compassion on Nineveh\'s 120,000 residents.'
+      });
+      const aiQ3 = BibleAiService.parseAndValidateResponse(hardBooksRaw, 'Books of the Bible', 'hard');
+      assert(aiQ3.category === 'Books of the Bible', 'Scenario 3: Category matches Books of the Bible');
+      assert(aiQ3.difficulty === 'hard', 'Scenario 3: Difficulty matches Hard');
+      assert(aiQ3.correctOptionIndex === 3, 'Scenario 3: Correct answer D maps to index 3');
+
+      // Scenario 4: Verify all form fields populate, including correct answer radio button
+      assert(typeof aiQ3.questionText === 'string' && aiQ3.questionText.length > 0, 'Scenario 4: Question prompt field populated');
+      assert(Array.isArray(aiQ3.options) && aiQ3.options.length === 4, 'Scenario 4: All four answer option fields populated');
+      assert(aiQ3.options.every(o => typeof o === 'string' && o.length > 0), 'Scenario 4: No empty option fields');
+      assert(aiQ3.correctOptionIndex >= 0 && aiQ3.correctOptionIndex <= 3, 'Scenario 4: Correct answer radio selection in valid 0..3 range');
+      assert(aiQ3.bibleReference.includes(':'), 'Scenario 4: Scripture reference formatted with chapter and verse');
+
+      // Scenario 5: Edit generated content manually and save as draft
+      const initialDbCount = db.bibleQuestions.length;
+      const draftQuestion = await BibleGameService.createQuestion(
+        {
+          questionText: aiQ1.questionText + ' (Edited by Admin)',
+          options: aiQ1.options,
+          correctOptionIndex: aiQ1.correctOptionIndex,
+          explanation: aiQ1.explanation,
+          bibleReference: aiQ1.bibleReference,
+          category: aiQ1.category,
+          difficulty: aiQ1.difficulty,
+          status: 'draft'
+        },
+        testUser.id,
+        'Test Admin'
+      );
+      assert(draftQuestion.status === 'draft', 'Scenario 5: Question successfully saved as draft');
+      assert(draftQuestion.questionText.includes('(Edited by Admin)'), 'Scenario 5: Manually edited fields preserved in draft');
+      assert(db.bibleQuestions.length === initialDbCount + 1, 'Scenario 5: Question count increased after explicit save');
+
+      // Scenario 6: Review generated question before publishing it
+      const publishedQuestion = await BibleGameService.updateQuestion(draftQuestion.id, {
+        status: 'published'
+      });
+      assert(publishedQuestion.status === 'published', 'Scenario 6: Question successfully promoted from draft to published');
+
+      // Scenario 7: Regenerate a question simulation
+      const regeneratedCandidate = BibleAiService.parseAndValidateResponse(
+        JSON.stringify({
+          questionText: 'Who was the first king of Israel anointed by Samuel?',
+          options: ['David', 'Saul', 'Solomon', 'Rehoboam'],
+          correctAnswer: 'B',
+          bibleReference: '1 Samuel 10:1',
+          explanation: 'Samuel took a flask of olive oil and poured it on Saul’s head and kissed him, announcing he was king over Israel.'
+        }),
+        'Bible Characters',
+        'easy'
+      );
+      assert(regeneratedCandidate.questionText !== aiQ1.questionText, 'Scenario 7: Regeneration produces distinct prompt');
+      assert(regeneratedCandidate.options[1] === 'Saul', 'Scenario 7: Regenerated choices populated');
+
+      // Scenario 8: Handle unconfigured AI provider error gracefully
+      let configErrorCaught = false;
+      const originalGeminiKey = process.env.GEMINI_API_KEY;
+      const originalOpenAiKey = process.env.OPENAI_API_KEY;
+      const originalAiKey = process.env.AI_API_KEY;
+      try {
+        delete process.env.GEMINI_API_KEY;
+        delete process.env.OPENAI_API_KEY;
+        delete process.env.AI_API_KEY;
+        await BibleAiService.generateQuestion('Bible Characters', 'easy');
+      } catch (err: any) {
+        configErrorCaught = true;
+        assert(err.message.includes('GEMINI_API_KEY') || err.message.includes('OPENAI_API_KEY'), 'Scenario 8: Error clearly identifies required environment variables');
+      } finally {
+        if (originalGeminiKey) process.env.GEMINI_API_KEY = originalGeminiKey;
+        if (originalOpenAiKey) process.env.OPENAI_API_KEY = originalOpenAiKey;
+        if (originalAiKey) process.env.AI_API_KEY = originalAiKey;
+      }
+      assert(configErrorCaught === true, 'Scenario 8: Missing credentials throw descriptive error');
+
+      // Scenario 9: Handle malformed or incomplete provider output
+      let duplicateErrorCaught = false;
+      try {
+        BibleAiService.parseAndValidateResponse(
+          JSON.stringify({
+            questionText: 'Which apostle denied Jesus three times before the rooster crowed?',
+            options: ['Peter', 'Peter', 'John', 'Judas'],
+            correctAnswer: 'A',
+            bibleReference: 'Matthew 26:34',
+            explanation: 'Peter denied Jesus three times.'
+          }),
+          'New Testament',
+          'easy'
+        );
+      } catch (err: any) {
+        duplicateErrorCaught = true;
+        assert(err.message.includes('duplicate'), 'Scenario 9: Rejects duplicate answer choices');
+      }
+      assert(duplicateErrorCaught === true, 'Scenario 9: Duplicate choices properly rejected');
+
+      let missingRefErrorCaught = false;
+      try {
+        BibleAiService.parseAndValidateResponse(
+          JSON.stringify({
+            questionText: 'Who led the Israelites across the Jordan River into Canaan?',
+            options: ['Moses', 'Joshua', 'Caleb', 'Aaron'],
+            correctAnswer: 'B',
+            bibleReference: '',
+            explanation: 'Joshua led the people across the Jordan.'
+          }),
+          'Old Testament',
+          'medium'
+        );
+      } catch (err: any) {
+        missingRefErrorCaught = true;
+        assert(err.message.includes('Bible reference'), 'Scenario 9: Rejects missing Bible reference');
+      }
+      assert(missingRefErrorCaught === true, 'Scenario 9: Missing Bible reference rejected');
+
+      // Scenario 10: Verify unauthorized users cannot access generation endpoint
+      const unauthGenRes = await fetch(`${baseTestUrl}/api/bible-game/admin/questions/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: 'Bible Characters', difficulty: 'easy' })
+      });
+      assert(unauthGenRes.status === 401, 'Scenario 10: Unauthenticated request to generate endpoint returns HTTP 401');
+
+      const memberGenRes = await fetch(`${baseTestUrl}/api/bible-game/admin/questions/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${hodUserToken}`
+        },
+        body: JSON.stringify({ category: 'Bible Characters', difficulty: 'easy' })
+      });
+      assert(memberGenRes.status === 403, 'Scenario 10: Member token cannot access admin generate endpoint (HTTP 403 Forbidden)');
+
+      // Scenario 11: Confirm no provider secret is exposed in error response or body
+      const adminGenRes = await fetch(`${baseTestUrl}/api/bible-game/admin/questions/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({ category: 'Bible Characters', difficulty: 'easy' })
+      });
+      const adminGenJson: any = await adminGenRes.json();
+      assert(adminGenJson.secret === undefined, 'Scenario 11: Response does not expose "secret"');
+      assert(adminGenJson.apiKey === undefined, 'Scenario 11: Response does not expose "apiKey"');
+      assert(adminGenJson.key === undefined, 'Scenario 11: Response does not expose "key"');
+
+      // Scenario 12: Confirm generated question is not automatically saved or published
+      const countBefore = db.bibleQuestions.length;
+      BibleAiService.parseAndValidateResponse(
+        JSON.stringify({
+          questionText: 'Who was the prophet that confronted King David regarding Bathsheba?',
+          options: ['Nathan', 'Samuel', 'Elijah', 'Gad'],
+          correctAnswer: 'A',
+          bibleReference: '2 Samuel 12:1-7',
+          explanation: 'Nathan told the parable of the rich man and poor man, saying to David: "You are the man!"'
+        }),
+        'Old Testament',
+        'medium'
+      );
+      assert(db.bibleQuestions.length === countBefore, 'Scenario 12: Question generation does not auto-save to database');
+
+      // Clean up test draft/published question
+      db.bibleQuestions = db.bibleQuestions.filter(q => q.id !== draftQuestion.id);
 
       // Clean up duplicate test progress
       db.bibleUserProgress = db.bibleUserProgress.filter(

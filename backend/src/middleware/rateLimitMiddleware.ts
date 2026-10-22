@@ -274,3 +274,14 @@ export const resetPasswordRateLimiter = createRateLimiter({
   message: 'Too many password reset attempts. Please wait a few minutes before trying again.',
   keyGenerator: (req: Request) => `reset_pass_${getClientIp(req)}`
 });
+
+// 12. AI Question Generation Rate Limiter: 15 requests per minute per Admin IP/User
+export const aiQuestionGenerateRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 15,
+  message: 'Too many question generation requests. Please wait a moment before trying again.',
+  keyGenerator: (req: Request) => {
+    const userId = (req as any).user?.userId || '';
+    return `ai_gen_${userId ? hashIdentifier(userId) : getClientIp(req)}`;
+  }
+});

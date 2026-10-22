@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { BibleGameService } from '../services/bibleGameService';
+import { BibleAiService } from '../services/bibleAiService';
 import { AuditService } from '../services/auditService';
 
 export const getTodayChallengeHandler = async (req: Request, res: Response) => {
@@ -297,5 +298,56 @@ export const updateAdminSettingsHandler = async (req: Request, res: Response) =>
   } catch (err: any) {
     console.error('[BIBLE GAME ADMIN ERROR] updateAdminSettingsHandler:', err.message);
     return res.status(400).json({ success: false, error: err.message || 'Failed to update settings.' });
+  }
+};
+
+export const generateAiQuestionHandler = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+
+    const { category, difficulty } = req.body;
+    if (!category || typeof category !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'category is required and must be a valid Scripture category.'
+      });
+    }
+
+    if (!difficulty || typeof difficulty !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'difficulty is required (easy, medium, hard).'
+      });
+    }
+
+    const generated = await BibleAiService.generateQuestion(category, difficulty);
+
+    await AuditService.log(
+      req.user.fullName,
+      req.user.roleCode,
+      'BIBLE_QUESTION_AI_GENERATE',
+      'bible_game_questions',
+      'draft_ai',
+      req.user.userId,
+      undefined,
+      { category, difficulty, reference: generated.bibleReference },
+      req.ip
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: generated,
+      message: 'AI question generated successfully.'
+    });
+  } catch (err: any) {
+    console.error('[BIBLE GAME ADMIN ERROR] generateAiQuestionHandler:', err.message);
+    const isConfigError = err.message.includes('not configured') || err.message.includes('API key');
+    const statusCode = isConfigError ? 503 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      error: err.message || 'Failed to generate question with AI.'
+    });
   }
 };

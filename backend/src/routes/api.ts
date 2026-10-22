@@ -52,7 +52,8 @@ import {
   getAdminDailyChallengeHandler,
   getAdminStatsHandler,
   getAdminSettingsHandler,
-  updateAdminSettingsHandler
+  updateAdminSettingsHandler,
+  generateAiQuestionHandler
 } from '../controllers/bibleGameController';
 import { requireAuth, requireAdmin, requireSuperAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
 import {
@@ -65,7 +66,8 @@ import {
   verifyEmailRateLimiter,
   resendOtpRateLimiter,
   forgotPasswordRateLimiter,
-  resetPasswordRateLimiter
+  resetPasswordRateLimiter,
+  aiQuestionGenerateRateLimiter
 } from '../middleware/rateLimitMiddleware';
 
 const upload = multer({
@@ -252,6 +254,7 @@ router.get('/bible-game/progress', requireAuth, getProgressHandler);
 router.get('/bible-game/leaderboard', optionalAuth, getLeaderboardHandler);
 
 // --- BIBLE CHALLENGE ADMIN PORTAL ---
+router.post('/bible-game/admin/questions/generate', requireAuth, requireAdmin, aiQuestionGenerateRateLimiter, generateAiQuestionHandler);
 router.get('/bible-game/admin/questions', requireAuth, requireAdmin, listAdminQuestionsHandler);
 router.post('/bible-game/admin/questions', requireAuth, requireAdmin, createAdminQuestionHandler);
 router.get('/bible-game/admin/questions/:id', requireAuth, requireAdmin, getAdminQuestionByIdHandler);

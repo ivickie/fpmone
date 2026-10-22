@@ -540,6 +540,23 @@ export const api = {
   archiveBibleQuestion: (id: string) => apiRequest<{ success: boolean; data: any; message?: string }>(`/bible-game/admin/questions/${id}`, {
     method: 'DELETE'
   }),
+  generateBibleQuestion: (data: { category: string; difficulty: 'easy' | 'medium' | 'hard' }) =>
+    apiRequest<{
+      success: boolean;
+      data: {
+        questionText: string;
+        category: string;
+        difficulty: 'easy' | 'medium' | 'hard';
+        options: [string, string, string, string];
+        correctOptionIndex: number;
+        bibleReference: string;
+        explanation: string;
+      };
+      message?: string;
+    }>('/bible-game/admin/questions/generate', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
   getBibleDailyChallenge: (date?: string) => {
     const query = date ? `?date=${encodeURIComponent(date)}` : '';
     return apiRequest<{ success: boolean; data: any }>(`/bible-game/admin/daily-challenge${query}`);
