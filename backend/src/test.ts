@@ -4514,6 +4514,161 @@ async function runTests() {
       );
       assert(db.bibleQuestions.length === countBefore, 'Scenario 12: Question generation does not auto-save to database');
 
+      // Scenario 13: Server-side configurable GEMINI_MODEL environment variable
+      BibleAiService.resetModelCache();
+      const prevGeminiModel = process.env.GEMINI_MODEL;
+      try {
+        process.env.GEMINI_MODEL = 'models/gemini-1.5-flash';
+        const resWithPrefix = await BibleAiService.resolveGeminiModel('mock-api-key');
+        assert(resWithPrefix.model === 'gemini-1.5-flash', 'Scenario 13: GEMINI_MODEL strips "models/" prefix');
+        assert(resWithPrefix.apiVersion === 'v1beta', 'Scenario 13: Uses v1beta API version');
+
+        BibleAiService.resetModelCache();
+        process.env.GEMINI_MODEL = 'gemini-2.0-flash';
+        const resDirect = await BibleAiService.resolveGeminiModel('mock-api-key');
+        assert(resDirect.model === 'gemini-2.0-flash', 'Scenario 13: Resolves explicit GEMINI_MODEL directly');
+      } finally {
+        if (prevGeminiModel) process.env.GEMINI_MODEL = prevGeminiModel;
+        else delete process.env.GEMINI_MODEL;
+        BibleAiService.resetModelCache();
+      }
+
+      // Scenario 14: Secret sanitization guarantees no API key leakage in messages or URLs
+      const testSecretKey = 'AIzaSyA_TEST_SUPER_SECRET_KEY_999';
+      const leakedUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${testSecretKey}`;
+      const sanitized = BibleAiService.sanitizeSecret(`Failed to call ${leakedUrl} with token ${testSecretKey}`, testSecretKey);
+      assert(!sanitized.includes(testSecretKey), 'Scenario 14: Sanitizer completely strips API key');
+      assert(sanitized.includes('[REDACTED_API_KEY]') || sanitized.includes('key=[REDACTED]'), 'Scenario 14: Sanitizer replaces secret with redacted label');
+
+      // Scenario 15: Verify ListModels and callGemini error classifications
+      const originalFetch = global.fetch;
+      try {
+        // Test 403 Permission error
+        global.fetch = async (url: any) => {
+          if (String(url).includes('models?key=')) {
+            return new Response(JSON.stringify({ error: { message: 'API key not valid or API disabled' } }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return originalFetch(url);
+        };
+        BibleAiService.resetModelCache();
+        delete process.env.GEMINI_MODEL;
+        let pErrCaught = false;
+        try {
+          await BibleAiService.resolveGeminiModel('dummy-key');
+        } catch (err: any) {
+          pErrCaught = true;
+          assert(err.message.includes('403') || err.message.includes('permission'), 'Scenario 15: ListModels 403 classified as permission error');
+        }
+        assert(pErrCaught === true, 'Scenario 15: HTTP 403 caught and classified');
+
+        // Test 429 Quota error
+        global.fetch = async (url: any) => {
+          if (String(url).includes('models?key=')) {
+            return new Response(JSON.stringify({ error: { message: 'Resource exhausted / quota exceeded' } }), {
+              status: 429,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return originalFetch(url);
+        };
+        BibleAiService.resetModelCache();
+        let qErrCaught = false;
+        try {
+          await BibleAiService.resolveGeminiModel('dummy-key');
+        } catch (err: any) {
+          qErrCaught = true;
+          assert(err.message.includes('429') || err.message.includes('quota'), 'Scenario 15: ListModels 429 classified as quota error');
+        }
+        assert(qErrCaught === true, 'Scenario 15: HTTP 429 caught and classified');
+
+        // Test ListModels selection of Flash models
+        global.fetch = async (url: any) => {
+          if (String(url).includes('models?key=')) {
+            return new Response(JSON.stringify({
+              models: [
+                { name: 'models/chat-bison-001', supportedGenerationMethods: ['generateMessage'] },
+                { name: 'models/gemini-1.5-pro', supportedGenerationMethods: ['generateContent'] },
+                { name: 'models/gemini-1.5-flash', supportedGenerationMethods: ['generateContent', 'countTokens'] }
+              ]
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return originalFetch(url);
+        };
+        BibleAiService.resetModelCache();
+        const autoResolved = await BibleAiService.resolveGeminiModel('dummy-key');
+        assert(autoResolved.model === 'gemini-1.5-flash', 'Scenario 15: ListModels prioritizes cost-effective 1.5-flash model');
+
+        // Test callGemini 404 Model not found
+        global.fetch = async (url: any) => {
+          if (String(url).includes(':generateContent')) {
+            return new Response(JSON.stringify({ error: { message: 'models/gemini-1.5-flash is not found for API version v1beta' } }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return originalFetch(url);
+        };
+        process.env.GEMINI_API_KEY = 'test-key';
+        let nfErrCaught = false;
+        try {
+          await BibleAiService.generateQuestion('Bible Characters', 'easy');
+        } catch (err: any) {
+          nfErrCaught = true;
+          assert(err.message.includes('404') || err.message.includes('not found'), 'Scenario 15: callGemini 404 classified as model not found');
+        }
+        assert(nfErrCaught === true, 'Scenario 15: HTTP 404 caught and classified');
+
+        // Scenario 16: Successful callGemini end-to-end question generation
+        global.fetch = async (url: any) => {
+          if (String(url).includes(':generateContent')) {
+            return new Response(JSON.stringify({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify({
+                          questionText: 'Who was the shepherd boy who became king of Israel?',
+                          options: ['David', 'Saul', 'Solomon', 'Samuel'],
+                          correctAnswer: 'A',
+                          bibleReference: '1 Samuel 16:11-13',
+                          explanation: 'As a young shepherd tending his father’s sheep, David was chosen and anointed king by Samuel.'
+                        })
+                      }
+                    ]
+                  }
+                }
+              ]
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return originalFetch(url);
+        };
+        process.env.GEMINI_API_KEY = 'test-key';
+        process.env.GEMINI_MODEL = 'gemini-1.5-flash';
+        BibleAiService.resetModelCache();
+        const generatedE2E = await BibleAiService.generateQuestion('Bible Characters', 'easy');
+        assert(generatedE2E.questionText === 'Who was the shepherd boy who became king of Israel?', 'Scenario 16: Question prompt generated');
+        assert(generatedE2E.options.length === 4, 'Scenario 16: Four options generated');
+        assert(generatedE2E.correctOptionIndex === 0, 'Scenario 16: Correct option index 0');
+        assert(generatedE2E.bibleReference === '1 Samuel 16:11-13', 'Scenario 16: Bible reference generated');
+        assert(generatedE2E.explanation.includes('shepherd'), 'Scenario 16: Explanation generated');
+
+      } finally {
+        global.fetch = originalFetch;
+        delete process.env.GEMINI_API_KEY;
+        delete process.env.GEMINI_MODEL;
+        BibleAiService.resetModelCache();
+      }
+
       // Clean up test draft/published question
       db.bibleQuestions = db.bibleQuestions.filter(q => q.id !== draftQuestion.id);
 

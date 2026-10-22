@@ -342,12 +342,25 @@ export const generateAiQuestionHandler = async (req: Request, res: Response) => 
       message: 'AI question generated successfully.'
     });
   } catch (err: any) {
-    console.error('[BIBLE GAME ADMIN ERROR] generateAiQuestionHandler:', err.message);
-    const isConfigError = err.message.includes('not configured') || err.message.includes('API key');
-    const statusCode = isConfigError ? 503 : 400;
+    const rawError = err.message || 'Failed to generate question with AI.';
+    const sanitizedError = BibleAiService.sanitizeSecret(rawError);
+    console.error('[BIBLE GAME ADMIN ERROR] generateAiQuestionHandler:', sanitizedError);
+
+    let statusCode = 400;
+    if (sanitizedError.includes('not configured') || sanitizedError.includes('API key is not configured')) {
+      statusCode = 503;
+    } else if (sanitizedError.includes('429') || sanitizedError.toLowerCase().includes('quota') || sanitizedError.toLowerCase().includes('rate limit')) {
+      statusCode = 429;
+    } else if (sanitizedError.includes('403') || sanitizedError.toLowerCase().includes('permission denied')) {
+      statusCode = 403;
+    } else if (sanitizedError.includes('404') || sanitizedError.toLowerCase().includes('not found')) {
+      statusCode = 404;
+    }
+
     return res.status(statusCode).json({
       success: false,
-      error: err.message || 'Failed to generate question with AI.'
+      error: sanitizedError
     });
   }
 };
+
