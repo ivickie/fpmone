@@ -1924,7 +1924,7 @@ export class DatabaseStore {
   public bibleUserBadges: BibleUserBadgeRecord[] = [];
   public bibleSettings: BibleGameSettings = {
     questionsPerRound: 5,
-    timeLimitSeconds: 10,
+    timeLimitSeconds: 15,
     maxBaseXp: 50,
     timezone: 'Africa/Lagos'
   };

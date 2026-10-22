@@ -752,9 +752,10 @@ fun BibleQuizScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Timer countdown row
+        val maxSeconds = (state.activeTiming?.timeLimitSeconds?.takeIf { it > 0 } ?: 15).toFloat()
         val timerColor = when {
-            state.remainingSeconds <= 3.0f -> FpmError
-            state.remainingSeconds <= 6.0f -> FpmAmber
+            state.remainingSeconds <= (maxSeconds * 0.25f) -> FpmError
+            state.remainingSeconds <= (maxSeconds * 0.5f) -> FpmAmber
             else -> FpmGold
         }
 
@@ -815,9 +816,9 @@ fun BibleQuizScreen(
             }
         }
 
-        // Animated Smooth 10s Timer Countdown Bar
+        // Animated Smooth 15s Timer Countdown Bar
         LinearProgressIndicator(
-            progress = { (state.remainingSeconds / 10f).coerceIn(0f, 1f) },
+            progress = { (state.remainingSeconds / maxSeconds).coerceIn(0f, 1f) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)

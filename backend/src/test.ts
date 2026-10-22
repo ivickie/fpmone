@@ -3890,10 +3890,10 @@ async function runTests() {
       // 7. Authoritative Question Start Handshake & Countdown
       const timing0 = await BibleGameService.startQuestion(testUser.id, testMember.id, 0, challengeTestDate);
       assert(timing0.questionIndex === 0, 'Authoritative start records question index 0');
-      assert(timing0.timeLimitSeconds === 10, 'Countdown timer configured to 10 seconds');
+      assert(timing0.timeLimitSeconds === 15, 'Countdown timer configured to 15 seconds');
       const startMs = new Date(timing0.startedAt).getTime();
       const deadlineMs = new Date(timing0.deadlineAt).getTime();
-      assert(deadlineMs - startMs === 10000, 'Server deadline is set exactly 10,000ms after startedAt');
+      assert(deadlineMs - startMs === 15000, 'Server deadline is set exactly 15,000ms after startedAt');
 
       // 8. Anti-Reset / Anti-Pause: App Backgrounding or Screen Transition Preserves Original Deadline
       const repeatedTiming = await BibleGameService.startQuestion(testUser.id, testMember.id, 0, challengeTestDate);
@@ -3918,14 +3918,14 @@ async function runTests() {
       }
       assert(outOfSequenceError, 'Submitting question index 2 when at index 0 is rejected');
 
-      // 11. Speed XP Scoring: 9.7s Remaining (0.3s Elapsed) -> 9.7 XP
+      // 11. Speed XP Scoring: 3s elapsed (12s remaining) -> 8.0 XP (round(10 * 12 / 15, 1))
       const q0 = challengeRes1.questions[0];
       const progRecord = db.bibleUserProgress.find(p => p.userId === testUser.id && p.challengeDate === challengeTestDate)!;
-      progRecord.activeQuestionStartedAt = new Date(Date.now() - 300).toISOString();
-      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 9700).toISOString();
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 3000).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 12000).toISOString();
       const ans0 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, { challengeDate: challengeTestDate });
       assert(ans0.isCorrect === true, 'Submitting correct option returns isCorrect: true');
-      assert(ans0.questionXp === 9.7, 'Correct answer with 9.7s remaining awards exactly 9.7 XP');
+      assert(ans0.questionXp === 8.0, `Correct answer with 12s remaining awards exactly 8.0 XP (got ${ans0.questionXp})`);
       assert(ans0.score === 1, 'Score increments to 1 on correct answer');
       assert(ans0.currentQuestionIndex === 1, 'Current question index advances to 1');
       assert(ans0.explanation === q0.explanation, 'Reveals concise scriptural explanation upon submission');
@@ -3933,31 +3933,31 @@ async function runTests() {
 
       // 12. Anti-Cheating & Idempotency: Repeated Submission Returns Saved Result Without Duplicate Score
       const duplicateAns0 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 0, q0.correctOptionIndex, { challengeDate: challengeTestDate });
-      assert(duplicateAns0.questionXp === 9.7, 'Repeated submission idempotently returns existing question XP');
+      assert(duplicateAns0.questionXp === 8.0, 'Repeated submission idempotently returns existing question XP');
       assert(duplicateAns0.score === 1, 'Score is never duplicated on resubmission');
 
-      // 13. Speed XP Scoring: 6.4s Remaining (3.6s Elapsed) -> 6.4 XP
+      // 13. Speed XP Scoring: 7.5s elapsed (7.5s remaining) -> 5.0 XP (round(10 * 7.5 / 15, 1))
       await BibleGameService.startQuestion(testUser.id, testMember.id, 1, challengeTestDate);
-      progRecord.activeQuestionStartedAt = new Date(Date.now() - 3600).toISOString();
-      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 6400).toISOString();
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 7500).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 7500).toISOString();
       const q1 = challengeRes1.questions[1];
       const ans1 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 1, q1.correctOptionIndex, { challengeDate: challengeTestDate });
       assert(ans1.isCorrect === true, 'Q1 correct answer verified');
-      assert(ans1.questionXp === 6.4, 'Correct answer with 6.4s remaining awards exactly 6.4 XP');
+      assert(ans1.questionXp === 5.0, `Correct answer with 7.5s remaining awards exactly 5.0 XP (got ${ans1.questionXp})`);
 
-      // 14. Speed XP Scoring: 2.1s Remaining (7.9s Elapsed) -> 2.1 XP
+      // 14. Speed XP Scoring: 13s elapsed (2s remaining) -> 1.3 XP (round(10 * 2 / 15, 1))
       await BibleGameService.startQuestion(testUser.id, testMember.id, 2, challengeTestDate);
-      progRecord.activeQuestionStartedAt = new Date(Date.now() - 7900).toISOString();
-      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 2100).toISOString();
+      progRecord.activeQuestionStartedAt = new Date(Date.now() - 13000).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 2000).toISOString();
       const q2 = challengeRes1.questions[2];
       const ans2 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 2, q2.correctOptionIndex, { challengeDate: challengeTestDate });
       assert(ans2.isCorrect === true, 'Q2 correct answer verified');
-      assert(ans2.questionXp === 2.1, 'Correct answer with 2.1s remaining awards exactly 2.1 XP');
+      assert(ans2.questionXp === 1.3, `Correct answer with 2s remaining awards exactly 1.3 XP (got ${ans2.questionXp})`);
 
       // 15. Incorrect Answer: Earns 0.0 XP regardless of speed
       await BibleGameService.startQuestion(testUser.id, testMember.id, 3, challengeTestDate);
       progRecord.activeQuestionStartedAt = new Date(Date.now() - 1000).toISOString();
-      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 9000).toISOString();
+      progRecord.activeQuestionDeadlineAt = new Date(Date.now() + 14000).toISOString();
       const q3 = challengeRes1.questions[3];
       const wrongChoice = (q3.correctOptionIndex + 1) % 4;
       const ans3 = await BibleGameService.submitAnswer(testUser.id, testMember.id, 3, wrongChoice, { challengeDate: challengeTestDate });
@@ -3971,12 +3971,12 @@ async function runTests() {
       assert(ans4.questionXp === 0.0, 'Timed out question earns 0.0 XP');
       assert(ans4.isRoundFinished === true, 'Round is finished after question 5');
 
-      // 17. Round Completion & Decimal XP Exact Summation: 9.7 + 6.4 + 2.1 + 0.0 + 0.0 = 18.2 XP
+      // 17. Round Completion & Decimal XP Exact Summation: 8.0 + 5.0 + 1.3 + 0.0 + 0.0 = 14.3 XP
       const completion = await BibleGameService.completeChallenge(testUser.id, testMember.id, challengeTestDate);
       assert(completion.score === 3, 'Completion reflects round score 3/5');
-      assert(completion.xpAwarded === 18.2, `Awards exactly 18.2 decimal XP (got ${completion.xpAwarded})`);
+      assert(completion.xpAwarded === 14.3, `Awards exactly 14.3 decimal XP (got ${completion.xpAwarded})`);
       assert(completion.alreadyCompleted === false, 'First completion sets alreadyCompleted = false');
-      assert(completion.stats.cumulativeXp >= 18.2, 'User cumulative XP accurately reflects decimal XP');
+      assert(completion.stats.cumulativeXp >= 14.3, 'User cumulative XP accurately reflects decimal XP');
       assert(completion.stats.currentStreak === 1, 'First day streak initialized to 1');
 
       // 18. Idempotency: Re-completing Challenge Awards 0.0 Additional XP
@@ -3991,18 +3991,18 @@ async function runTests() {
       const boundaryProg = db.bibleUserProgress.find(p => p.userId === testUser.id && p.challengeDate === boundaryTestDate)!;
       const boundaryChallenge = await BibleGameService.getOrCreateDailyChallenge(boundaryTestDate);
 
-      // (a) Immediately before deadline: 0.1s remaining (9.9s elapsed) -> 0.1 XP
+      // (a) Immediately before deadline: 0.15s remaining (14.85s elapsed) -> 0.1 XP
       await BibleGameService.startQuestion(testUser.id, testMember.id, 0, boundaryTestDate);
-      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 9900).toISOString();
-      boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() + 100).toISOString();
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 14850).toISOString();
+      boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() + 150).toISOString();
       const boundaryAns0 = await BibleGameService.submitAnswer(
         testUser.id, testMember.id, 0, boundaryChallenge.questions[0].correctOptionIndex, { challengeDate: boundaryTestDate }
       );
-      assert(boundaryAns0.questionXp === 0.1, 'Answer at 0.1s remaining awards 0.1 XP');
+      assert(boundaryAns0.questionXp === 0.1, `Answer at 0.15s remaining awards 0.1 XP (got ${boundaryAns0.questionXp})`);
 
-      // (b) Exactly at deadline: 0.0s remaining (10.0s elapsed) -> 0.0 XP
+      // (b) Exactly at deadline: 0.0s remaining (15.0s elapsed) -> 0.0 XP
       await BibleGameService.startQuestion(testUser.id, testMember.id, 1, boundaryTestDate);
-      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 10000).toISOString();
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 15000).toISOString();
       boundaryProg.activeQuestionDeadlineAt = new Date(Date.now()).toISOString();
       const boundaryAns1 = await BibleGameService.submitAnswer(
         testUser.id, testMember.id, 1, boundaryChallenge.questions[1].correctOptionIndex, { challengeDate: boundaryTestDate }
@@ -4010,9 +4010,9 @@ async function runTests() {
       assert(boundaryAns1.isCorrect === true, 'Answer exactly at deadline is accepted as correct');
       assert(boundaryAns1.questionXp === 0.0, 'Answer exactly at deadline awards 0.0 XP');
 
-      // (c) Within 1.0s network transit tolerance (10.5s elapsed): accepted, 0.0 XP
+      // (c) Within 1.0s network transit tolerance (15.5s elapsed): accepted, 0.0 XP
       await BibleGameService.startQuestion(testUser.id, testMember.id, 2, boundaryTestDate);
-      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 10500).toISOString();
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 15500).toISOString();
       boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() - 500).toISOString();
       const boundaryAns2 = await BibleGameService.submitAnswer(
         testUser.id, testMember.id, 2, boundaryChallenge.questions[2].correctOptionIndex, { challengeDate: boundaryTestDate }
@@ -4020,9 +4020,9 @@ async function runTests() {
       assert(boundaryAns2.isCorrect === true, 'Answer within 1.0s network transit tolerance accepted');
       assert(boundaryAns2.questionXp === 0.0, 'Answer past deadline awards 0.0 XP');
 
-      // (d) Strictly after deadline + network tolerance (12.0s elapsed): locked as timeout
+      // (d) Strictly after deadline + network tolerance (17.0s elapsed): locked as timeout
       await BibleGameService.startQuestion(testUser.id, testMember.id, 3, boundaryTestDate);
-      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 12000).toISOString();
+      boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 17000).toISOString();
       boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() - 2000).toISOString();
       const boundaryAns3 = await BibleGameService.submitAnswer(
         testUser.id, testMember.id, 3, boundaryChallenge.questions[3].correctOptionIndex, { challengeDate: boundaryTestDate }
@@ -4185,9 +4185,9 @@ async function runTests() {
 
       for (let i = 0; i < 5; i++) {
         await BibleGameService.startQuestion(dupUser.id, dupMember.id, i, dupDate1);
-        // Force 9.0s remaining -> 9.0 XP per question -> 5 * 9.0 = exactly 45.0 XP
-        prog1.activeQuestionStartedAt = new Date(Date.now() - 1000).toISOString();
-        prog1.activeQuestionDeadlineAt = new Date(Date.now() + 9000).toISOString();
+        // Force 13.5s remaining -> 9.0 XP per question (round(10 * 13.5 / 15, 1)) -> 5 * 9.0 = exactly 45.0 XP
+        prog1.activeQuestionStartedAt = new Date(Date.now() - 1500).toISOString();
+        prog1.activeQuestionDeadlineAt = new Date(Date.now() + 13500).toISOString();
         const ans = await BibleGameService.submitAnswer(
           dupUser.id,
           dupMember.id,
@@ -4286,9 +4286,9 @@ async function runTests() {
       const nextProg = db.bibleUserProgress.find(p => p.userId === dupUser.id && p.challengeDate === dupDate2)!;
       for (let i = 0; i < 5; i++) {
         await BibleGameService.startQuestion(dupUser.id, dupMember.id, i, dupDate2);
-        // Force 8.0s remaining -> 8.0 XP per question -> 5 * 8.0 = 40.0 XP
-        nextProg.activeQuestionStartedAt = new Date(Date.now() - 2000).toISOString();
-        nextProg.activeQuestionDeadlineAt = new Date(Date.now() + 8000).toISOString();
+        // Force 12.0s remaining -> 8.0 XP per question (round(10 * 12.0 / 15, 1)) -> 5 * 8.0 = 40.0 XP
+        nextProg.activeQuestionStartedAt = new Date(Date.now() - 3000).toISOString();
+        nextProg.activeQuestionDeadlineAt = new Date(Date.now() + 12000).toISOString();
         await BibleGameService.submitAnswer(
           dupUser.id,
           dupMember.id,

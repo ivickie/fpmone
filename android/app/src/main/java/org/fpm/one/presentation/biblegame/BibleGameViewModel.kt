@@ -34,7 +34,7 @@ data class BibleGameState(
     val activeQuestion: BibleQuestionView? = null,
     val selectedOptionIndex: Int? = null,
     val isQuestionLocked: Boolean = false,
-    val remainingSeconds: Float = 10.0f,
+    val remainingSeconds: Float = 15.0f,
     val isQuestionTimerRunning: Boolean = false,
     val activeTiming: BibleQuestionTiming? = null,
     val lastAnswerFeedback: BibleAnswerFeedback? = null,
@@ -143,19 +143,22 @@ class BibleGameViewModel(
 
     fun startQuestionCountdown(timing: BibleQuestionTiming) {
         timerJob?.cancel()
+        val limitSeconds = (timing.timeLimitSeconds.takeIf { it > 0 } ?: 15).toFloat()
+        val limitMs = (limitSeconds * 1000f).toLong()
+
         _state.update {
             it.copy(
                 activeTiming = timing,
                 isQuestionLocked = false,
                 isQuestionTimerRunning = true,
-                remainingSeconds = 10.0f
+                remainingSeconds = limitSeconds
             )
         }
 
         val deadlineEpoch = try {
             Instant.parse(timing.deadlineAt).toEpochMilli()
         } catch (e: Exception) {
-            System.currentTimeMillis() + 10000L
+            System.currentTimeMillis() + limitMs
         }
         val serverEpoch = try {
             timing.serverTime?.let { Instant.parse(it).toEpochMilli() } ?: System.currentTimeMillis()
@@ -168,7 +171,7 @@ class BibleGameViewModel(
             while (isActive) {
                 val nowServer = System.currentTimeMillis() + clockOffset
                 val remainingMs = (deadlineEpoch - nowServer).coerceAtLeast(0L)
-                val remainingSec = (remainingMs / 1000f).coerceIn(0f, 10f)
+                val remainingSec = (remainingMs / 1000f).coerceIn(0f, limitSeconds)
 
                 _state.update {
                     it.copy(

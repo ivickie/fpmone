@@ -1007,7 +1007,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       const r = bibleSettingsRes.rows[0];
       store.bibleSettings = {
         dailyQuestionCount: r.daily_question_count || 5,
-        timeLimitSeconds: r.time_limit_seconds || 10,
+        timeLimitSeconds: r.time_limit_seconds || 15,
         xpPerQuestion: Number(r.xp_per_question) || 10,
         speedBonusThresholdSeconds: r.speed_bonus_threshold_seconds || 5,
         speedBonusXp: Number(r.speed_bonus_xp) || 0

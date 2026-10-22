@@ -76,11 +76,11 @@ export const BibleChallengePage: React.FC = () => {
 
   // Settings form
   const [xpPerCorrect, setXpPerCorrect] = useState(10);
-  const [timeLimitSeconds, setTimeLimitSeconds] = useState(10);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Live preview timer simulation
-  const [previewRemainingMs, setPreviewRemainingMs] = useState(10000);
+  const [previewRemainingMs, setPreviewRemainingMs] = useState(15000);
   const [previewTimerActive, setPreviewTimerActive] = useState(false);
   const [previewEarnedXp, setPreviewEarnedXp] = useState<number>(0);
   const [previewIsTimeout, setPreviewIsTimeout] = useState(false);
@@ -321,7 +321,7 @@ export const BibleChallengePage: React.FC = () => {
     setPreviewQuestion(q);
     setPreviewSelectedOption(null);
     setPreviewRevealed(false);
-    setPreviewRemainingMs(10000);
+    setPreviewRemainingMs(15000);
     setPreviewTimerActive(true);
     setPreviewEarnedXp(0);
     setPreviewIsTimeout(false);
@@ -334,10 +334,10 @@ export const BibleChallengePage: React.FC = () => {
     setPreviewRevealed(true);
     setPreviewIsTimeout(false);
 
-    // Speed-based XP: round(10 * remaining / 10, 1) = round(remainingSeconds, 1)
+    // Speed-based XP: round(10 * remaining / 15, 1)
     if (optionIndex === previewQuestion.correctOptionIndex) {
-      const remainingSeconds = Math.max(0, Math.min(10, previewRemainingMs / 1000));
-      const tenths = Math.round(remainingSeconds * 10);
+      const remainingSeconds = Math.max(0, Math.min(15, previewRemainingMs / 1000));
+      const tenths = Math.round((10 * remainingSeconds / 15) * 10);
       setPreviewEarnedXp(tenths / 10);
     } else {
       setPreviewEarnedXp(0);
@@ -347,7 +347,7 @@ export const BibleChallengePage: React.FC = () => {
   const handleResetPreview = () => {
     setPreviewSelectedOption(null);
     setPreviewRevealed(false);
-    setPreviewRemainingMs(10000);
+    setPreviewRemainingMs(15000);
     setPreviewTimerActive(true);
     setPreviewEarnedXp(0);
     setPreviewIsTimeout(false);
@@ -1077,13 +1077,13 @@ export const BibleChallengePage: React.FC = () => {
                 <span>Question 1 of 5</span>
               </div>
 
-              {/* 10-second Countdown bar */}
+              {/* 15-second Countdown bar */}
               <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
                 <div
                   className={`h-full transition-all duration-100 ${
-                    previewRemainingMs <= 3000 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-400 to-amber-500'
+                    previewRemainingMs <= 4000 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-400 to-amber-500'
                   }`}
-                  style={{ width: `${Math.max(0, Math.min(100, (previewRemainingMs / 10000) * 100))}%` }}
+                  style={{ width: `${Math.max(0, Math.min(100, (previewRemainingMs / 15000) * 100))}%` }}
                 />
               </div>
 

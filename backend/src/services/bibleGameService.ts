@@ -49,6 +49,30 @@ export const LEVEL_TIERS: Array<{ level: number; title: string; minXp: number; n
 ];
 
 export class BibleGameService {
+  public static readonly QUESTION_TIME_LIMIT_SECONDS = 15;
+  public static readonly QUESTION_TIME_LIMIT_MS = 15000;
+  public static readonly MAX_QUESTION_XP = 10.0;
+
+  /**
+   * Authoritative calculation of speed-based XP:
+   *   XP = round(10 * remaining_seconds / 15, 1)
+   *
+   * Examples:
+   *   - 3 seconds elapsed (12 seconds remaining): 8.0 XP
+   *   - 7.5 seconds elapsed (7.5 seconds remaining): 5.0 XP
+   *   - 13 seconds elapsed (2 seconds remaining): 1.3 XP
+   *   - Incorrect or unanswered question: 0 XP
+   *
+   * Uses integer tenths internally to avoid floating-point inconsistencies.
+   */
+  public static calculateQuestionXp(isCorrect: boolean, remainingMs: number): number {
+    if (!isCorrect) return 0.0;
+    const clampedRemainingMs = Math.max(0, Math.min(BibleGameService.QUESTION_TIME_LIMIT_MS, remainingMs));
+    const tenths = Math.round(clampedRemainingMs / 150);
+    const xp = Math.min(BibleGameService.MAX_QUESTION_XP, Math.max(0.0, tenths / 10));
+    return xp;
+  }
+
   /**
    * Returns current calendar date in 'Africa/Lagos' timezone as 'YYYY-MM-DD'.
    */
@@ -556,8 +580,8 @@ export class BibleGameService {
         startedAt: progress.activeQuestionStartedAt,
         deadlineAt: progress.activeQuestionDeadlineAt,
         serverTime: new Date().toISOString(),
-        timeLimitSeconds: 10,
-        timeLimitMs: 10000
+        timeLimitSeconds: BibleGameService.QUESTION_TIME_LIMIT_SECONDS,
+        timeLimitMs: BibleGameService.QUESTION_TIME_LIMIT_MS
       };
     }
 
@@ -579,7 +603,7 @@ export class BibleGameService {
 
   /**
    * Authoritative start handshake for timed questions.
-   * Starts the 10-second countdown when the client renders the question and answer choices.
+   * Starts the 15-second countdown when the client renders the question and answer choices.
    * Idempotent & persistent: if called multiple times or after backgrounding/network interruption,
    * returns the existing deadline so elapsed time continues without resetting.
    */
@@ -617,7 +641,8 @@ export class BibleGameService {
 
     const currentQuestion = questions[questionIndex];
     const now = Date.now();
-    const timeLimitMs = 10000; // 10 seconds
+    const timeLimitMs = BibleGameService.QUESTION_TIME_LIMIT_MS;
+    const timeLimitSeconds = BibleGameService.QUESTION_TIME_LIMIT_SECONDS;
 
     // If timer already started for this active question, return existing deadline (anti-reset guard)
     if (
@@ -631,7 +656,7 @@ export class BibleGameService {
         startedAt: progress.activeQuestionStartedAt,
         deadlineAt: progress.activeQuestionDeadlineAt,
         serverTime: new Date(now).toISOString(),
-        timeLimitSeconds: 10,
+        timeLimitSeconds,
         timeLimitMs
       };
     }
@@ -652,20 +677,20 @@ export class BibleGameService {
       startedAt,
       deadlineAt,
       serverTime: new Date(now).toISOString(),
-      timeLimitSeconds: 10,
+      timeLimitSeconds,
       timeLimitMs
     };
   }
 
   /**
    * Submits an answer or handles timeout for the active question index.
-   * Strictly enforces server-authoritative 10-second deadline with documented 1.0s network transit tolerance.
+   * Strictly enforces server-authoritative 15-second deadline with documented 1.0s network transit tolerance.
    * Calculates speed-based XP:
-   *   Question XP = round(10 * remaining time / 10, 1) = round(remainingSeconds, 1)
+   *   Question XP = round(10 * remaining time / 15, 1)
    * Examples:
-   *   9.7s remaining -> 9.7 XP
-   *   6.4s remaining -> 6.4 XP
-   *   2.1s remaining -> 2.1 XP
+   *   3s elapsed (12s remaining) -> 8.0 XP
+   *   7.5s elapsed (7.5s remaining) -> 5.0 XP
+   *   13s elapsed (2s remaining) -> 1.3 XP
    *   Deadline expired / Incorrect / Timeout -> 0.0 XP
    * Idempotent: protects against concurrent submissions racing against timeout or network retries.
    */
@@ -742,8 +767,9 @@ export class BibleGameService {
 
     const receivedAt = Date.now();
     const NETWORK_TOLERANCE_MS = 1000; // 1.0 second documented network transit tolerance
+    const timeLimitMs = BibleGameService.QUESTION_TIME_LIMIT_MS;
 
-    let startedAtMs = receivedAt - 10000;
+    let startedAtMs = receivedAt - timeLimitMs;
     let deadlineAtMs = receivedAt;
 
     if (
@@ -753,12 +779,12 @@ export class BibleGameService {
       startedAtMs = new Date(progress.activeQuestionStartedAt).getTime();
       deadlineAtMs = progress.activeQuestionDeadlineAt
         ? new Date(progress.activeQuestionDeadlineAt).getTime()
-        : startedAtMs + 10000;
+        : startedAtMs + timeLimitMs;
     }
 
     let selectedIndex = -1;
     let isCorrect = false;
-    let responseTimeMs = 10000;
+    let responseTimeMs = timeLimitMs;
     let remainingTimeMs = 0;
     let questionXp = 0.0;
     let isTimeoutResult = false;
@@ -766,7 +792,7 @@ export class BibleGameService {
     if (isTimeout) {
       selectedIndex = -1;
       isCorrect = false;
-      responseTimeMs = Math.min(10000, Math.max(0, receivedAt - startedAtMs));
+      responseTimeMs = Math.min(timeLimitMs, Math.max(0, receivedAt - startedAtMs));
       remainingTimeMs = 0;
       questionXp = 0.0;
       isTimeoutResult = true;
@@ -774,19 +800,17 @@ export class BibleGameService {
       // Received strictly after deadline + network tolerance: locked as timeout/unanswered
       selectedIndex = -1;
       isCorrect = false;
-      responseTimeMs = 10000;
+      responseTimeMs = timeLimitMs;
       remainingTimeMs = 0;
       questionXp = 0.0;
       isTimeoutResult = true;
     } else {
       // Received within deadline window (or within 1.0s network transit tolerance)
-      const remainingMs = Math.max(0, Math.min(10000, deadlineAtMs - receivedAt));
-      const respTimeMs = Math.max(0, Math.min(10000, 10000 - remainingMs));
+      const remainingMs = Math.max(0, Math.min(timeLimitMs, deadlineAtMs - receivedAt));
+      const respTimeMs = Math.max(0, Math.min(timeLimitMs, timeLimitMs - remainingMs));
       const answerCorrect = selectedOptionIndex === currentQuestion.correctOptionIndex;
 
-      // Integer tenths rounding: 9.7s -> 9.7 XP, 6.4s -> 6.4 XP, 2.1s -> 2.1 XP
-      const remainingTenths = Math.max(0, Math.min(100, Math.round(remainingMs / 100)));
-      const qXp = answerCorrect ? Math.round(remainingTenths) / 10 : 0.0;
+      const qXp = BibleGameService.calculateQuestionXp(answerCorrect, remainingMs);
 
       selectedIndex = selectedOptionIndex!;
       isCorrect = answerCorrect;

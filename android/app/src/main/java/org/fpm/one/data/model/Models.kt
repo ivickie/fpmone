@@ -408,7 +408,7 @@ data class BibleQuestionTiming(
     val questionIndex: Int,
     val startedAt: String,
     val deadlineAt: String,
-    val timeLimitSeconds: Int = 10,
+    val timeLimitSeconds: Int = 15,
     val serverTime: String? = null
 )
 
