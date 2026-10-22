@@ -112,52 +112,161 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
 }`;
   }
 
-  private static async callGemini(apiKey: string, prompt: string): Promise<string> {
-    const model = process.env.GEMINI_MODEL?.trim() || 'gemini-1.5-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  private static cachedGeminiModel: string | null = null;
+  private static cachedGeminiApiVersion: 'v1beta' | 'v1' = 'v1beta';
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 800,
-            responseMimeType: 'application/json'
-          }
-        }),
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        let errMsg = `Gemini API returned status ${response.status}`;
-        try {
-          const errObj = JSON.parse(errorText);
-          if (errObj.error?.message) errMsg = errObj.error.message;
-        } catch {}
-        throw new Error(`AI generation failed: ${errMsg}`);
-      }
-
-      const data: any = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text || typeof text !== 'string') {
-        throw new Error('AI provider returned an empty or malformed response. Please try again.');
-      }
-      return text;
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        throw new Error('AI generation timed out after 20 seconds. Please try again.');
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeout);
+  /**
+   * Discovers the best available Gemini model for the provided API key.
+   * Resolves models supporting generateContent via ModelService.ListModels.
+   */
+  public static async resolveGeminiModel(apiKey: string): Promise<{ model: string; apiVersion: 'v1beta' | 'v1' }> {
+    if (BibleAiService.cachedGeminiModel) {
+      return {
+        model: BibleAiService.cachedGeminiModel,
+        apiVersion: BibleAiService.cachedGeminiApiVersion
+      };
     }
+
+    if (process.env.GEMINI_MODEL?.trim()) {
+      const explicit = process.env.GEMINI_MODEL.trim().replace(/^models\//, '');
+      BibleAiService.cachedGeminiModel = explicit;
+      return { model: explicit, apiVersion: 'v1beta' };
+    }
+
+    // Attempt ModelService.ListModels on v1beta then v1
+    for (const ver of ['v1beta', 'v1'] as const) {
+      try {
+        const listRes = await fetch(`https://generativelanguage.googleapis.com/${ver}/models?key=${apiKey}`, {
+          signal: AbortSignal.timeout(6000)
+        });
+        if (listRes.ok) {
+          const data: any = await listRes.json();
+          const list: any[] = Array.isArray(data.models) ? data.models : [];
+          // Preference order: flash models -> general gemini models
+          const flash = list.find(m => {
+            const methods: string[] = m.supportedGenerationMethods || [];
+            return methods.includes('generateContent') && m.name.toLowerCase().includes('flash');
+          });
+          const anyGemini = list.find(m => {
+            const methods: string[] = m.supportedGenerationMethods || [];
+            return methods.includes('generateContent') && m.name.toLowerCase().includes('gemini');
+          });
+
+          const chosen = flash || anyGemini;
+          if (chosen && chosen.name) {
+            const modelName = chosen.name.replace(/^models\//, '');
+            BibleAiService.cachedGeminiModel = modelName;
+            BibleAiService.cachedGeminiApiVersion = ver;
+            return { model: modelName, apiVersion: ver };
+          }
+        }
+      } catch {
+        // Continue to fallback
+      }
+    }
+
+    // Default fallback
+    return { model: 'gemini-1.5-flash-latest', apiVersion: 'v1beta' };
+  }
+
+  private static async callGemini(apiKey: string, prompt: string): Promise<string> {
+    const resolved = await BibleAiService.resolveGeminiModel(apiKey);
+
+    // Candidates to attempt in order
+    const candidates: Array<{ model: string; apiVersion: 'v1beta' | 'v1' }> = [
+      resolved,
+      { model: 'gemini-1.5-flash-latest', apiVersion: 'v1beta' },
+      { model: 'gemini-1.5-flash', apiVersion: 'v1beta' },
+      { model: 'gemini-1.5-flash', apiVersion: 'v1' },
+      { model: 'gemini-2.0-flash', apiVersion: 'v1beta' },
+      { model: 'gemini-2.0-flash-exp', apiVersion: 'v1beta' },
+      { model: 'gemini-1.5-pro-latest', apiVersion: 'v1beta' },
+      { model: 'gemini-1.5-pro', apiVersion: 'v1beta' },
+      { model: 'gemini-pro', apiVersion: 'v1beta' },
+      { model: 'gemini-pro', apiVersion: 'v1' }
+    ];
+
+    // Deduplicate candidates
+    const seen = new Set<string>();
+    const uniqueCandidates = candidates.filter(c => {
+      const key = `${c.apiVersion}/${c.model}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    let lastError = '';
+
+    for (const candidate of uniqueCandidates) {
+      const endpoint = `https://generativelanguage.googleapis.com/${candidate.apiVersion}/models/${candidate.model}:generateContent?key=${apiKey}`;
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 800,
+              responseMimeType: 'application/json'
+            }
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          let errMsg = `Gemini API returned status ${response.status}`;
+          try {
+            const errObj = JSON.parse(errorText);
+            if (errObj.error?.message) errMsg = errObj.error.message;
+          } catch {}
+
+          lastError = errMsg;
+
+          // If model was not found (404), try next candidate
+          if (
+            response.status === 404 ||
+            errMsg.toLowerCase().includes('not found') ||
+            errMsg.toLowerCase().includes('not supported')
+          ) {
+            continue;
+          }
+
+          throw new Error(`AI generation failed: ${errMsg}`);
+        }
+
+        const data: any = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text || typeof text !== 'string') {
+          throw new Error('AI provider returned an empty or malformed response. Please try again.');
+        }
+
+        // Cache working candidate
+        BibleAiService.cachedGeminiModel = candidate.model;
+        BibleAiService.cachedGeminiApiVersion = candidate.apiVersion;
+
+        return text;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          throw new Error('AI generation timed out after 20 seconds. Please try again.');
+        }
+        if (err.message && !err.message.includes('not found') && !err.message.includes('not supported')) {
+          throw err;
+        }
+        lastError = err.message;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    throw new Error(
+      `AI generation failed: ${lastError || 'No supported Gemini model found for this API key. Try setting GEMINI_MODEL in environment variables or using an OpenAI API key.'}`
+    );
   }
 
   private static async callOpenAI(apiKey: string, prompt: string): Promise<string> {
