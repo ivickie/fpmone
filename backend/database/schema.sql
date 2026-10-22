@@ -737,6 +737,116 @@ CREATE POLICY "Service role full access on device_tokens" ON device_tokens
     USING (true)
     WITH CHECK (true);
 
+-- -----------------------------------------------------------------------------
+-- 24. BIBLE CHALLENGE GAME
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS bible_game_questions (
+    id VARCHAR(64) PRIMARY KEY,
+    question_text TEXT NOT NULL,
+    options JSONB NOT NULL,
+    correct_option_index INT NOT NULL,
+    explanation TEXT NOT NULL,
+    bible_reference VARCHAR(150) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+    status VARCHAR(20) NOT NULL DEFAULT 'published',
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by_name VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bg_questions_status ON bible_game_questions(status);
+CREATE INDEX IF NOT EXISTS idx_bg_questions_category ON bible_game_questions(category);
+ALTER TABLE bible_game_questions ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS bible_game_daily_challenges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    challenge_date DATE NOT NULL UNIQUE,
+    question_ids JSONB NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'published',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bg_challenges_date ON bible_game_daily_challenges(challenge_date DESC);
+ALTER TABLE bible_game_daily_challenges ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS bible_game_user_progress (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    challenge_date DATE NOT NULL,
+    challenge_id UUID NOT NULL REFERENCES bible_game_daily_challenges(id) ON DELETE CASCADE,
+    current_question_index INT NOT NULL DEFAULT 0,
+    active_question_index INT,
+    active_question_started_at TIMESTAMPTZ,
+    active_question_deadline_at TIMESTAMPTZ,
+    answers JSONB NOT NULL DEFAULT '[]'::jsonb,
+    score INT NOT NULL DEFAULT 0,
+    total_response_time_ms INT NOT NULL DEFAULT 0,
+    xp_awarded NUMERIC(6, 1) NOT NULL DEFAULT 0.0,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_user_daily_challenge UNIQUE(user_id, challenge_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bg_progress_user ON bible_game_user_progress(user_id, challenge_date);
+CREATE INDEX IF NOT EXISTS idx_bg_progress_member ON bible_game_user_progress(member_id);
+ALTER TABLE bible_game_user_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS bible_game_user_stats (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    total_challenges_completed INT NOT NULL DEFAULT 0,
+    total_correct_answers INT NOT NULL DEFAULT 0,
+    total_questions_attempted INT NOT NULL DEFAULT 0,
+    cumulative_xp NUMERIC(8, 1) NOT NULL DEFAULT 0.0,
+    current_streak INT NOT NULL DEFAULT 0,
+    longest_streak INT NOT NULL DEFAULT 0,
+    last_completed_challenge_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE bible_game_user_stats ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS bible_game_badges (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL,
+    icon VARCHAR(50) NOT NULL,
+    xp_reward INT NOT NULL DEFAULT 0,
+    display_order INT NOT NULL DEFAULT 0
+);
+
+ALTER TABLE bible_game_badges ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS bible_game_user_badges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    badge_id VARCHAR(50) NOT NULL REFERENCES bible_game_badges(id) ON DELETE CASCADE,
+    awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_user_badge UNIQUE(user_id, badge_id)
+);
+
+ALTER TABLE bible_game_user_badges ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS bible_game_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value JSONB NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE bible_game_settings ENABLE ROW LEVEL SECURITY;
+
+
 
 
 

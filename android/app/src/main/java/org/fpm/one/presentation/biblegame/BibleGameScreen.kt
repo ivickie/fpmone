@@ -24,6 +24,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.fpm.one.core.network.ApiClient
+import org.fpm.one.core.security.SessionManager
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.*
 
@@ -34,6 +36,12 @@ fun BibleGameScreen(
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) {
+        if (state.todayOverview == null && SessionManager.isLoggedIn() && !ApiClient.authToken.isNullOrBlank()) {
+            viewModel.loadTodayOverview()
+        }
+    }
 
     BackHandler(enabled = true) {
         if (state.currentView != BibleGameView.HOME) {
@@ -161,8 +169,16 @@ fun BibleGameScreen(
                         .align(Alignment.BottomCenter)
                         .padding(16.dp),
                     action = {
-                        TextButton(onClick = { viewModel.dismissError() }) {
-                            Text("DISMISS", color = FpmGold, fontWeight = FontWeight.Bold)
+                        val isAuthErr = error.contains("sign in", ignoreCase = true) || error.contains("session", ignoreCase = true)
+                        TextButton(
+                            onClick = {
+                                viewModel.dismissError()
+                                if (isAuthErr) {
+                                    onNavigateBack()
+                                }
+                            }
+                        ) {
+                            Text(if (isAuthErr) "SIGN IN" else "DISMISS", color = FpmGold, fontWeight = FontWeight.Bold)
                         }
                     },
                     containerColor = FpmNavyDark,

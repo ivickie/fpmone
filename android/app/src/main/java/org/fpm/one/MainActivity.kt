@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import org.fpm.one.R
 import org.fpm.one.core.notification.FpmFirebaseMessagingService
 import org.fpm.one.core.notification.NotificationHelper
+import org.fpm.one.core.network.ApiClient
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.repository.AttendanceRepository
@@ -159,6 +160,14 @@ class MainActivity : FragmentActivity() {
           val notificationsViewModel = remember { NotificationsViewModel(notificationRepository, applicationContext) }
           val bibleGameViewModel = remember { BibleGameViewModel() }
 
+          LaunchedEffect(Unit) {
+            ApiClient.onSessionExpired = {
+              SessionManager.clearSession()
+              bibleGameViewModel.resetState()
+              currentScreen = "LOGIN"
+            }
+          }
+
           Crossfade(
             targetState = currentScreen,
             animationSpec = tween(durationMillis = 400),
@@ -172,6 +181,7 @@ class MainActivity : FragmentActivity() {
                     if (targetDestination == "MAIN") {
                       homeViewModel.loadHomeData()
                       workerViewModel.loadWorkerHub()
+                      bibleGameViewModel.loadTodayOverview()
                     }
                   }
                 )
@@ -187,6 +197,7 @@ class MainActivity : FragmentActivity() {
                     } else {
                       homeViewModel.loadHomeData()
                       workerViewModel.loadWorkerHub()
+                      bibleGameViewModel.loadTodayOverview()
                       currentScreen = "MAIN"
                     }
                   },
@@ -264,6 +275,8 @@ class MainActivity : FragmentActivity() {
                         } catch (_: Exception) {}
                       }
                     }
+                    SessionManager.clearSession()
+                    bibleGameViewModel.resetState()
                     currentScreen = "LOGIN"
                   }
                 )

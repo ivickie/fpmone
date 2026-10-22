@@ -285,9 +285,13 @@ export class BibleGameService {
     return stats;
   }
 
+  private static challengeCreationLocks = new Map<string, Promise<{ challenge: BibleDailyChallenge; questions: BibleQuestion[] }>>();
+
   /**
    * Deterministically retrieves or creates today's 5-question daily challenge for Africa/Lagos.
    * Ensures all church members receive the exact same 5 questions in the exact same fixed sequence.
+   * Concurrency-safe: multiple simultaneous requests for the same date share an in-flight promise.
+   * Includes safe, idempotent auto-repair for missing/unpublished question references.
    */
   public static async getOrCreateDailyChallenge(challengeDate?: string): Promise<{
     challenge: BibleDailyChallenge;
@@ -295,85 +299,162 @@ export class BibleGameService {
   }> {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
 
-    let challenge = db.bibleDailyChallenges.find(c => c.challengeDate === targetDate);
-    if (!challenge) {
-      // Find published questions
-      const published = db.bibleQuestions.filter(q => q.status === 'published');
-      if (published.length < 5) {
-        throw new Error(`Insufficient published questions available. Found ${published.length}, require at least 5.`);
-      }
+    // Check if an operation is already in flight for this date to prevent concurrent generation
+    const inFlight = BibleGameService.challengeCreationLocks.get(targetDate);
+    if (inFlight) {
+      return inFlight;
+    }
 
-      // Collect question IDs used in the last 14 days to prevent repetitive questions
-      const recentChallenges = db.bibleDailyChallenges
-        .filter(c => c.challengeDate !== targetDate)
-        .slice(-14);
-      const recentlyUsedIds = new Set<string>();
-      for (const rc of recentChallenges) {
-        rc.questionIds.forEach(id => recentlyUsedIds.add(id));
-      }
-
-      // Partition into not-recently-used vs recently-used
-      const freshPool = published.filter(q => !recentlyUsedIds.has(q.id));
-      const fallbackPool = published.filter(q => recentlyUsedIds.has(q.id));
-
-      // Deterministic pseudo-random seed based on targetDate string
-      let seed = 0;
-      for (let i = 0; i < targetDate.length; i++) {
-        seed = (seed << 5) - seed + targetDate.charCodeAt(i);
-        seed |= 0;
-      }
-      const pseudoRandom = () => {
-        const x = Math.sin(seed++) * 10000;
-        return x - Math.floor(x);
-      };
-
-      const shuffle = <T>(arr: T[]): T[] => {
-        const copy = [...arr];
-        for (let i = copy.length - 1; i > 0; i--) {
-          const j = Math.floor(pseudoRandom() * (i + 1));
-          [copy[i], copy[j]] = [copy[j], copy[i]];
+    const opPromise = (async () => {
+      let challenge = db.bibleDailyChallenges.find(c => c.challengeDate === targetDate);
+      if (!challenge) {
+        // Find published questions
+        const published = db.bibleQuestions.filter(q => q.status === 'published');
+        if (published.length < 5) {
+          throw new Error(`Insufficient published questions available. Found ${published.length}, require at least 5.`);
         }
-        return copy;
-      };
 
-      const selectedQuestions: BibleQuestion[] = [];
-      const shuffledFresh = shuffle(freshPool);
-      for (const q of shuffledFresh) {
-        if (selectedQuestions.length < 5) selectedQuestions.push(q);
-      }
+        // Collect question IDs used in the last 14 days to prevent repetitive questions
+        const recentChallenges = db.bibleDailyChallenges
+          .filter(c => c.challengeDate !== targetDate)
+          .slice(-14);
+        const recentlyUsedIds = new Set<string>();
+        for (const rc of recentChallenges) {
+          rc.questionIds.forEach(id => recentlyUsedIds.add(id));
+        }
 
-      if (selectedQuestions.length < 5) {
-        const shuffledFallback = shuffle(fallbackPool);
-        for (const q of shuffledFallback) {
-          if (selectedQuestions.length < 5 && !selectedQuestions.some(sq => sq.id === q.id)) {
-            selectedQuestions.push(q);
+        // Partition into not-recently-used vs recently-used
+        const freshPool = published.filter(q => !recentlyUsedIds.has(q.id));
+        const fallbackPool = published.filter(q => recentlyUsedIds.has(q.id));
+
+        // Deterministic pseudo-random seed based on targetDate string
+        let seed = 0;
+        for (let i = 0; i < targetDate.length; i++) {
+          seed = (seed << 5) - seed + targetDate.charCodeAt(i);
+          seed |= 0;
+        }
+        const pseudoRandom = () => {
+          const x = Math.sin(seed++) * 10000;
+          return x - Math.floor(x);
+        };
+
+        const shuffle = <T>(arr: T[]): T[] => {
+          const copy = [...arr];
+          for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(pseudoRandom() * (i + 1));
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+          }
+          return copy;
+        };
+
+        const selectedQuestions: BibleQuestion[] = [];
+        const shuffledFresh = shuffle(freshPool);
+        for (const q of shuffledFresh) {
+          if (selectedQuestions.length < 5) selectedQuestions.push(q);
+        }
+
+        if (selectedQuestions.length < 5) {
+          const shuffledFallback = shuffle(fallbackPool);
+          for (const q of shuffledFallback) {
+            if (selectedQuestions.length < 5 && !selectedQuestions.some(sq => sq.id === q.id)) {
+              selectedQuestions.push(q);
+            }
           }
         }
+
+        challenge = {
+          id: uuidv4(),
+          challengeDate: targetDate,
+          questionIds: selectedQuestions.map(q => q.id),
+          status: 'published',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        db.bibleDailyChallenges.push(challenge);
+        await persistBibleDailyChallenge(challenge);
       }
 
-      challenge = {
-        id: uuidv4(),
-        challengeDate: targetDate,
-        questionIds: selectedQuestions.map(q => q.id),
-        status: 'published',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      // Resolve full questions in the recorded fixed sequence
+      let fullQuestions = challenge.questionIds
+        .map(id => db.bibleQuestions.find(q => q.id === id))
+        .filter((q): q is BibleQuestion => Boolean(q));
 
-      db.bibleDailyChallenges.push(challenge);
-      await persistBibleDailyChallenge(challenge);
+      // Safe, idempotent repair if existing challenge contains missing, unpublished, or invalid question IDs
+      if (fullQuestions.length < 5) {
+        console.warn(`[DAILY CHALLENGE REPAIR] Challenge ${challenge.id} for ${targetDate} resolved ${fullQuestions.length}/5 questions. Performing safe repair...`);
+
+        const published = db.bibleQuestions.filter(q => q.status === 'published');
+        if (published.length < 5) {
+          throw new Error(`Insufficient published questions available. Found ${published.length}, require at least 5.`);
+        }
+
+        // Collect user answers to preserve questions answered by members
+        const userProgress = db.bibleUserProgress.filter(p => p.challengeId === challenge!.id || p.challengeDate === targetDate);
+        const answeredQuestionIds = new Set<string>();
+        for (const p of userProgress) {
+          p.answers.forEach(a => answeredQuestionIds.add(a.questionId));
+        }
+
+        const repairedIds: string[] = [];
+        // Keep valid existing questions
+        for (const id of challenge.questionIds) {
+          const found = db.bibleQuestions.find(q => q.id === id && q.status === 'published');
+          if (found && !repairedIds.includes(found.id)) {
+            repairedIds.push(found.id);
+          } else if (answeredQuestionIds.has(id)) {
+            const anyMatch = db.bibleQuestions.find(q => q.id === id);
+            if (anyMatch && !repairedIds.includes(anyMatch.id)) {
+              repairedIds.push(anyMatch.id);
+            }
+          }
+        }
+
+        // Fill remaining slots deterministically
+        if (repairedIds.length < 5) {
+          const otherChallenges = db.bibleDailyChallenges.filter(c => c.challengeDate !== targetDate);
+          const recentlyUsed = new Set<string>();
+          for (const oc of otherChallenges.slice(-14)) {
+            oc.questionIds.forEach(id => recentlyUsed.add(id));
+          }
+
+          const freshPool = published.filter(q => !recentlyUsed.has(q.id) && !repairedIds.includes(q.id));
+          const fallbackPool = published.filter(q => !repairedIds.includes(q.id));
+
+          for (const q of freshPool) {
+            if (repairedIds.length < 5) repairedIds.push(q.id);
+          }
+          for (const q of fallbackPool) {
+            if (repairedIds.length < 5) repairedIds.push(q.id);
+          }
+        }
+
+        if (repairedIds.length < 5) {
+          throw new Error(`Daily challenge ${challenge.id} contains invalid or missing question references.`);
+        }
+
+        challenge.questionIds = repairedIds;
+        challenge.updatedAt = new Date().toISOString();
+        await persistBibleDailyChallenge(challenge);
+
+        fullQuestions = challenge.questionIds
+          .map(id => db.bibleQuestions.find(q => q.id === id))
+          .filter((q): q is BibleQuestion => Boolean(q));
+      }
+
+      if (fullQuestions.length < 5) {
+        throw new Error(`Daily challenge ${challenge.id} contains invalid or missing question references.`);
+      }
+
+      return { challenge, questions: fullQuestions };
+    })();
+
+    BibleGameService.challengeCreationLocks.set(targetDate, opPromise);
+    try {
+      return await opPromise;
+    } finally {
+      BibleGameService.challengeCreationLocks.delete(targetDate);
     }
-
-    // Resolve full questions in the recorded fixed sequence
-    const fullQuestions = challenge.questionIds
-      .map(id => db.bibleQuestions.find(q => q.id === id))
-      .filter((q): q is BibleQuestion => Boolean(q));
-
-    if (fullQuestions.length < 5) {
-      throw new Error(`Daily challenge ${challenge.id} contains invalid or missing question references.`);
-    }
-
-    return { challenge, questions: fullQuestions };
   }
 
   /**
@@ -1431,13 +1512,21 @@ export class BibleGameService {
     };
   }> {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
-    const challenge = db.bibleDailyChallenges.find(c => c.challengeDate === targetDate) || null;
-
+    let challenge: BibleDailyChallenge | null = null;
     let questions: BibleQuestion[] = [];
-    if (challenge) {
-      questions = challenge.questionIds
-        .map(id => db.bibleQuestions.find(q => q.id === id))
-        .filter((q): q is BibleQuestion => Boolean(q));
+
+    try {
+      const result = await BibleGameService.getOrCreateDailyChallenge(targetDate);
+      challenge = result.challenge;
+      questions = result.questions;
+    } catch (err: any) {
+      console.warn(`[ADMIN CHALLENGE OVERVIEW] Notice: getOrCreateDailyChallenge for ${targetDate}: ${err.message}`);
+      challenge = db.bibleDailyChallenges.find(c => c.challengeDate === targetDate) || null;
+      if (challenge) {
+        questions = challenge.questionIds
+          .map(id => db.bibleQuestions.find(q => q.id === id))
+          .filter((q): q is BibleQuestion => Boolean(q));
+      }
     }
 
     const progressList = db.bibleUserProgress.filter(p => p.challengeDate === targetDate);

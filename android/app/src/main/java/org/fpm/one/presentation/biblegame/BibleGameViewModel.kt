@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.fpm.one.core.network.ApiClient
+import org.fpm.one.core.network.AuthenticationException
+import org.fpm.one.core.security.SessionManager
 import org.fpm.one.data.model.*
 import org.fpm.one.data.repository.BibleGameRepository
 import java.time.Instant
@@ -54,7 +57,9 @@ class BibleGameViewModel(
     private var timerJob: Job? = null
 
     init {
-        loadTodayOverview()
+        if (SessionManager.isLoggedIn() && !ApiClient.authToken.isNullOrBlank()) {
+            loadTodayOverview()
+        }
     }
 
     override fun onCleared() {
@@ -62,7 +67,21 @@ class BibleGameViewModel(
         timerJob?.cancel()
     }
 
+    fun resetState() {
+        timerJob?.cancel()
+        _state.value = BibleGameState()
+    }
+
     fun loadTodayOverview() {
+        if (!SessionManager.isLoggedIn() || ApiClient.authToken.isNullOrBlank()) {
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    errorMessage = "Please sign in to access the Bible Challenge."
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, errorMessage = null) }
             val result = repository.getTodayOverview()
@@ -77,11 +96,16 @@ class BibleGameViewModel(
                     }
                 },
                 onFailure = { err ->
+                    val isAuthErr = err is AuthenticationException || err.message?.contains("authentication required", ignoreCase = true) == true
                     _state.update {
                         it.copy(
                             isLoading = false,
                             isOffline = isNetworkException(err),
-                            errorMessage = err.message ?: "Failed to load today's Bible Challenge."
+                            errorMessage = if (isAuthErr) {
+                                "Session expired or authentication required. Please sign in again."
+                            } else {
+                                err.message ?: "Failed to load today's Bible Challenge."
+                            }
                         )
                     }
                 }

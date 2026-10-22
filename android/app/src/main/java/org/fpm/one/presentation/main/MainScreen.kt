@@ -114,6 +114,11 @@ fun MainScreen(
         )
       }
       "bible_challenge" -> {
+        LaunchedEffect(Unit) {
+          if (bibleGameViewModel.state.value.todayOverview == null && SessionManager.isLoggedIn()) {
+            bibleGameViewModel.loadTodayOverview()
+          }
+        }
         BibleGameScreen(
           viewModel = bibleGameViewModel,
           onNavigateBack = { subScreen = null }

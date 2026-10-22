@@ -4826,6 +4826,138 @@ async function runTests() {
         BibleAiService.resetModelCache();
       }
 
+      // =========================================================================
+      // SECTION X: DAILY CHALLENGE INTEGRITY, AUTO-REPAIR & CONCURRENCY TESTS
+      // =========================================================================
+      console.log('\n--- Section X: Daily Challenge Integrity, Auto-Repair & Concurrency Tests ---');
+
+      const testRepairDate = '2026-11-05';
+      const secXAdminAuth = await AuthService.login('admin@fpmchurch.org', 'Password123!');
+      const secXAdminToken = secXAdminAuth.token;
+      const secXMemberAuth = await AuthService.login('member.grace@fpmchurch.org', 'Password123!');
+      const secXMemberToken = secXMemberAuth.token;
+
+      // Scenario 1: Admin endpoint returns exactly 5 selected questions with full details
+      const adminChallengeRes = await fetch(`${baseUrl}/bible-game/admin/daily-challenge?date=${testRepairDate}`, {
+        headers: { Authorization: `Bearer ${secXAdminToken}` }
+      });
+      const adminChallengeData: any = await adminChallengeRes.json();
+
+      assert(adminChallengeRes.status === 200, 'Scenario 1: Admin daily-challenge returns HTTP 200');
+      assert(adminChallengeData.success === true, 'Scenario 1: Admin daily-challenge success is true');
+      assert(Array.isArray(adminChallengeData.data?.questions), 'Scenario 1: Returns questions array');
+      assert(adminChallengeData.data?.questions.length === 5, 'Scenario 1: Exactly 5 selected questions returned to admin');
+
+      for (let i = 0; i < adminChallengeData.data.questions.length; i++) {
+        const q = adminChallengeData.data.questions[i];
+        assert(typeof q.id === 'string' && q.id.length > 0, `Scenario 1: Question ${i + 1} has valid id`);
+        assert(typeof q.questionText === 'string' && q.questionText.length > 5, `Scenario 1: Question ${i + 1} has prompt text`);
+        assert(Array.isArray(q.options) && q.options.length === 4, `Scenario 1: Question ${i + 1} has 4 options`);
+        assert(typeof q.correctOptionIndex === 'number' && q.correctOptionIndex >= 0 && q.correctOptionIndex <= 3, `Scenario 1: Question ${i + 1} has correctOptionIndex 0..3`);
+        assert(typeof q.bibleReference === 'string' && q.bibleReference.length > 0, `Scenario 1: Question ${i + 1} has bibleReference`);
+        assert(typeof q.category === 'string' && q.category.length > 0, `Scenario 1: Question ${i + 1} has category`);
+        assert(typeof q.difficulty === 'string' && q.difficulty.length > 0, `Scenario 1: Question ${i + 1} has difficulty`);
+      }
+
+      // Scenario 2: Admin questions sequence matches member questions sequence exactly
+      const memberTodayRes = await fetch(`${baseUrl}/bible-game/today?date=${testRepairDate}`, {
+        headers: { Authorization: `Bearer ${secXMemberToken}` }
+      });
+      const memberTodayData: any = await memberTodayRes.json();
+
+      assert(memberTodayRes.status === 200, 'Scenario 2: Member today overview returns HTTP 200');
+      assert(memberTodayData.data?.challengeId === adminChallengeData.data?.challenge?.id, 'Scenario 2: Admin and member share identical challenge ID');
+      assert(memberTodayData.data?.totalQuestions === 5, 'Scenario 2: Member totalQuestions is 5');
+
+      // Scenario 3: Missing/invalid question references are automatically and idempotently repaired
+      const corruptedDate = '2026-11-06';
+      // Deliberately create a corrupted challenge in db with invalid IDs and missing references
+      const corruptedChallenge = {
+        id: uuidv4(),
+        challengeDate: corruptedDate,
+        questionIds: ['non-existent-q-1', 'non-existent-q-2', 'bq-ot-001', 'non-existent-q-4', 'bq-jesus-001'],
+        status: 'published' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      db.bibleDailyChallenges.push(corruptedChallenge);
+
+      // getOrCreateDailyChallenge should detect fewer than 5 valid questions and safely auto-repair
+      const repairedResult = await BibleGameService.getOrCreateDailyChallenge(corruptedDate);
+      assert(repairedResult.questions.length === 5, 'Scenario 3: Corrupted challenge safely auto-repaired to 5 valid questions');
+      assert(repairedResult.challenge.id === corruptedChallenge.id, 'Scenario 3: Preserves original challenge record ID during repair');
+      assert(repairedResult.challenge.questionIds.includes('bq-ot-001'), 'Scenario 3: Preserved valid question bq-ot-001');
+      assert(repairedResult.challenge.questionIds.includes('bq-jesus-001'), 'Scenario 3: Preserved valid question bq-jesus-001');
+      assert(!repairedResult.challenge.questionIds.includes('non-existent-q-1'), 'Scenario 3: Replaced missing question reference non-existent-q-1');
+
+      // Subsequent call is idempotent and returns the repaired set
+      const idempotentResult = await BibleGameService.getOrCreateDailyChallenge(corruptedDate);
+      assert(idempotentResult.questions.length === 5, 'Scenario 3: Idempotent call returns 5 valid questions');
+      assert(JSON.stringify(idempotentResult.challenge.questionIds) === JSON.stringify(repairedResult.challenge.questionIds), 'Scenario 3: Repaired question sequence is stable');
+
+      // Scenario 4: User answered questions are strictly preserved during repair
+      const userPreserveDate = '2026-11-07';
+      const preserveChallengeId = uuidv4();
+      const existingAnsweredQId = 'bq-books-001';
+      db.bibleDailyChallenges.push({
+        id: preserveChallengeId,
+        challengeDate: userPreserveDate,
+        questionIds: [existingAnsweredQId, 'invalid-slot-2', 'invalid-slot-3', 'invalid-slot-4', 'invalid-slot-5'],
+        status: 'published',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      // Simulate member already answered the first question
+      db.bibleUserProgress.push({
+        id: uuidv4(),
+        userId: testUser.id,
+        memberId: testMember.id,
+        challengeDate: userPreserveDate,
+        challengeId: preserveChallengeId,
+        currentQuestionIndex: 1,
+        answers: [{ questionId: existingAnsweredQId, selectedIndex: 0, isCorrect: true, responseTimeMs: 3000, remainingTimeMs: 12000, questionXp: 8.0, answeredAt: new Date().toISOString() }],
+        score: 1,
+        totalResponseTimeMs: 3000,
+        xpAwarded: 8.0,
+        isCompleted: false,
+        startedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      const userPreservedResult = await BibleGameService.getOrCreateDailyChallenge(userPreserveDate);
+      assert(userPreservedResult.questions.length === 5, 'Scenario 4: Challenge with user answers repaired to 5 questions');
+      assert(userPreservedResult.challenge.questionIds[0] === existingAnsweredQId, 'Scenario 4: User answered question strictly preserved at its original index');
+
+      // Scenario 5: Concurrent requests share in-flight promise and return identical challenge
+      const concurrentDate = '2026-11-08';
+      const [p1, p2, p3] = await Promise.all([
+        BibleGameService.getOrCreateDailyChallenge(concurrentDate),
+        BibleGameService.getOrCreateDailyChallenge(concurrentDate),
+        BibleGameService.getOrCreateDailyChallenge(concurrentDate)
+      ]);
+      assert(p1.challenge.id === p2.challenge.id && p2.challenge.id === p3.challenge.id, 'Scenario 5: Concurrent calls return exact same challenge ID');
+      assert(JSON.stringify(p1.challenge.questionIds) === JSON.stringify(p2.challenge.questionIds), 'Scenario 5: Concurrent calls return identical question order');
+
+      // Scenario 6: Protected trivia endpoints strictly require Bearer token
+      const unauthToday = await fetch(`${baseUrl}/bible-game/today`);
+      const unauthTodayData: any = await unauthToday.json();
+      assert(unauthToday.status === 401, 'Scenario 6: Unauthenticated /bible-game/today returns HTTP 401');
+      assert(unauthTodayData.success === false, 'Scenario 6: Unauthenticated response has success = false');
+      assert(unauthTodayData.error === 'Authentication required. Please provide a Bearer token.', 'Scenario 6: Clean, non-leaking auth error message');
+
+      const unauthStart = await fetch(`${baseUrl}/bible-game/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      assert(unauthStart.status === 401, 'Scenario 6: Unauthenticated /bible-game/start returns HTTP 401');
+
+      // Clean up Section X test data
+      const datesToClean = [testRepairDate, corruptedDate, userPreserveDate, concurrentDate];
+      db.bibleDailyChallenges = db.bibleDailyChallenges.filter(c => !datesToClean.includes(c.challengeDate));
+      db.bibleUserProgress = db.bibleUserProgress.filter(p => !datesToClean.includes(p.challengeDate));
+
       // Clean up test draft/published question
       db.bibleQuestions = db.bibleQuestions.filter(q => q.id !== draftQuestion.id);
 

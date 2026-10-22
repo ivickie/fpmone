@@ -8,6 +8,8 @@ import {
   BibleQuestion, BibleDailyChallenge, BibleUserProgress, BibleUserStats, BibleBadge, BibleUserBadgeRecord, BibleGameSettings
 } from '../types';
 import { FcmService } from '../services/fcmService';
+import { SEED_BIBLE_QUESTIONS } from '../data/bibleQuestionsSeed';
+import { IDS } from '../data/mockDb';
 
 export const sanitizeMediaUrl = (url?: string | null): string | undefined => {
   if (!url) return undefined;
@@ -241,7 +243,7 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
 
         -- BIBLE CHALLENGE GAME TABLES
         CREATE TABLE IF NOT EXISTS bible_game_questions (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id VARCHAR(64) PRIMARY KEY,
           question_text TEXT NOT NULL,
           options JSONB NOT NULL,
           correct_option_index INT NOT NULL,
@@ -345,8 +347,28 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         ALTER TABLE bible_game_user_progress ADD COLUMN IF NOT EXISTS total_response_time_ms INT NOT NULL DEFAULT 0;
         ALTER TABLE bible_game_user_progress ALTER COLUMN xp_awarded TYPE NUMERIC(6, 1);
         ALTER TABLE bible_game_user_stats ALTER COLUMN cumulative_xp TYPE NUMERIC(8, 1);
+        ALTER TABLE bible_game_questions ALTER COLUMN id TYPE VARCHAR(64);
         -- Schema setup complete
       `);
+
+      // Seed core Bible questions if not yet populated
+      try {
+        for (const q of SEED_BIBLE_QUESTIONS) {
+          await query(`
+            INSERT INTO bible_game_questions (
+              id, question_text, options, correct_option_index, explanation,
+              bible_reference, category, difficulty, status, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+            ON CONFLICT (id) DO NOTHING;
+          `, [
+            q.id, q.questionText, JSON.stringify(q.options), q.correctOptionIndex,
+            q.explanation, q.bibleReference, q.category, q.difficulty, q.status
+          ]);
+        }
+      } catch (seedErr: any) {
+        console.warn('[DB BIBLE QUESTIONS SEED]', seedErr.message);
+      }
+
       schemaMigrationsDone = true;
     } catch (err: any) {
       console.warn('[DB SCHEMA MIGRATION]', err.message);
@@ -903,6 +925,18 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
     }
 
     // Hydrate Bible Game tables
+    const formatDbDate = (raw: any): string => {
+      if (!raw) return new Date().toISOString().substring(0, 10);
+      if (typeof raw === 'string') return raw.substring(0, 10);
+      if (raw instanceof Date) {
+        const y = raw.getFullYear();
+        const m = String(raw.getMonth() + 1).padStart(2, '0');
+        const d = String(raw.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      return String(raw).substring(0, 10);
+    };
+
     if (bibleQuestionsRes && Array.isArray(bibleQuestionsRes.rows) && bibleQuestionsRes.rows.length > 0) {
       store.bibleQuestions = bibleQuestionsRes.rows.map((r: any): BibleQuestion => ({
         id: r.id,
@@ -919,10 +953,23 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       }));
     }
 
+    // Always ensure full core seed questions pool is present in memory
+    for (const sq of SEED_BIBLE_QUESTIONS) {
+      if (!store.bibleQuestions.some((q: BibleQuestion) => q.id === sq.id)) {
+        store.bibleQuestions.push({
+          ...sq,
+          createdBy: IDS.USER_ADMIN,
+          createdByName: 'FPM System Admin',
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z'
+        });
+      }
+    }
+
     if (bibleChallengesRes && Array.isArray(bibleChallengesRes.rows) && bibleChallengesRes.rows.length > 0) {
       store.bibleDailyChallenges = bibleChallengesRes.rows.map((r: any): BibleDailyChallenge => ({
         id: r.id,
-        challengeDate: typeof r.challenge_date === 'string' ? r.challenge_date.substring(0, 10) : new Date(r.challenge_date).toISOString().substring(0, 10),
+        challengeDate: formatDbDate(r.challenge_date),
         questionIds: Array.isArray(r.question_ids) ? r.question_ids : (typeof r.question_ids === 'string' ? JSON.parse(r.question_ids) : []),
         status: r.status || 'published',
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
@@ -935,7 +982,7 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         id: r.id,
         userId: r.user_id,
         memberId: r.member_id,
-        challengeDate: typeof r.challenge_date === 'string' ? r.challenge_date.substring(0, 10) : new Date(r.challenge_date).toISOString().substring(0, 10),
+        challengeDate: formatDbDate(r.challenge_date),
         challengeId: r.challenge_id,
         currentQuestionIndex: r.current_question_index,
         activeQuestionIndex: r.active_question_index ?? undefined,

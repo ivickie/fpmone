@@ -14,6 +14,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
+open class ApiException(val statusCode: Int, message: String) : Exception(message)
+class AuthenticationException(message: String) : ApiException(401, message)
+
 object ApiClient {
   // Configured via BuildConfig (production default: https://www.fpmglobal.online/api)
   var baseUrl: String = org.fpm.one.BuildConfig.API_BASE_URL
@@ -24,11 +27,27 @@ object ApiClient {
       }
     }
   var authToken: String? = null
+  var onSessionExpired: (() -> Unit)? = null
 
   val json = Json {
     ignoreUnknownKeys = true
     isLenient = true
     encodeDefaults = true
+  }
+
+  private fun parseAndThrowError(response: okhttp3.Response): Nothing {
+    val errorBody = response.body?.string() ?: "Network request failed (${response.code})"
+    val message = try {
+      val jsonElement = json.parseToJsonElement(errorBody)
+      jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: errorBody
+    } catch (_: Exception) {
+      errorBody
+    }
+    if (response.code == 401) {
+      onSessionExpired?.invoke()
+      throw AuthenticationException(message)
+    }
+    throw ApiException(response.code, message)
   }
 
   private val client: OkHttpClient by lazy {
@@ -65,8 +84,7 @@ object ApiClient {
 
     client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) {
-        val errorBody = response.body?.string() ?: "Network request failed"
-        throw Exception(errorBody)
+        parseAndThrowError(response)
       }
       response.body?.string() ?: ""
     }
@@ -82,8 +100,7 @@ object ApiClient {
 
     client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) {
-        val errorBody = response.body?.string() ?: "Network request failed"
-        throw Exception(errorBody)
+        parseAndThrowError(response)
       }
       response.body?.string() ?: ""
     }
@@ -99,8 +116,7 @@ object ApiClient {
 
     client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) {
-        val errorBody = response.body?.string() ?: "Network request failed"
-        throw Exception(errorBody)
+        parseAndThrowError(response)
       }
       response.body?.string() ?: ""
     }
@@ -114,8 +130,7 @@ object ApiClient {
 
     client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) {
-        val errorBody = response.body?.string() ?: "Network request failed"
-        throw Exception(errorBody)
+        parseAndThrowError(response)
       }
       response.body?.string() ?: ""
     }

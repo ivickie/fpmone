@@ -1,7 +1,10 @@
-import { Pool, QueryResult, PoolClient, QueryResultRow } from 'pg';
+import { Pool, QueryResult, PoolClient, QueryResultRow, types } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Ensure PostgreSQL DATE (OID 1082) returns exact YYYY-MM-DD string without timezone skew
+types.setTypeParser(1082, (val: string) => val);
 
 const isVercel = Boolean(process.env.VERCEL);
 const poolMax = process.env.DB_POOL_MAX 

@@ -701,13 +701,57 @@ export const BibleChallengePage: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-              Selected 5 Questions for Today's Round (Shared across all members)
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                Selected 5 Questions for Today's Round (Shared across all members)
+              </h3>
+              {dailyChallenge?.questions && dailyChallenge.questions.length > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  {dailyChallenge.questions.length} / 5 Questions Loaded
+                </span>
+              )}
+            </div>
+
+            {(!dailyChallenge?.questions || dailyChallenge.questions.length === 0) && (
+              <div className="p-8 text-center rounded-xl border border-dashed border-slate-300 bg-slate-50 space-y-3">
+                <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
+                <p className="text-sm font-semibold text-slate-700">
+                  No questions currently loaded for today's challenge.
+                </p>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Questions are automatically selected from the published question bank each day. If questions are missing or uninitialized, refresh to auto-generate.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => loadData()}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Refresh Daily Challenge
+                </button>
+              </div>
+            )}
+
             {dailyChallenge?.questions?.map((q: any, i: number) => (
               <div key={q.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-600">Question {i + 1} of 5</span>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-amber-600">Question {i + 1} of 5</span>
+                    {q.category && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 font-semibold text-slate-700">
+                        {q.category}
+                      </span>
+                    )}
+                    {q.difficulty && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${
+                        q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-800' :
+                        q.difficulty === 'hard' ? 'bg-rose-100 text-rose-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {q.difficulty}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-slate-500 font-medium">{q.bibleReference}</span>
                 </div>
                 <p className="text-sm font-bold text-slate-900">{q.questionText}</p>
