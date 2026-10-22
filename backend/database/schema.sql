@@ -709,5 +709,34 @@ CREATE INDEX idx_finance_opening_branch ON finance_opening_balances(branch_id, y
 
 ALTER TABLE finance_opening_balances ENABLE ROW LEVEL SECURITY;
 
+-- -----------------------------------------------------------------------------
+-- 23. DEVICE TOKENS (Push Notifications)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    device_token TEXT NOT NULL UNIQUE,
+    platform VARCHAR(20) DEFAULT 'android',
+    branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_branch ON device_tokens(branch_id);
+
+ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own device tokens" ON device_tokens
+    FOR ALL TO authenticated
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Service role full access on device_tokens" ON device_tokens
+    FOR ALL TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+
 
 

@@ -215,6 +215,29 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         );
         CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);
         CREATE INDEX IF NOT EXISTS idx_device_tokens_branch ON device_tokens(branch_id);
+        ALTER TABLE finance_transactions ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE finance_opening_balances ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'device_tokens' AND policyname = 'Users can manage their own device tokens'
+          ) THEN
+            CREATE POLICY "Users can manage their own device tokens" ON public.device_tokens
+              FOR ALL TO authenticated
+              USING (user_id = auth.uid())
+              WITH CHECK (user_id = auth.uid());
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'device_tokens' AND policyname = 'Service role full access on device_tokens'
+          ) THEN
+            CREATE POLICY "Service role full access on device_tokens" ON public.device_tokens
+              FOR ALL TO service_role
+              USING (true)
+              WITH CHECK (true);
+          END IF;
+        END $$;
 
         -- BIBLE CHALLENGE GAME TABLES
         CREATE TABLE IF NOT EXISTS bible_game_questions (

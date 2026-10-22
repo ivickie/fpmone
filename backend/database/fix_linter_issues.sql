@@ -18,6 +18,7 @@ ALTER TABLE public.department_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saved_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notification_reads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.device_tokens ENABLE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- 2. Remediate Overly Permissive Policies (rls_policy_always_true)
@@ -69,6 +70,19 @@ CREATE POLICY "Allow authenticated insert saved_posts" ON public.saved_posts
     FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "Allow authenticated delete saved_posts" ON public.saved_posts 
     FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+-- device_tokens: Scope mutations strictly to the user's own records (user_id = auth.uid())
+DROP POLICY IF EXISTS "Users can manage their own device tokens" ON public.device_tokens;
+CREATE POLICY "Users can manage their own device tokens" ON public.device_tokens
+    FOR ALL TO authenticated
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Service role full access on device_tokens" ON public.device_tokens;
+CREATE POLICY "Service role full access on device_tokens" ON public.device_tokens
+    FOR ALL TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- -----------------------------------------------------------------------------
 -- 3. Explicit Function Search Path Hardening (function_search_path_mutable)
