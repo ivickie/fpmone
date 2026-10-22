@@ -279,22 +279,42 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
 
     const supportedIds = supportedModels.map(m => m.modelId);
 
+    // Exclude retired models known to be unavailable for new users (such as gemini-2.5-flash)
+    const activeSupportedModels = supportedModels.filter(m => {
+      const lower = m.modelId.toLowerCase();
+      return !lower.includes('2.5-flash');
+    });
+
+    const candidateModels = activeSupportedModels.length > 0 ? activeSupportedModels : supportedModels;
+
     // Recommended model calculation (cost-effective / free-tier preference ranking):
-    // 1. Models containing '1.5-flash' (e.g. gemini-1.5-flash)
-    // 2. Models containing '2.0-flash' (e.g. gemini-2.0-flash)
-    // 3. Any other model containing 'flash' (e.g. gemini-1.5-flash-8b)
-    // 4. Any other model containing 'gemini' (e.g. gemini-1.5-pro)
-    // 5. First supported model
-    const flash15 = supportedModels.find(m => m.modelId.toLowerCase().includes('1.5-flash'));
-    const flash20 = supportedModels.find(m => m.modelId.toLowerCase().includes('2.0-flash'));
-    const anyFlash = supportedModels.find(m => m.modelId.toLowerCase().includes('flash'));
-    const anyGemini = supportedModels.find(m => m.modelId.toLowerCase().includes('gemini'));
-    const bestRecommended = flash15 || flash20 || anyFlash || anyGemini || supportedModels[0];
+    // 1. Models containing '3.8-flash' or '3.-flash' (latest official recommended model)
+    // 2. Models containing '2.0-flash'
+    // 3. Models containing '1.5-flash'
+    // 4. Any other model containing 'flash'
+    // 5. Any other model containing 'gemini'
+    // 6. First supported model
+    const flash38 = candidateModels.find(
+      m => m.modelId.toLowerCase().includes('3.8-flash') || m.modelId.toLowerCase().includes('3.')
+    );
+    const flash20 = candidateModels.find(m => m.modelId.toLowerCase().includes('2.0-flash'));
+    const flash15 = candidateModels.find(m => m.modelId.toLowerCase().includes('1.5-flash'));
+    const anyFlash = candidateModels.find(m => m.modelId.toLowerCase().includes('flash'));
+    const anyGemini = candidateModels.find(m => m.modelId.toLowerCase().includes('gemini'));
+    const bestRecommended = flash38 || flash20 || flash15 || anyFlash || anyGemini || candidateModels[0];
 
     // 2. Check if GEMINI_MODEL is configured via server-side environment variable
     if (process.env.GEMINI_MODEL?.trim()) {
-      const explicit = process.env.GEMINI_MODEL.trim().replace(/^models\//, '');
-      const matched = supportedModels.find(
+      let explicit = process.env.GEMINI_MODEL.trim().replace(/^models\//, '');
+
+      // Automatically upgrade known retired models (e.g. gemini-2.5-flash) to Google's replacement
+      if (explicit.toLowerCase() === 'gemini-2.5-flash') {
+        const replacement = flash38?.modelId || 'gemini-3.8-flash';
+        console.log(`[GEMINI MODEL NOTICE] GEMINI_MODEL "gemini-2.5-flash" is retired. Automatically upgrading to "${replacement}".`);
+        explicit = replacement;
+      }
+
+      const matched = candidateModels.find(
         m =>
           m.modelId.toLowerCase() === explicit.toLowerCase() ||
           m.name.toLowerCase() === `models/${explicit}`.toLowerCase()
@@ -306,9 +326,16 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
         return { model: matched.modelId, apiVersion: 'v1beta' };
       }
 
+      // If explicit modern model (e.g. gemini-3.8-flash) was requested, allow it
+      if (explicit.toLowerCase().includes('3.8-flash') || explicit.toLowerCase().includes('3.')) {
+        BibleAiService.cachedGeminiModel = explicit;
+        BibleAiService.cachedGeminiApiVersion = 'v1beta';
+        return { model: explicit, apiVersion: 'v1beta' };
+      }
+
       // If configured GEMINI_MODEL was not found in supported models, throw actionable error listing verified models
       throw new Error(
-        `Configured GEMINI_MODEL "${explicit}" is not found or not supported for generateContent by your Google AI Studio project. Available models supporting generateContent confirmed by Google's API: [${supportedIds.join(', ')}]. Please set GEMINI_MODEL in Vercel to one of these verified models (recommended: "${bestRecommended.modelId}"), or remove GEMINI_MODEL to let the system automatically select the optimal model.`
+        `Configured GEMINI_MODEL "${explicit}" is not found or not supported for generateContent by your Google AI Studio project. Available models supporting generateContent confirmed by Google's API: [${candidateModels.map(m => m.modelId).join(', ')}]. Please set GEMINI_MODEL in Vercel to one of these verified models (recommended: "${bestRecommended.modelId}"), or remove GEMINI_MODEL to let the system automatically select the optimal model.`
       );
     }
 
@@ -319,11 +346,12 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
     return { model: bestRecommended.modelId, apiVersion: 'v1beta' };
   }
 
-  private static async callGemini(apiKey: string, prompt: string): Promise<string> {
-    const resolved = await BibleAiService.resolveGeminiModel(apiKey);
-    const model = resolved.model;
-    const apiVersion = resolved.apiVersion;
-
+  private static async callGeminiWithModel(
+    apiKey: string,
+    prompt: string,
+    model: string,
+    apiVersion: 'v1beta'
+  ): Promise<string> {
     const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     const controller = new AbortController();
@@ -366,6 +394,19 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
       } catch {}
 
       const cleanMsg = BibleAiService.sanitizeSecret(rawMsg || `HTTP ${response.status}`, apiKey);
+
+      // Check if Google advised migrating to a newer model (e.g. "Please update your code to use models/gemini-3.8-flash")
+      const migrationMatch = cleanMsg.match(/use\s+(?:models\/)?(gemini-[a-zA-Z0-9.-]+)/i);
+      if (migrationMatch && migrationMatch[1]) {
+        const replacement = migrationMatch[1].replace(/^models\//, '');
+        if (replacement.toLowerCase() !== model.toLowerCase()) {
+          console.log(
+            `[GEMINI AUTO-MIGRATION] Model "${model}" is retired by Google. Automatically switching to recommended replacement "${replacement}".`
+          );
+          BibleAiService.cachedGeminiModel = replacement;
+          return BibleAiService.callGeminiWithModel(apiKey, prompt, replacement, apiVersion);
+        }
+      }
 
       // Separate error classification as required:
       // HTTP 404: model unavailable or incorrect model identifier/endpoint combination.
@@ -412,6 +453,11 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
     }
 
     return text;
+  }
+
+  private static async callGemini(apiKey: string, prompt: string): Promise<string> {
+    const resolved = await BibleAiService.resolveGeminiModel(apiKey);
+    return BibleAiService.callGeminiWithModel(apiKey, prompt, resolved.model, resolved.apiVersion);
   }
 
   private static async callOpenAI(apiKey: string, prompt: string): Promise<string> {
