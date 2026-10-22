@@ -1,5 +1,6 @@
 package org.fpm.one.presentation.main
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -73,6 +74,16 @@ fun MainScreen(
     )
   }
   val user = remember { SessionManager.getUserSession() }
+  val tabBackStack = remember { mutableStateListOf<BottomNavTab>() }
+
+  // Intercept back button when on a secondary tab or deep tab stack to return to Home before app exit
+  BackHandler(enabled = subScreen == null && (selectedTab != BottomNavTab.Home || tabBackStack.isNotEmpty())) {
+    if (tabBackStack.isNotEmpty()) {
+      selectedTab = tabBackStack.removeAt(tabBackStack.size - 1)
+    } else {
+      selectedTab = BottomNavTab.Home
+    }
+  }
 
   val tabs = listOf(
     BottomNavTab.Home,
@@ -89,12 +100,14 @@ fun MainScreen(
   ) { currentSub ->
     when (currentSub) {
       "worker_hub" -> {
+        BackHandler { subScreen = null }
         WorkerHubScreen(
           viewModel = workerViewModel,
           onNavigateBack = { subScreen = null }
         )
       }
       "notifications" -> {
+        BackHandler { subScreen = null }
         NotificationsScreen(
           viewModel = notificationsViewModel,
           onBackClick = { subScreen = null }
@@ -127,6 +140,7 @@ fun MainScreen(
                   val activeColor = if (FpmTheme.isDark) FpmGold else FpmNavyDark
                   val inactiveColor = FpmTheme.textMuted
                   NavigationBarItem(
+                    selected = isSelected,
                     icon = {
                       Icon(
                         imageVector = tab.icon,
@@ -142,8 +156,12 @@ fun MainScreen(
                         color = if (isSelected) activeColor else inactiveColor
                       )
                     },
-                    selected = isSelected,
-                    onClick = { selectedTab = tab },
+                    onClick = {
+                      if (selectedTab != tab) {
+                        tabBackStack.add(selectedTab)
+                        selectedTab = tab
+                      }
+                    },
                     colors = NavigationBarItemDefaults.colors(
                       indicatorColor = if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle,
                       selectedIconColor = activeColor,

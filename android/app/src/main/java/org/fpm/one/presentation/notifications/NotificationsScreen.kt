@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import org.fpm.one.core.theme.*
 import org.fpm.one.data.model.NotificationItem
 import org.fpm.one.presentation.components.EmptyStateView
+import androidx.activity.compose.BackHandler
 import org.fpm.one.presentation.components.FpmCard
 import org.fpm.one.presentation.components.FpmCardSkeleton
 import org.fpm.one.presentation.components.FpmTopBar
@@ -33,6 +34,8 @@ fun NotificationsScreen(
   onBackClick: () -> Unit
 ) {
   val state by viewModel.state.collectAsState()
+
+  BackHandler(onBack = onBackClick)
 
   Scaffold(
     topBar = {

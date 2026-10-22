@@ -4158,6 +4158,168 @@ async function runTests() {
       assert(todayData.success === true, 'Response contains success: true');
       assert(todayData.data?.totalQuestions === 5, 'Response returns 5 daily questions overview');
 
+      // =========================================================================
+      // SECTION V: BIBLE CHALLENGE DUPLICATE PREVENTION & IDEMPOTENCY HARDENING
+      // (Covers all 10 mandated duplicate prevention scenarios)
+      // =========================================================================
+      console.log('\n--- Section V: Bible Challenge Duplicate Attempt Prevention & Idempotency Hardening ---');
+      const dupUser = {
+        id: uuidv4(),
+        email: 'dup.player@fpmchurch.org'
+      };
+      const dupMember = {
+        id: uuidv4(),
+        userId: dupUser.id,
+        firstName: 'Emmanuel',
+        lastName: 'Idempotent'
+      };
+      const dupDate1 = '2026-10-28';
+      const dupDate2 = '2026-10-29';
+
+      // SCENARIO 1: A member completes today's challenge and earns exactly 45.0 XP
+      await BibleGameService.getOrCreateDailyChallenge(dupDate1);
+      const session1 = await BibleGameService.startOrResumeSession(dupUser.id, dupMember.id, dupDate1);
+      const chal1 = await BibleGameService.getOrCreateDailyChallenge(dupDate1);
+      const prog1 = db.bibleUserProgress.find(p => p.userId === dupUser.id && p.challengeDate === dupDate1)!;
+
+      for (let i = 0; i < 5; i++) {
+        await BibleGameService.startQuestion(dupUser.id, dupMember.id, i, dupDate1);
+        // Force 9.0s remaining -> 9.0 XP per question -> 5 * 9.0 = exactly 45.0 XP
+        prog1.activeQuestionStartedAt = new Date(Date.now() - 1000).toISOString();
+        prog1.activeQuestionDeadlineAt = new Date(Date.now() + 9000).toISOString();
+        const ans = await BibleGameService.submitAnswer(
+          dupUser.id,
+          dupMember.id,
+          i,
+          chal1.questions[i].correctOptionIndex,
+          { challengeDate: dupDate1 }
+        );
+        assert(ans.questionXp === 9.0, `Question ${i + 1} awards exactly 9.0 XP`);
+      }
+
+      const comp1 = await BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1);
+      assert(comp1.score === 5, 'Scenario 1: Completed score is 5/5');
+      assert(comp1.xpAwarded === 45.0, `Scenario 1: Earned exactly 45.0 XP (got ${comp1.xpAwarded})`);
+      assert(comp1.alreadyCompleted === false, 'Scenario 1: First completion flags alreadyCompleted: false');
+      const initialCumulativeXp = comp1.stats.cumulativeXp;
+      assert(initialCumulativeXp >= 45.0, `Scenario 1: Cumulative XP reflects round score and any badge bonuses (got ${initialCumulativeXp})`);
+
+      // SCENARIO 2: The same member requests the start endpoint again that day
+      const replayStart = await BibleGameService.startOrResumeSession(dupUser.id, dupMember.id, dupDate1);
+      assert(replayStart.isCompleted === true, 'Scenario 2: Requesting start again returns isCompleted = true');
+      assert(replayStart.currentQuestion === null, 'Scenario 2: Replay start returns currentQuestion = null');
+      assert(replayStart.score === 5, 'Scenario 2: Replay start preserves original score 5');
+      assert(replayStart.totalXp === 45.0, 'Scenario 2: Replay start preserves original 45.0 XP');
+      const statsAfterReplayStart = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(statsAfterReplayStart.cumulativeXp === initialCumulativeXp, `Scenario 2: Total cumulative XP remains strictly unchanged at ${initialCumulativeXp} XP`);
+
+      // SCENARIO 3: The same member attempts to submit answers or complete the challenge again
+      let submitAnswerBlocked = false;
+      try {
+        await BibleGameService.submitAnswer(dupUser.id, dupMember.id, 0, 1, { challengeDate: dupDate1 });
+      } catch (err: any) {
+        submitAnswerBlocked = err.message.includes('already been completed');
+      }
+      assert(submitAnswerBlocked, 'Scenario 3: Submitting answer after completion is rejected with explicit error');
+
+      const reCompleteAttempt = await BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1);
+      assert(reCompleteAttempt.alreadyCompleted === true, 'Scenario 3: Re-completion flags alreadyCompleted: true');
+      assert(reCompleteAttempt.xpAwarded === 0.0, 'Scenario 3: Re-completion awards 0.0 additional XP');
+      const statsAfterReComplete = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(statsAfterReComplete.cumulativeXp === initialCumulativeXp, `Scenario 3: Total XP strictly preserved at ${initialCumulativeXp} XP`);
+
+      // SCENARIO 4: The member closes and reopens the app
+      const overviewAfterAppClose = await BibleGameService.getTodayOverview(dupUser.id, dupMember.id, dupDate1);
+      assert(overviewAfterAppClose.isCompleted === true, 'Scenario 4: App reopen shows completed state');
+      assert(overviewAfterAppClose.score === 5, 'Scenario 4: App reopen displays original score 5');
+      assert(overviewAfterAppClose.totalXp === 45.0, 'Scenario 4: App reopen displays original 45.0 XP');
+      assert(overviewAfterAppClose.reviewedQuestions?.length === 5, 'Scenario 4: Answer review is available');
+      assert(overviewAfterAppClose.stats.cumulativeXp === initialCumulativeXp, 'Scenario 4: Cumulative XP strictly unchanged');
+
+      // SCENARIO 5: The member signs out and signs back in
+      const reAuthOverview = await BibleGameService.getTodayOverview(dupUser.id, dupMember.id, dupDate1);
+      assert(reAuthOverview.isCompleted === true, 'Scenario 5: Post-login state is completed');
+      assert(reAuthOverview.stats.cumulativeXp === initialCumulativeXp, `Scenario 5: Post-login cumulative XP remains ${initialCumulativeXp} XP`);
+
+      // SCENARIO 6: The completion endpoint is called repeatedly with the same request
+      for (let r = 1; r <= 5; r++) {
+        const loopComp = await BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1);
+        assert(loopComp.alreadyCompleted === true && loopComp.xpAwarded === 0.0, `Scenario 6: Repeated call ${r} awards 0.0 XP`);
+      }
+      const statsAfterLoop = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(statsAfterLoop.cumulativeXp === initialCumulativeXp, `Scenario 6: Total XP remains strictly ${initialCumulativeXp} XP after 5 repeated completion calls`);
+
+      // SCENARIO 7: Two completion requests arrive concurrently
+      const [conc1, conc2] = await Promise.all([
+        BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1),
+        BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1)
+      ]);
+      assert(conc1.alreadyCompleted === true && conc1.xpAwarded === 0.0, 'Scenario 7: Concurrent request 1 awards 0.0 XP');
+      assert(conc2.alreadyCompleted === true && conc2.xpAwarded === 0.0, 'Scenario 7: Concurrent request 2 awards 0.0 XP');
+      const statsAfterConc = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(statsAfterConc.cumulativeXp === initialCumulativeXp, 'Scenario 7: Concurrent requests cannot double-award XP');
+
+      // SCENARIO 8: A request is retried after a simulated network failure
+      const networkRetry = await BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1);
+      assert(networkRetry.alreadyCompleted === true, 'Scenario 8: Network retry returns alreadyCompleted = true');
+      assert(networkRetry.score === 5, 'Scenario 8: Network retry returns original score 5');
+      const statsAfterRetry = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(statsAfterRetry.cumulativeXp === initialCumulativeXp, `Scenario 8: Network retry total XP strictly unchanged at ${initialCumulativeXp} XP`);
+
+      // SCENARIO 9: A completed challenge is loaded from a different Android session or device
+      const crossDeviceSession = await BibleGameService.startOrResumeSession(dupUser.id, dupMember.id, dupDate1);
+      assert(crossDeviceSession.isCompleted === true, 'Scenario 9: Cross-device session starts as completed');
+      assert(crossDeviceSession.currentQuestion === null, 'Scenario 9: No new playable question offered');
+      assert(crossDeviceSession.answeredQuestions.length === 5, 'Scenario 9: All 5 answered questions restored for review');
+      const crossDeviceStats = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(crossDeviceStats.cumulativeXp === initialCumulativeXp, `Scenario 9: Total XP on new device strictly ${initialCumulativeXp} XP`);
+
+      // SCENARIO 10: The following day's challenge becomes available correctly
+      await BibleGameService.getOrCreateDailyChallenge(dupDate2);
+      const nextDaySession = await BibleGameService.startOrResumeSession(dupUser.id, dupMember.id, dupDate2);
+      assert(nextDaySession.isCompleted === false, 'Scenario 10: Next day challenge starts in incomplete state');
+      assert(nextDaySession.currentQuestionIndex === 0, 'Scenario 10: Next day starts at question index 0');
+      assert(nextDaySession.currentQuestion !== null, 'Scenario 10: Next day serves question 1');
+
+      const nextDayChal = await BibleGameService.getOrCreateDailyChallenge(dupDate2);
+      const nextProg = db.bibleUserProgress.find(p => p.userId === dupUser.id && p.challengeDate === dupDate2)!;
+      for (let i = 0; i < 5; i++) {
+        await BibleGameService.startQuestion(dupUser.id, dupMember.id, i, dupDate2);
+        // Force 8.0s remaining -> 8.0 XP per question -> 5 * 8.0 = 40.0 XP
+        nextProg.activeQuestionStartedAt = new Date(Date.now() - 2000).toISOString();
+        nextProg.activeQuestionDeadlineAt = new Date(Date.now() + 8000).toISOString();
+        await BibleGameService.submitAnswer(
+          dupUser.id,
+          dupMember.id,
+          i,
+          nextDayChal.questions[i].correctOptionIndex,
+          { challengeDate: dupDate2 }
+        );
+      }
+      const nextDayComp = await BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate2);
+      assert(nextDayComp.score === 5, 'Scenario 10: Next day completed with 5/5');
+      assert(nextDayComp.xpAwarded === 40.0, `Scenario 10: Next day awards 40.0 XP (got ${nextDayComp.xpAwarded})`);
+      const day2TotalXp = nextDayComp.stats.cumulativeXp;
+      assert(day2TotalXp > initialCumulativeXp, `Scenario 10: Total cumulative XP advances on Day 2 (got ${day2TotalXp})`);
+      assert(nextDayComp.stats.currentStreak === 2, 'Scenario 10: Streak increments from 1 to 2 on consecutive day');
+
+      // Verify Day 1 still cannot be re-completed after Day 2 is finished
+      const day1Recheck = await BibleGameService.completeChallenge(dupUser.id, dupMember.id, dupDate1);
+      assert(day1Recheck.alreadyCompleted === true, 'Scenario 10: Day 1 still returns alreadyCompleted: true');
+      assert(day1Recheck.xpAwarded === 0.0, 'Scenario 10: Day 1 awards 0.0 additional XP');
+      const finalStats = await BibleGameService.getOrCreateUserStats(dupUser.id, dupMember.id);
+      assert(finalStats.cumulativeXp === day2TotalXp, `Scenario 10: Final cumulative XP remains exactly ${day2TotalXp} XP`);
+
+      // Clean up duplicate test progress
+      db.bibleUserProgress = db.bibleUserProgress.filter(
+        p => !(p.userId === dupUser.id && (p.challengeDate === dupDate1 || p.challengeDate === dupDate2))
+      );
+      db.bibleDailyChallenges = db.bibleDailyChallenges.filter(
+        c => c.challengeDate !== dupDate1 && c.challengeDate !== dupDate2
+      );
+      db.bibleUserBadges = db.bibleUserBadges.filter(b => b.userId !== dupUser.id);
+      db.bibleUserStats = db.bibleUserStats.filter(s => s.userId !== dupUser.id);
+
       // Clean up test data
       db.bibleUserProgress = db.bibleUserProgress.filter(
         p => !(p.userId === testUser.id && (p.challengeDate === challengeTestDate || p.challengeDate === nextDayDate || p.challengeDate === skippedDayDate))

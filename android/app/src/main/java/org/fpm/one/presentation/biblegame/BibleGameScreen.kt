@@ -1,5 +1,6 @@
 package org.fpm.one.presentation.biblegame
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
@@ -33,6 +34,14 @@ fun BibleGameScreen(
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+
+    BackHandler(enabled = true) {
+        if (state.currentView != BibleGameView.HOME) {
+            viewModel.navigateTo(BibleGameView.HOME)
+        } else {
+            onNavigateBack()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -337,7 +346,35 @@ fun BibleGameHomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
 
                     // Primary Play or Review Button
-                    if (overview?.isCompleted == true) {
+                    if (state.isLoading && overview == null) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = FpmGold.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, FpmGold.copy(alpha = 0.3f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = FpmGold,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Checking today's challenge...",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = FpmGold
+                                )
+                            }
+                        }
+                    } else if (overview?.isCompleted == true) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -203,6 +204,7 @@ class MainActivity : FragmentActivity() {
                 )
               }
               "REGISTER" -> {
+                BackHandler { currentScreen = "LOGIN" }
                 RegistrationWizardScreen(
                   viewModel = registrationViewModel,
                   onNavigateBack = {
@@ -219,6 +221,7 @@ class MainActivity : FragmentActivity() {
                 )
               }
               "VERIFY_EMAIL" -> {
+                BackHandler { currentScreen = "LOGIN" }
                 VerifyEmailScreen(
                   email = verifyEmailTarget,
                   viewModel = authViewModel,
@@ -231,6 +234,10 @@ class MainActivity : FragmentActivity() {
                 )
               }
               "PENDING" -> {
+                BackHandler {
+                  SessionManager.clearSession()
+                  currentScreen = "LOGIN"
+                }
                 PendingApprovalScreen(
                   onBackToLogin = {
                     SessionManager.clearSession()

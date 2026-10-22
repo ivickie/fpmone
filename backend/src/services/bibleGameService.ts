@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../data/mockDb';
+import { query } from '../db';
 import {
   BibleQuestion,
   BibleQuestionClientView,
@@ -140,10 +141,96 @@ export class BibleGameService {
   }
 
   /**
+   * Directly queries PostgreSQL for the latest user progress record if not in memory or running in serverless.
+   */
+  public static async syncUserProgressFromDb(userId: string, targetDate: string): Promise<BibleUserProgress | undefined> {
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      try {
+        const res = await query(
+          'SELECT * FROM bible_game_user_progress WHERE user_id = $1 AND challenge_date = $2',
+          [userId, targetDate]
+        );
+        if (res.rows.length > 0) {
+          const r = res.rows[0];
+          const parsed: BibleUserProgress = {
+            id: r.id,
+            userId: r.user_id,
+            memberId: r.member_id,
+            challengeDate: typeof r.challenge_date === 'string' ? r.challenge_date.substring(0, 10) : new Date(r.challenge_date).toISOString().substring(0, 10),
+            challengeId: r.challenge_id,
+            currentQuestionIndex: r.current_question_index,
+            activeQuestionIndex: r.active_question_index ?? undefined,
+            activeQuestionStartedAt: r.active_question_started_at ? new Date(r.active_question_started_at).toISOString() : undefined,
+            activeQuestionDeadlineAt: r.active_question_deadline_at ? new Date(r.active_question_deadline_at).toISOString() : undefined,
+            answers: Array.isArray(r.answers) ? r.answers : (typeof r.answers === 'string' ? JSON.parse(r.answers) : []),
+            score: r.score,
+            totalResponseTimeMs: r.total_response_time_ms || 0,
+            xpAwarded: Number(r.xp_awarded) || 0.0,
+            isCompleted: Boolean(r.is_completed),
+            startedAt: r.started_at ? new Date(r.started_at).toISOString() : new Date().toISOString(),
+            completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : undefined,
+            createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+            updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+          };
+          const idx = db.bibleUserProgress.findIndex(p => p.userId === userId && p.challengeDate === targetDate);
+          if (idx >= 0) db.bibleUserProgress[idx] = parsed;
+          else db.bibleUserProgress.push(parsed);
+          return parsed;
+        }
+      } catch (err: any) {
+        console.error('[DATABASE SYNC ERROR: bible_game_user_progress]', err.message);
+      }
+    }
+    return db.bibleUserProgress.find(p => p.userId === userId && p.challengeDate === targetDate);
+  }
+
+  /**
+   * Directly queries PostgreSQL for the latest user stats record if not in memory or running in serverless.
+   */
+  public static async syncUserStatsFromDb(userId: string, memberId: string): Promise<BibleUserStats | undefined> {
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      try {
+        const res = await query(
+          'SELECT * FROM bible_game_user_stats WHERE user_id = $1 OR member_id = $2',
+          [userId, memberId]
+        );
+        if (res.rows.length > 0) {
+          const r = res.rows[0];
+          const cumulativeXp = Number(r.cumulative_xp) || 0.0;
+          const levelInfo = BibleGameService.calculateLevel(cumulativeXp);
+          const parsed: BibleUserStats = {
+            userId: r.user_id,
+            memberId: r.member_id,
+            cumulativeXp,
+            level: r.level || levelInfo.level,
+            levelTitle: levelInfo.levelTitle,
+            xpInCurrentLevel: levelInfo.xpInCurrentLevel,
+            xpForNextLevel: levelInfo.xpForNextLevel,
+            currentStreak: r.current_streak || 0,
+            bestStreak: r.best_streak || 0,
+            lastCompletedDate: r.last_completed_date ? (typeof r.last_completed_date === 'string' ? r.last_completed_date.substring(0, 10) : new Date(r.last_completed_date).toISOString().substring(0, 10)) : undefined,
+            totalChallengesCompleted: r.total_challenges_completed || 0,
+            perfectScoresCount: r.perfect_scores_count || 0,
+            createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+            updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+          };
+          const idx = db.bibleUserStats.findIndex(s => s.userId === userId || s.memberId === memberId);
+          if (idx >= 0) db.bibleUserStats[idx] = parsed;
+          else db.bibleUserStats.push(parsed);
+          return parsed;
+        }
+      } catch (err: any) {
+        console.error('[DATABASE SYNC ERROR: bible_game_user_stats]', err.message);
+      }
+    }
+    return db.bibleUserStats.find(s => s.userId === userId || s.memberId === memberId);
+  }
+
+  /**
    * Retrieves or initializes authoritative user game statistics.
    */
   public static async getOrCreateUserStats(userId: string, memberId: string): Promise<BibleUserStats> {
-    let stats = db.bibleUserStats.find(s => s.userId === userId || s.memberId === memberId);
+    let stats = await BibleGameService.syncUserStatsFromDb(userId, memberId);
     if (!stats) {
       const levelInfo = BibleGameService.calculateLevel(0);
       stats = {
@@ -275,6 +362,8 @@ export class BibleGameService {
     totalQuestions: number;
     isCompleted: boolean;
     score: number;
+    totalXp: number;
+    totalResponseTimeMs: number;
     currentQuestionIndex: number;
     stats: BibleUserStats;
     badges: BibleBadge[];
@@ -294,9 +383,7 @@ export class BibleGameService {
     const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
     const stats = await BibleGameService.getOrCreateUserStats(userId, memberId);
 
-    const progress = db.bibleUserProgress.find(
-      p => p.userId === userId && p.challengeDate === targetDate
-    );
+    const progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
     const userBadges = db.bibleUserBadges.filter(b => b.userId === userId);
     const badgesWithStatus: BibleBadge[] = db.bibleBadges.map(badge => {
@@ -378,9 +465,41 @@ export class BibleGameService {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
     const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    let progress = db.bibleUserProgress.find(
-      p => p.userId === userId && p.challengeDate === targetDate
-    );
+    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
+
+    // ONE XP-EARNING COMPLETION PER MEMBER PER DAY GUARANTEE:
+    // If challenge is already completed, return completed state and reviewed answers immediately.
+    // Under no circumstances create a fresh attempt or reset answers/score/isCompleted!
+    if (progress && progress.isCompleted) {
+      const answeredQuestions = progress.answers.map(ans => {
+        const q = questions.find(qItem => qItem.id === ans.questionId);
+        return {
+          questionId: ans.questionId,
+          selectedIndex: ans.selectedIndex,
+          isCorrect: ans.isCorrect,
+          correctOptionIndex: q ? q.correctOptionIndex : 0,
+          explanation: q ? q.explanation : '',
+          bibleReference: q ? q.bibleReference : '',
+          responseTimeMs: ans.responseTimeMs || 0,
+          remainingTimeMs: ans.remainingTimeMs || 0,
+          questionXp: ans.questionXp || 0.0,
+          isTimeout: Boolean(ans.isTimeout)
+        };
+      });
+
+      return {
+        challengeDate: targetDate,
+        challengeId: progress.challengeId || challenge.id,
+        currentQuestionIndex: progress.currentQuestionIndex,
+        totalQuestions: 5,
+        isCompleted: true,
+        score: progress.score,
+        totalXp: progress.xpAwarded,
+        currentQuestion: null,
+        activeQuestionTiming: undefined,
+        answeredQuestions
+      };
+    }
 
     if (!progress) {
       progress = {
@@ -473,15 +592,15 @@ export class BibleGameService {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
     const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    let progress = db.bibleUserProgress.find(
-      p => p.userId === userId && p.challengeDate === targetDate
-    );
+    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
     if (!progress) {
       await BibleGameService.startOrResumeSession(userId, memberId, targetDate);
-      progress = db.bibleUserProgress.find(
-        p => p.userId === userId && p.challengeDate === targetDate
-      )!;
+      progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
+    }
+
+    if (!progress) {
+      throw new Error('Failed to initialize session for today.');
     }
 
     if (progress.isCompleted) {
@@ -583,9 +702,7 @@ export class BibleGameService {
     const targetDate = options?.challengeDate || BibleGameService.getTodayLagosDate();
     const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    let progress = db.bibleUserProgress.find(
-      p => p.userId === userId && p.challengeDate === targetDate
-    );
+    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
     if (!progress) {
       throw new Error('Session not started. Please call /api/bible-game/start first.');
@@ -755,9 +872,7 @@ export class BibleGameService {
     const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
     const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    const progress = db.bibleUserProgress.find(
-      p => p.userId === userId && p.challengeDate === targetDate
-    );
+    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
     if (!progress) {
       throw new Error('No active challenge progress found for today.');
@@ -767,13 +882,13 @@ export class BibleGameService {
       throw new Error(`Cannot complete challenge until all 5 questions are answered. Completed: ${progress.answers.length}/5.`);
     }
 
-    const stats = await BibleGameService.getOrCreateUserStats(userId, memberId);
+    let stats = await BibleGameService.getOrCreateUserStats(userId, memberId);
     const newlyUnlockedBadges: BibleBadge[] = [];
 
     // Helper to format reviewed questions with timing & decimal XP
     const buildReviewedQuestions = () => {
       return questions.map(q => {
-        const a = progress.answers.find(ans => ans.questionId === q.id);
+        const a = progress!.answers.find(ans => ans.questionId === q.id);
         return {
           id: q.id,
           questionText: q.questionText,
@@ -812,6 +927,43 @@ export class BibleGameService {
       0
     );
     const roundXp = Math.min(50.0, Math.round(totalTenths) / 10);
+
+    // Atomic PostgreSQL check & update to prevent concurrent duplicate reward
+    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      const updateRes = await query(`
+        UPDATE bible_game_user_progress
+        SET is_completed = true,
+            completed_at = NOW(),
+            score = $1,
+            xp_awarded = $2,
+            answers = $3,
+            updated_at = NOW()
+        WHERE user_id = $4 AND challenge_date = $5 AND is_completed = false
+        RETURNING *;
+      `, [
+        progress.score,
+        roundXp,
+        JSON.stringify(progress.answers),
+        userId,
+        targetDate
+      ]);
+
+      if (updateRes.rows.length === 0) {
+        // Already completed in DB by a concurrent request or previous call
+        progress.isCompleted = true;
+        const freshStats = await BibleGameService.syncUserStatsFromDb(userId, memberId);
+        return {
+          challengeDate: targetDate,
+          score: progress.score,
+          totalQuestions: 5,
+          xpAwarded: 0.0,
+          alreadyCompleted: true,
+          stats: freshStats || stats,
+          newlyUnlockedBadges: [],
+          reviewedQuestions: buildReviewedQuestions()
+        };
+      }
+    }
 
     progress.isCompleted = true;
     progress.completedAt = new Date().toISOString();

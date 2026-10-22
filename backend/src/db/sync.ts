@@ -395,7 +395,14 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       financeTxRes,
       financeBalancesRes,
       sundayMomentsRes,
-      sundayMomentLikesRes
+      sundayMomentLikesRes,
+      bibleQuestionsRes,
+      bibleChallengesRes,
+      bibleProgressRes,
+      bibleStatsRes,
+      bibleBadgesRes,
+      bibleUserBadgesRes,
+      bibleSettingsRes
     ] = await runQueryBatch([
       () => query('SELECT * FROM branches ORDER BY name ASC').catch(() => ({ rows: [] })),
       () => query('SELECT * FROM ministry_roles ORDER BY hierarchy_level ASC').catch(() => ({ rows: [] })),
@@ -418,7 +425,14 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       () => query('SELECT * FROM finance_transactions ORDER BY transaction_date DESC, created_at DESC').catch(() => ({ rows: [] })),
       () => query('SELECT * FROM finance_opening_balances ORDER BY year ASC, month ASC').catch(() => ({ rows: [] })),
       () => query('SELECT * FROM sunday_moments ORDER BY created_at DESC').catch(() => ({ rows: [] })),
-      () => query('SELECT * FROM sunday_moment_likes ORDER BY created_at DESC').catch(() => ({ rows: [] }))
+      () => query('SELECT * FROM sunday_moment_likes ORDER BY created_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_questions ORDER BY created_at ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_daily_challenges ORDER BY challenge_date DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_user_progress ORDER BY challenge_date DESC, updated_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_user_stats ORDER BY cumulative_xp DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_badges ORDER BY display_order ASC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_user_badges ORDER BY awarded_at DESC').catch(() => ({ rows: [] })),
+      () => query('SELECT * FROM bible_game_settings LIMIT 1').catch(() => ({ rows: [] }))
     ], 2);
 
     if (branchesRes.rows.length > 0) {
@@ -865,7 +879,142 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
       store.sundayMomentLikes = [];
     }
 
-    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs, ${store.sundayMoments?.length || 0} moments, ${store.sundayMomentLikes?.length || 0} moment likes.`);
+    // Hydrate Bible Game tables
+    if (bibleQuestionsRes && Array.isArray(bibleQuestionsRes.rows) && bibleQuestionsRes.rows.length > 0) {
+      store.bibleQuestions = bibleQuestionsRes.rows.map((r: any): BibleQuestion => ({
+        id: r.id,
+        questionText: r.question_text,
+        options: Array.isArray(r.options) ? r.options : (typeof r.options === 'string' ? JSON.parse(r.options) : []),
+        correctOptionIndex: r.correct_option_index,
+        explanation: r.explanation,
+        bibleReference: r.bible_reference,
+        difficulty: r.difficulty,
+        category: r.category,
+        status: r.status,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    }
+
+    if (bibleChallengesRes && Array.isArray(bibleChallengesRes.rows) && bibleChallengesRes.rows.length > 0) {
+      store.bibleDailyChallenges = bibleChallengesRes.rows.map((r: any): BibleDailyChallenge => ({
+        id: r.id,
+        challengeDate: typeof r.challenge_date === 'string' ? r.challenge_date.substring(0, 10) : new Date(r.challenge_date).toISOString().substring(0, 10),
+        questionIds: Array.isArray(r.question_ids) ? r.question_ids : (typeof r.question_ids === 'string' ? JSON.parse(r.question_ids) : []),
+        status: r.status || 'published',
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    }
+
+    if (bibleProgressRes && Array.isArray(bibleProgressRes.rows)) {
+      store.bibleUserProgress = bibleProgressRes.rows.map((r: any): BibleUserProgress => ({
+        id: r.id,
+        userId: r.user_id,
+        memberId: r.member_id,
+        challengeDate: typeof r.challenge_date === 'string' ? r.challenge_date.substring(0, 10) : new Date(r.challenge_date).toISOString().substring(0, 10),
+        challengeId: r.challenge_id,
+        currentQuestionIndex: r.current_question_index,
+        activeQuestionIndex: r.active_question_index ?? undefined,
+        activeQuestionStartedAt: r.active_question_started_at ? new Date(r.active_question_started_at).toISOString() : undefined,
+        activeQuestionDeadlineAt: r.active_question_deadline_at ? new Date(r.active_question_deadline_at).toISOString() : undefined,
+        answers: Array.isArray(r.answers) ? r.answers : (typeof r.answers === 'string' ? JSON.parse(r.answers) : []),
+        score: r.score,
+        totalResponseTimeMs: r.total_response_time_ms || 0,
+        xpAwarded: Number(r.xp_awarded) || 0.0,
+        isCompleted: Boolean(r.is_completed),
+        startedAt: r.started_at ? new Date(r.started_at).toISOString() : new Date().toISOString(),
+        completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : undefined,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+      }));
+    } else {
+      store.bibleUserProgress = [];
+    }
+
+    if (bibleStatsRes && Array.isArray(bibleStatsRes.rows)) {
+      const LEVEL_THRESHOLDS = [
+        { level: 1, title: 'Scripture Seeker', minXp: 0, nextLevelXp: 100 },
+        { level: 2, title: 'Faith Disciple', minXp: 100, nextLevelXp: 250 },
+        { level: 3, title: 'Word Explorer', minXp: 250, nextLevelXp: 450 },
+        { level: 4, title: 'Bible Student', minXp: 450, nextLevelXp: 700 },
+        { level: 5, title: 'Truth Pursuer', minXp: 700, nextLevelXp: 1000 },
+        { level: 6, title: 'Scripture Scholar', minXp: 1000, nextLevelXp: 1500 },
+        { level: 7, title: 'Wisdom Champion', minXp: 1500, nextLevelXp: 2100 },
+        { level: 8, title: 'Kingdom Ambassador', minXp: 2100, nextLevelXp: 3000 },
+        { level: 9, title: 'Faith Giant', minXp: 3000, nextLevelXp: 4000 },
+        { level: 10, title: 'Master of the Word', minXp: 4000, nextLevelXp: 5500 }
+      ];
+
+      store.bibleUserStats = bibleStatsRes.rows.map((r: any): BibleUserStats => {
+        const cumulativeXp = Number(r.cumulative_xp) || 0.0;
+        let matched = LEVEL_THRESHOLDS[0];
+        for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+          if (cumulativeXp >= LEVEL_THRESHOLDS[i].minXp) {
+            matched = LEVEL_THRESHOLDS[i];
+            break;
+          }
+        }
+        const xpInCurrentLevel = Math.round((cumulativeXp - matched.minXp) * 10) / 10;
+        const xpForNextLevel = Math.round(Math.max(0, matched.nextLevelXp - cumulativeXp) * 10) / 10;
+
+        return {
+          userId: r.user_id,
+          memberId: r.member_id,
+          cumulativeXp,
+          level: r.level || matched.level,
+          levelTitle: matched.title,
+          xpInCurrentLevel,
+          xpForNextLevel,
+          currentStreak: r.current_streak || 0,
+          bestStreak: r.best_streak || 0,
+          lastCompletedDate: r.last_completed_date ? (typeof r.last_completed_date === 'string' ? r.last_completed_date.substring(0, 10) : new Date(r.last_completed_date).toISOString().substring(0, 10)) : undefined,
+          totalChallengesCompleted: r.total_challenges_completed || 0,
+          perfectScoresCount: r.perfect_scores_count || 0,
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+        };
+      });
+    } else {
+      store.bibleUserStats = [];
+    }
+
+    if (bibleBadgesRes && Array.isArray(bibleBadgesRes.rows) && bibleBadgesRes.rows.length > 0) {
+      store.bibleBadges = bibleBadgesRes.rows.map((r: any): BibleBadge => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        icon: r.icon,
+        xpReward: r.xp_reward,
+        displayOrder: r.display_order
+      }));
+    }
+
+    if (bibleUserBadgesRes && Array.isArray(bibleUserBadgesRes.rows)) {
+      store.bibleUserBadges = bibleUserBadgesRes.rows.map((r: any): BibleUserBadgeRecord => ({
+        id: r.id,
+        userId: r.user_id,
+        memberId: r.member_id,
+        badgeId: r.badge_id,
+        awardedAt: r.awarded_at ? new Date(r.awarded_at).toISOString() : new Date().toISOString(),
+        challengeDate: r.challenge_date ? (typeof r.challenge_date === 'string' ? r.challenge_date.substring(0, 10) : new Date(r.challenge_date).toISOString().substring(0, 10)) : undefined
+      }));
+    } else {
+      store.bibleUserBadges = [];
+    }
+
+    if (bibleSettingsRes && Array.isArray(bibleSettingsRes.rows) && bibleSettingsRes.rows.length > 0) {
+      const r = bibleSettingsRes.rows[0];
+      store.bibleSettings = {
+        dailyQuestionCount: r.daily_question_count || 5,
+        timeLimitSeconds: r.time_limit_seconds || 10,
+        xpPerQuestion: Number(r.xp_per_question) || 10,
+        speedBonusThresholdSeconds: r.speed_bonus_threshold_seconds || 5,
+        speedBonusXp: Number(r.speed_bonus_xp) || 0
+      };
+    }
+
+    console.log(`[DATABASE] Hydrated store from Supabase: ${store.branches.length} branches, ${store.users.length} users, ${store.members.length} members, ${store.workers.length} workers, ${store.services.length} services, ${store.financeTransactions?.length || 0} finance txs, ${store.sundayMoments?.length || 0} moments, ${store.sundayMomentLikes?.length || 0} moment likes, ${store.bibleUserProgress?.length || 0} bible progress rows, ${store.bibleUserStats?.length || 0} bible user stats.`);
     return true;
   } catch (err: any) {
     console.error('[DATABASE] Hydration from Supabase encountered an issue, falling back to local seed state:', err.message);
@@ -1884,17 +2033,18 @@ export async function persistBibleUserProgress(p: BibleUserProgress): Promise<vo
         xp_awarded, is_completed, started_at, completed_at, created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       ON CONFLICT (user_id, challenge_date) DO UPDATE SET
-        current_question_index = EXCLUDED.current_question_index,
-        active_question_index = EXCLUDED.active_question_index,
-        active_question_started_at = EXCLUDED.active_question_started_at,
-        active_question_deadline_at = EXCLUDED.active_question_deadline_at,
-        answers = EXCLUDED.answers,
-        score = EXCLUDED.score,
-        total_response_time_ms = EXCLUDED.total_response_time_ms,
-        xp_awarded = EXCLUDED.xp_awarded,
-        is_completed = EXCLUDED.is_completed,
-        completed_at = EXCLUDED.completed_at,
+        current_question_index = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.current_question_index ELSE EXCLUDED.current_question_index END,
+        active_question_index = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.active_question_index ELSE EXCLUDED.active_question_index END,
+        active_question_started_at = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.active_question_started_at ELSE EXCLUDED.active_question_started_at END,
+        active_question_deadline_at = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.active_question_deadline_at ELSE EXCLUDED.active_question_deadline_at END,
+        answers = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.answers ELSE EXCLUDED.answers END,
+        score = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.score ELSE EXCLUDED.score END,
+        total_response_time_ms = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.total_response_time_ms ELSE EXCLUDED.total_response_time_ms END,
+        xp_awarded = CASE WHEN bible_game_user_progress.is_completed THEN bible_game_user_progress.xp_awarded ELSE EXCLUDED.xp_awarded END,
+        is_completed = (bible_game_user_progress.is_completed OR EXCLUDED.is_completed),
+        completed_at = COALESCE(bible_game_user_progress.completed_at, EXCLUDED.completed_at),
         updated_at = EXCLUDED.updated_at
+      WHERE bible_game_user_progress.is_completed = false OR EXCLUDED.is_completed = true
     `, [
       p.id, p.userId, p.memberId, p.challengeDate, p.challengeId,
       p.currentQuestionIndex, p.activeQuestionIndex ?? null,

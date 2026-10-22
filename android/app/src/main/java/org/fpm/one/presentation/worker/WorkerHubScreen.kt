@@ -1,5 +1,6 @@
 package org.fpm.one.presentation.worker
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -53,6 +54,16 @@ fun WorkerHubScreen(
   val context = LocalContext.current
   var showClockInDialog by remember { mutableStateOf(false) }
   var showQrScannerModal by remember { mutableStateOf(false) }
+
+  BackHandler(enabled = true) {
+    if (showQrScannerModal) {
+      showQrScannerModal = false
+    } else if (showClockInDialog) {
+      showClockInDialog = false
+    } else {
+      onNavigateBack?.invoke()
+    }
+  }
 
   Scaffold(
     topBar = {

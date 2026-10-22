@@ -2,6 +2,7 @@ package org.fpm.one.presentation.registration
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +57,14 @@ fun RegistrationWizardScreen(
 ) {
   val state by viewModel.state.collectAsState()
   val isDark = FpmTheme.isDark
+
+  BackHandler(enabled = true) {
+    if (state.currentStep > 1) {
+      viewModel.prevStep()
+    } else {
+      onNavigateBack()
+    }
+  }
 
   Scaffold(
     topBar = {
