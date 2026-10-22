@@ -53,7 +53,8 @@ import {
   getAdminStatsHandler,
   getAdminSettingsHandler,
   updateAdminSettingsHandler,
-  generateAiQuestionHandler
+  generateAiQuestionHandler,
+  getAiDiagnosticHandler
 } from '../controllers/bibleGameController';
 import { requireAuth, requireAdmin, requireSuperAdmin, requireCronAuth, optionalAuth } from '../middleware/authMiddleware';
 import {
@@ -255,6 +256,7 @@ router.get('/bible-game/leaderboard', optionalAuth, getLeaderboardHandler);
 
 // --- BIBLE CHALLENGE ADMIN PORTAL ---
 router.post('/bible-game/admin/questions/generate', requireAuth, requireAdmin, aiQuestionGenerateRateLimiter, generateAiQuestionHandler);
+router.get('/bible-game/admin/questions/ai-diagnostic', requireAuth, requireAdmin, getAiDiagnosticHandler);
 router.get('/bible-game/admin/questions', requireAuth, requireAdmin, listAdminQuestionsHandler);
 router.post('/bible-game/admin/questions', requireAuth, requireAdmin, createAdminQuestionHandler);
 router.get('/bible-game/admin/questions/:id', requireAuth, requireAdmin, getAdminQuestionByIdHandler);

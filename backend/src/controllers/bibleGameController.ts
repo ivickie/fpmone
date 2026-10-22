@@ -351,7 +351,7 @@ export const generateAiQuestionHandler = async (req: Request, res: Response) => 
       statusCode = 503;
     } else if (sanitizedError.includes('429') || sanitizedError.toLowerCase().includes('quota') || sanitizedError.toLowerCase().includes('rate limit')) {
       statusCode = 429;
-    } else if (sanitizedError.includes('403') || sanitizedError.toLowerCase().includes('permission denied')) {
+    } else if (sanitizedError.includes('403') || sanitizedError.toLowerCase().includes('permission denied') || sanitizedError.toLowerCase().includes('permission or key access denied')) {
       statusCode = 403;
     } else if (sanitizedError.includes('404') || sanitizedError.toLowerCase().includes('not found')) {
       statusCode = 404;
@@ -363,4 +363,112 @@ export const generateAiQuestionHandler = async (req: Request, res: Response) => 
     });
   }
 };
+
+export const getAiDiagnosticHandler = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+
+    const geminiKey = process.env.GEMINI_API_KEY?.trim() || process.env.AI_API_KEY?.trim();
+    const openaiKey = process.env.OPENAI_API_KEY?.trim();
+    const configuredModel = process.env.GEMINI_MODEL?.trim() || null;
+
+    if (!geminiKey && !openaiKey) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          keyConfigured: false,
+          provider: 'none',
+          maskedKey: null,
+          configuredModelEnv: configuredModel,
+          activeModel: null,
+          status: 'AI question generation is not configured. Please set GEMINI_API_KEY in Vercel environment variables.',
+          totalModelsFound: 0,
+          supportedModels: [],
+          recommendedModel: null
+        }
+      });
+    }
+
+    if (geminiKey) {
+      // Safely mask key (prefix and suffix only)
+      const maskedKey =
+        geminiKey.length > 8
+          ? `${geminiKey.substring(0, 6)}...${geminiKey.substring(geminiKey.length - 4)} (length: ${geminiKey.length})`
+          : '***';
+
+      let allModels: any[] = [];
+      let fetchError: string | null = null;
+      try {
+        allModels = await BibleAiService.fetchAvailableModels(geminiKey);
+      } catch (e: any) {
+        fetchError = BibleAiService.sanitizeSecret(e.message, geminiKey);
+      }
+
+      const generateContentModels = allModels.filter((m: any) =>
+        m.supportedGenerationMethods.includes('generateContent')
+      );
+
+      let activeModel: string | null = null;
+      let resolutionError: string | null = fetchError;
+      if (!fetchError) {
+        try {
+          BibleAiService.resetModelCache();
+          const resolved = await BibleAiService.resolveGeminiModel(geminiKey);
+          activeModel = resolved.model;
+        } catch (e: any) {
+          resolutionError = BibleAiService.sanitizeSecret(e.message, geminiKey);
+        }
+      }
+
+      const flash15 = generateContentModels.find((m: any) => m.modelId.includes('1.5-flash'));
+      const flash20 = generateContentModels.find((m: any) => m.modelId.includes('2.0-flash'));
+      const anyFlash = generateContentModels.find((m: any) => m.modelId.includes('flash'));
+      const recommendedModel = (flash15 || flash20 || anyFlash || generateContentModels[0])?.modelId || null;
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          keyConfigured: true,
+          provider: 'gemini',
+          maskedKey,
+          configuredModelEnv: configuredModel,
+          activeModel,
+          resolutionError,
+          totalModelsFound: allModels.length,
+          generateContentModelsCount: generateContentModels.length,
+          supportedModels: generateContentModels.map((m: any) => ({
+            modelId: m.modelId,
+            displayName: m.displayName || m.modelId,
+            supportedGenerationMethods: m.supportedGenerationMethods
+          })),
+          recommendedModel
+        }
+      });
+    }
+
+    // OpenAI provider info
+    return res.status(200).json({
+      success: true,
+      data: {
+        keyConfigured: true,
+        provider: 'openai',
+        maskedKey: 'sk-... (configured)',
+        configuredModelEnv: process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini',
+        activeModel: process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini',
+        resolutionError: null,
+        totalModelsFound: 1,
+        supportedModels: [{ modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini', supportedGenerationMethods: ['generateContent'] }],
+        recommendedModel: 'gpt-4o-mini'
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: BibleAiService.sanitizeSecret(err.message)
+    });
+  }
+};
+
 

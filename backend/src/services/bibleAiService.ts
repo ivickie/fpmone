@@ -139,10 +139,118 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
   }
 
   /**
+   * Fetches all models available to this API key from Google's official ListModels endpoint on v1beta,
+   * handling pagination if nextPageToken is returned.
+   */
+  public static async fetchAvailableModels(
+    apiKey: string
+  ): Promise<Array<{
+    name: string;
+    modelId: string;
+    displayName?: string;
+    description?: string;
+    supportedGenerationMethods: string[];
+  }>> {
+    const allModels: Array<{
+      name: string;
+      modelId: string;
+      displayName?: string;
+      description?: string;
+      supportedGenerationMethods: string[];
+    }> = [];
+    let pageToken: string | null = null;
+    let pageCount = 0;
+    const maxPages = 10;
+
+    do {
+      pageCount++;
+      let url = `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${encodeURIComponent(apiKey)}`;
+      if (pageToken) {
+        url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+
+      let listRes: Response;
+      try {
+        listRes = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        });
+      } catch (err: any) {
+        clearTimeout(timeout);
+        if (err.name === 'AbortError') {
+          throw new Error('Gemini API model discovery timed out. Check network connectivity or Vercel configuration.');
+        }
+        throw new Error(
+          `Failed to contact Gemini API for model discovery: ${BibleAiService.sanitizeSecret(err.message, apiKey)}`
+        );
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (!listRes.ok) {
+        const errorText = await listRes.text().catch(() => '');
+        let rawMsg = '';
+        try {
+          const errObj = JSON.parse(errorText);
+          rawMsg = errObj.error?.message || '';
+        } catch {}
+
+        const cleanMsg = BibleAiService.sanitizeSecret(rawMsg || `HTTP ${listRes.status}`, apiKey);
+
+        if (listRes.status === 403) {
+          throw new Error(
+            `Gemini API permission error (HTTP 403): The provided API key lacks permission or the Generative Language API is not enabled in your Google Cloud / AI Studio project. Provider message: ${cleanMsg}`
+          );
+        }
+        if (listRes.status === 429) {
+          throw new Error(
+            `Gemini API rate limit or quota exceeded (HTTP 429): Quota reached during model discovery. Provider message: ${cleanMsg}`
+          );
+        }
+        if (listRes.status === 404) {
+          throw new Error(
+            `Gemini API model discovery endpoint not found (HTTP 404). Provider message: ${cleanMsg}`
+          );
+        }
+        throw new Error(`Gemini API error during model discovery (HTTP ${listRes.status}): ${cleanMsg}`);
+      }
+
+      const data: any = await listRes.json();
+      const rawList: any[] = Array.isArray(data.models) ? data.models : [];
+
+      for (const m of rawList) {
+        const name = String(m.name || '');
+        const modelId = name.replace(/^models\//, '');
+        const supportedGenerationMethods: string[] = Array.isArray(m.supportedGenerationMethods)
+          ? m.supportedGenerationMethods
+          : [];
+
+        allModels.push({
+          name,
+          modelId,
+          displayName: m.displayName,
+          description: m.description,
+          supportedGenerationMethods
+        });
+      }
+
+      pageToken = typeof data.nextPageToken === 'string' && data.nextPageToken.trim() ? data.nextPageToken.trim() : null;
+    } while (pageToken && pageCount < maxPages);
+
+    return allModels;
+  }
+
+  /**
    * Discovers the best available Gemini model for the provided API key.
-   * If GEMINI_MODEL is set in environment, uses that model directly.
-   * Otherwise queries the Gemini API's ModelService.ListModels endpoint on v1beta
-   * to discover active models supporting generateContent, prioritizing cost-effective/free-tier Flash models.
+   * Authenticates using the server-side API key and checks Google's official ListModels endpoint.
+   * Validates GEMINI_MODEL against the confirmed model list, preventing blind 404 errors.
    */
   public static async resolveGeminiModel(
     apiKey: string
@@ -154,108 +262,61 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
       };
     }
 
-    // 1. Check configurable server-side environment variable (GEMINI_MODEL)
-    if (process.env.GEMINI_MODEL?.trim()) {
-      const explicit = process.env.GEMINI_MODEL.trim().replace(/^models\//, '');
-      BibleAiService.cachedGeminiModel = explicit;
-      BibleAiService.cachedGeminiApiVersion = 'v1beta';
-      return { model: explicit, apiVersion: 'v1beta' };
-    }
-
-    // 2. Discover available models via Gemini ModelService.ListModels endpoint
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    let listRes: Response;
-    try {
-      listRes = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'x-goog-api-key': apiKey,
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal
-      });
-    } catch (err: any) {
-      clearTimeout(timeout);
-      if (err.name === 'AbortError') {
-        throw new Error(
-          'Gemini API model discovery timed out after 10 seconds. Check network connectivity or set GEMINI_MODEL in Vercel.'
-        );
-      }
-      throw new Error(
-        `Failed to contact Gemini API for model discovery: ${BibleAiService.sanitizeSecret(err.message, apiKey)}`
-      );
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!listRes.ok) {
-      const errorText = await listRes.text().catch(() => '');
-      let rawMsg = '';
-      try {
-        const errObj = JSON.parse(errorText);
-        rawMsg = errObj.error?.message || '';
-      } catch {}
-
-      const cleanMsg = BibleAiService.sanitizeSecret(rawMsg || `HTTP ${listRes.status}`, apiKey);
-
-      if (listRes.status === 403) {
-        throw new Error(
-          `Gemini API permission error (HTTP 403): The provided API key is invalid or lacks permissions, or the Generative Language API is not enabled in your Google Cloud / AI Studio project (${cleanMsg}).`
-        );
-      }
-      if (listRes.status === 429) {
-        throw new Error(
-          `Gemini API quota exceeded (HTTP 429): Quota or rate limit exceeded during model discovery (${cleanMsg}).`
-        );
-      }
-      if (listRes.status === 404) {
-        throw new Error(
-          `Gemini API endpoint not found (HTTP 404): Model discovery endpoint could not be reached (${cleanMsg}).`
-        );
-      }
-      throw new Error(`Gemini API error during model discovery (HTTP ${listRes.status}): ${cleanMsg}`);
-    }
-
-    const data: any = await listRes.json();
-    const list: any[] = Array.isArray(data.models) ? data.models : [];
+    // 1. Query Google's official ListModels endpoint on v1beta
+    const availableModels = await BibleAiService.fetchAvailableModels(apiKey);
 
     // Filter to models that explicitly support generateContent
-    const supported = list.filter(m => {
-      const methods: string[] = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
-      return methods.includes('generateContent');
-    });
+    const supportedModels = availableModels.filter(m =>
+      m.supportedGenerationMethods.includes('generateContent')
+    );
 
-    if (supported.length === 0) {
+    if (supportedModels.length === 0) {
+      const allNames = availableModels.map(m => m.modelId).join(', ') || 'none';
       throw new Error(
-        'No models supporting "generateContent" were found in your Gemini project. Please ensure Generative Language API is enabled with model access.'
+        `No models supporting "generateContent" were found for this API key. Available models returned by Google: [${allNames}]. Please verify API key permissions in Google AI Studio.`
       );
     }
 
-    // Cost-effective / free-tier preference ranking:
-    // 1. gemini-1.5-flash / gemini-2.0-flash (fast, high limits, free-tier eligible)
-    // 2. Any other flash model (e.g. gemini-1.5-flash-8b)
-    // 3. Any available gemini model
-    const flashPreferred = supported.find(m => {
-      const name = (m.name || '').toLowerCase();
-      return name.includes('1.5-flash') || name.includes('2.0-flash');
-    });
-    const anyFlash = supported.find(m => (m.name || '').toLowerCase().includes('flash'));
-    const anyGemini = supported.find(m => (m.name || '').toLowerCase().includes('gemini'));
+    const supportedIds = supportedModels.map(m => m.modelId);
 
-    const chosen = flashPreferred || anyFlash || anyGemini || supported[0];
-    const modelName = (chosen.name || '').replace(/^models\//, '');
+    // Recommended model calculation (cost-effective / free-tier preference ranking):
+    // 1. Models containing '1.5-flash' (e.g. gemini-1.5-flash)
+    // 2. Models containing '2.0-flash' (e.g. gemini-2.0-flash)
+    // 3. Any other model containing 'flash' (e.g. gemini-1.5-flash-8b)
+    // 4. Any other model containing 'gemini' (e.g. gemini-1.5-pro)
+    // 5. First supported model
+    const flash15 = supportedModels.find(m => m.modelId.toLowerCase().includes('1.5-flash'));
+    const flash20 = supportedModels.find(m => m.modelId.toLowerCase().includes('2.0-flash'));
+    const anyFlash = supportedModels.find(m => m.modelId.toLowerCase().includes('flash'));
+    const anyGemini = supportedModels.find(m => m.modelId.toLowerCase().includes('gemini'));
+    const bestRecommended = flash15 || flash20 || anyFlash || anyGemini || supportedModels[0];
 
-    if (!modelName) {
-      throw new Error('Failed to extract a valid model name from Gemini model list.');
+    // 2. Check if GEMINI_MODEL is configured via server-side environment variable
+    if (process.env.GEMINI_MODEL?.trim()) {
+      const explicit = process.env.GEMINI_MODEL.trim().replace(/^models\//, '');
+      const matched = supportedModels.find(
+        m =>
+          m.modelId.toLowerCase() === explicit.toLowerCase() ||
+          m.name.toLowerCase() === `models/${explicit}`.toLowerCase()
+      );
+
+      if (matched) {
+        BibleAiService.cachedGeminiModel = matched.modelId;
+        BibleAiService.cachedGeminiApiVersion = 'v1beta';
+        return { model: matched.modelId, apiVersion: 'v1beta' };
+      }
+
+      // If configured GEMINI_MODEL was not found in supported models, throw actionable error listing verified models
+      throw new Error(
+        `Configured GEMINI_MODEL "${explicit}" is not found or not supported for generateContent by your Google AI Studio project. Available models supporting generateContent confirmed by Google's API: [${supportedIds.join(', ')}]. Please set GEMINI_MODEL in Vercel to one of these verified models (recommended: "${bestRecommended.modelId}"), or remove GEMINI_MODEL to let the system automatically select the optimal model.`
+      );
     }
 
-    BibleAiService.cachedGeminiModel = modelName;
+    // 3. Automatic selection using the best verified model
+    BibleAiService.cachedGeminiModel = bestRecommended.modelId;
     BibleAiService.cachedGeminiApiVersion = 'v1beta';
 
-    return { model: modelName, apiVersion: 'v1beta' };
+    return { model: bestRecommended.modelId, apiVersion: 'v1beta' };
   }
 
   private static async callGemini(apiKey: string, prompt: string): Promise<string> {
@@ -307,33 +368,36 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
       const cleanMsg = BibleAiService.sanitizeSecret(rawMsg || `HTTP ${response.status}`, apiKey);
 
       // Separate error classification as required:
-      // 404: invalid, unavailable, or incompatible model/API version.
+      // HTTP 404: model unavailable or incorrect model identifier/endpoint combination.
       if (response.status === 404 || cleanMsg.toLowerCase().includes('not found')) {
         throw new Error(
-          `Gemini model not found (HTTP 404): Model "${model}" is not found or not supported for generateContent on API ${apiVersion}. Set GEMINI_MODEL in Vercel to a supported model (e.g. "gemini-1.5-flash").`
+          `Gemini model not found (HTTP 404): Model "${model}" is not found or not supported for generateContent on API ${apiVersion}. Provider response: ${cleanMsg}`
         );
       }
-      // 429: quota or rate limit exceeded.
+      // HTTP 429: quota, rate limit, or billing-related limit; report actual provider response without assuming which limit was reached.
       if (
         response.status === 429 ||
         cleanMsg.toLowerCase().includes('quota') ||
-        cleanMsg.toLowerCase().includes('rate limit')
+        cleanMsg.toLowerCase().includes('rate limit') ||
+        cleanMsg.toLowerCase().includes('resource exhausted')
       ) {
         throw new Error(
-          `Gemini API quota or rate limit exceeded (HTTP 429): Quota exceeded for model "${model}". Please wait a moment or review your Google AI Studio quota limits.`
+          `Gemini API quota or rate limit reached (HTTP 429) for model "${model}". Provider response: ${cleanMsg}`
         );
       }
-      // 403: permission, project access, or billing restrictions.
+      // HTTP 403: permissions, API access, or key restrictions.
       if (
         response.status === 403 ||
         cleanMsg.toLowerCase().includes('permission') ||
-        cleanMsg.toLowerCase().includes('billing')
+        cleanMsg.toLowerCase().includes('billing') ||
+        cleanMsg.toLowerCase().includes('access denied') ||
+        cleanMsg.toLowerCase().includes('api_key_invalid')
       ) {
         throw new Error(
-          `Gemini API permission denied (HTTP 403): The provided API key lacks permission or the Generative Language API is disabled in your Google Cloud / AI Studio project. Verify key permissions in Google AI Studio.`
+          `Gemini API permission or key access denied (HTTP 403) for model "${model}". Ensure Generative Language API is enabled in your Google Cloud / AI Studio project and the key has model access. Provider response: ${cleanMsg}`
         );
       }
-      // 400: bad request / invalid argument
+      // HTTP 400: bad request / invalid argument
       if (response.status === 400) {
         throw new Error(`Gemini API bad request (HTTP 400): ${cleanMsg}`);
       }
