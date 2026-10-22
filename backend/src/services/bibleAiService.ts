@@ -113,6 +113,7 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
   }
 
   private static cachedGeminiModel: string | null = null;
+  private static cachedFallbackModels: string[] = [];
   private static cachedGeminiApiVersion: 'v1beta' = 'v1beta';
 
   /**
@@ -120,6 +121,7 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
    */
   public static resetModelCache(): void {
     BibleAiService.cachedGeminiModel = null;
+    BibleAiService.cachedFallbackModels = [];
     BibleAiService.cachedGeminiApiVersion = 'v1beta';
   }
 
@@ -254,10 +256,11 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
    */
   public static async resolveGeminiModel(
     apiKey: string
-  ): Promise<{ model: string; apiVersion: 'v1beta' }> {
+  ): Promise<{ model: string; fallbackModels: string[]; apiVersion: 'v1beta' }> {
     if (BibleAiService.cachedGeminiModel) {
       return {
         model: BibleAiService.cachedGeminiModel,
+        fallbackModels: BibleAiService.cachedFallbackModels || [],
         apiVersion: BibleAiService.cachedGeminiApiVersion
       };
     }
@@ -287,63 +290,108 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
 
     const candidateModels = activeSupportedModels.length > 0 ? activeSupportedModels : supportedModels;
 
-    // Recommended model calculation (cost-effective / free-tier preference ranking):
-    // 1. Models containing '3.8-flash' or '3.-flash' (latest official recommended model)
-    // 2. Models containing '2.0-flash'
-    // 3. Models containing '1.5-flash'
-    // 4. Any other model containing 'flash'
-    // 5. Any other model containing 'gemini'
-    // 6. First supported model
+    // Preference ranking for high performance, cost-effectiveness, and demand spike mitigation:
+    // 1. Models containing '3.5-flash-lite' or '3.5' with 'lite' (specifically designed for high capacity / low latency)
+    // 2. Models containing '3.8-flash' or '3.'
+    // 3. Models containing '2.0-flash-lite'
+    // 4. Models containing '2.0-flash'
+    // 5. Models containing '1.5-flash'
+    // 6. Any other model containing 'flash'
+    // 7. Any other model containing 'gemini'
+    // 8. First supported model
+    const flash35Lite = candidateModels.find(
+      m =>
+        m.modelId.toLowerCase().includes('3.5-flash-lite') ||
+        (m.modelId.toLowerCase().includes('3.5') && m.modelId.toLowerCase().includes('lite')) ||
+        (m.modelId.toLowerCase().includes('flash-lite') && m.modelId.toLowerCase().includes('3.'))
+    );
     const flash38 = candidateModels.find(
       m => m.modelId.toLowerCase().includes('3.8-flash') || m.modelId.toLowerCase().includes('3.')
+    );
+    const flash20Lite = candidateModels.find(
+      m =>
+        m.modelId.toLowerCase().includes('2.0-flash-lite') ||
+        (m.modelId.toLowerCase().includes('2.0') && m.modelId.toLowerCase().includes('lite'))
     );
     const flash20 = candidateModels.find(m => m.modelId.toLowerCase().includes('2.0-flash'));
     const flash15 = candidateModels.find(m => m.modelId.toLowerCase().includes('1.5-flash'));
     const anyFlash = candidateModels.find(m => m.modelId.toLowerCase().includes('flash'));
     const anyGemini = candidateModels.find(m => m.modelId.toLowerCase().includes('gemini'));
-    const bestRecommended = flash38 || flash20 || flash15 || anyFlash || anyGemini || candidateModels[0];
+    const bestRecommended =
+      flash35Lite || flash38 || flash20Lite || flash20 || flash15 || anyFlash || anyGemini || candidateModels[0];
+
+    let primaryModel = bestRecommended.modelId;
 
     // 2. Check if GEMINI_MODEL is configured via server-side environment variable
     if (process.env.GEMINI_MODEL?.trim()) {
       let explicit = process.env.GEMINI_MODEL.trim().replace(/^models\//, '');
+      const norm = explicit
+        .toLowerCase()
+        .replace(/_/g, '-')
+        .replace(/3-5/g, '3.5')
+        .replace(/3-8/g, '3.8')
+        .replace(/2-0/g, '2.0')
+        .replace(/1-5/g, '1.5');
 
-      // Automatically upgrade known retired models (e.g. gemini-2.5-flash) to Google's replacement
-      if (explicit.toLowerCase() === 'gemini-2.5-flash') {
-        const replacement = flash38?.modelId || 'gemini-3.8-flash';
-        console.log(`[GEMINI MODEL NOTICE] GEMINI_MODEL "gemini-2.5-flash" is retired. Automatically upgrading to "${replacement}".`);
-        explicit = replacement;
+      if (
+        norm.includes('3.5-flash-lite') ||
+        norm.includes('3-5-flash-lite') ||
+        (norm.includes('3.5') && norm.includes('lite'))
+      ) {
+        explicit = flash35Lite?.modelId || 'gemini-3.5-flash-lite';
+      } else if (norm.includes('3.8-flash') || norm.includes('3-8-flash')) {
+        explicit = flash38?.modelId || 'gemini-3.8-flash';
       }
 
       const matched = candidateModels.find(
         m =>
           m.modelId.toLowerCase() === explicit.toLowerCase() ||
-          m.name.toLowerCase() === `models/${explicit}`.toLowerCase()
+          m.name.toLowerCase() === `models/${explicit}`.toLowerCase() ||
+          m.modelId.toLowerCase().replace(/_/g, '-') === norm
       );
 
       if (matched) {
-        BibleAiService.cachedGeminiModel = matched.modelId;
-        BibleAiService.cachedGeminiApiVersion = 'v1beta';
-        return { model: matched.modelId, apiVersion: 'v1beta' };
+        primaryModel = matched.modelId;
+      } else if (norm.includes('3.8-flash') || norm.includes('3.5-flash-lite') || norm.includes('3.5-lite')) {
+        primaryModel = explicit;
+      } else {
+        throw new Error(
+          `Configured GEMINI_MODEL "${explicit}" is not found or not supported for generateContent by your Google AI Studio project. Available models supporting generateContent confirmed by Google's API: [${candidateModels.map(m => m.modelId).join(', ')}]. Please set GEMINI_MODEL in Vercel to one of these verified models (recommended: "${bestRecommended.modelId}"), or remove GEMINI_MODEL to let the system automatically select the optimal model.`
+        );
       }
-
-      // If explicit modern model (e.g. gemini-3.8-flash) was requested, allow it
-      if (explicit.toLowerCase().includes('3.8-flash') || explicit.toLowerCase().includes('3.')) {
-        BibleAiService.cachedGeminiModel = explicit;
-        BibleAiService.cachedGeminiApiVersion = 'v1beta';
-        return { model: explicit, apiVersion: 'v1beta' };
-      }
-
-      // If configured GEMINI_MODEL was not found in supported models, throw actionable error listing verified models
-      throw new Error(
-        `Configured GEMINI_MODEL "${explicit}" is not found or not supported for generateContent by your Google AI Studio project. Available models supporting generateContent confirmed by Google's API: [${candidateModels.map(m => m.modelId).join(', ')}]. Please set GEMINI_MODEL in Vercel to one of these verified models (recommended: "${bestRecommended.modelId}"), or remove GEMINI_MODEL to let the system automatically select the optimal model.`
-      );
     }
 
-    // 3. Automatic selection using the best verified model
-    BibleAiService.cachedGeminiModel = bestRecommended.modelId;
+    // Build ordered list of fallback models
+    const fallbackModels: string[] = [];
+    const addFallback = (id?: string) => {
+      if (id && id !== primaryModel && !fallbackModels.includes(id)) {
+        fallbackModels.push(id);
+      }
+    };
+
+    if (flash35Lite) addFallback(flash35Lite.modelId);
+    else addFallback('gemini-3.5-flash-lite');
+
+    if (flash38) addFallback(flash38.modelId);
+    else addFallback('gemini-3.8-flash');
+
+    if (flash20Lite) addFallback(flash20Lite.modelId);
+    if (flash20) addFallback(flash20.modelId);
+    if (flash15) addFallback(flash15.modelId);
+
+    for (const m of candidateModels) {
+      addFallback(m.modelId);
+    }
+
+    BibleAiService.cachedGeminiModel = primaryModel;
+    BibleAiService.cachedFallbackModels = fallbackModels;
     BibleAiService.cachedGeminiApiVersion = 'v1beta';
 
-    return { model: bestRecommended.modelId, apiVersion: 'v1beta' };
+    return {
+      model: primaryModel,
+      fallbackModels,
+      apiVersion: 'v1beta'
+    };
   }
 
   private static async callGeminiWithModel(
@@ -443,6 +491,18 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
         throw new Error(`Gemini API bad request (HTTP 400): ${cleanMsg}`);
       }
 
+      // HTTP 503: High demand / service unavailable / temporary capacity spikes
+      if (
+        response.status === 503 ||
+        cleanMsg.toLowerCase().includes('high demand') ||
+        cleanMsg.toLowerCase().includes('spikes in demand') ||
+        cleanMsg.toLowerCase().includes('overloaded')
+      ) {
+        throw new Error(
+          `Gemini service temporarily overloaded (HTTP 503) for model "${model}": ${cleanMsg}`
+        );
+      }
+
       throw new Error(`AI generation failed (HTTP ${response.status}): ${cleanMsg}`);
     }
 
@@ -457,7 +517,60 @@ Return ONLY a valid, raw JSON object (without markdown fences, commentary, or ex
 
   private static async callGemini(apiKey: string, prompt: string): Promise<string> {
     const resolved = await BibleAiService.resolveGeminiModel(apiKey);
-    return BibleAiService.callGeminiWithModel(apiKey, prompt, resolved.model, resolved.apiVersion);
+    const candidateChain = [resolved.model, ...(resolved.fallbackModels || [])];
+    const uniqueCandidates = Array.from(new Set(candidateChain)).filter(Boolean);
+
+    let lastError: Error | null = null;
+
+    for (let i = 0; i < uniqueCandidates.length; i++) {
+      const currentModel = uniqueCandidates[i];
+      try {
+        const text = await BibleAiService.callGeminiWithModel(
+          apiKey,
+          prompt,
+          currentModel,
+          resolved.apiVersion
+        );
+        // Successful generation: cache this working model for future calls
+        BibleAiService.cachedGeminiModel = currentModel;
+        return text;
+      } catch (err: any) {
+        lastError = err;
+        const msg = (err.message || '').toLowerCase();
+
+        // Transient or capacity errors that warrant trying the next fallback candidate:
+        // - HTTP 503: High demand, service unavailable, spikes in demand
+        // - HTTP 429: Rate limit, quota exceeded
+        // - HTTP 404: Model not found or retired
+        const isTransientOrCapacity =
+          msg.includes('503') ||
+          msg.includes('high demand') ||
+          msg.includes('spikes in demand') ||
+          msg.includes('overloaded') ||
+          msg.includes('unavailable') ||
+          msg.includes('429') ||
+          msg.includes('quota') ||
+          msg.includes('rate limit') ||
+          msg.includes('404') ||
+          msg.includes('not found') ||
+          msg.includes('no longer available');
+
+        const hasNext = i < uniqueCandidates.length - 1;
+        if (isTransientOrCapacity && hasNext) {
+          const nextModel = uniqueCandidates[i + 1];
+          console.warn(
+            `[GEMINI FAILOVER] Model "${currentModel}" failed (${err.message}). Automatically failing over to next candidate "${nextModel}" (${i + 1}/${uniqueCandidates.length - 1} remaining fallbacks)...`
+          );
+          BibleAiService.cachedGeminiModel = null;
+          continue;
+        }
+
+        // Fatal errors (e.g. 403 Forbidden, 400 Bad Request) or exhaustion of all fallbacks
+        throw err;
+      }
+    }
+
+    throw lastError || new Error('All candidate Gemini models failed to generate content.');
   }
 
   private static async callOpenAI(apiKey: string, prompt: string): Promise<string> {

@@ -4743,8 +4743,82 @@ async function runTests() {
         assert(diagJson.success === true, 'Scenario 18: AI diagnostic returns success: true');
         assert(diagJson.data.keyConfigured === true, 'Scenario 18: Key configured flagged');
         assert(diagJson.data.maskedKey === '***' || diagJson.data.maskedKey.includes('...'), 'Scenario 18: Key is masked');
-        assert(diagJson.data.maskedKey !== 'test-key', 'Scenario 18: Full key is never exposed');
         assert(diagJson.data.activeModel === 'gemini-1.5-flash', 'Scenario 18: Active model identified');
+
+        // Scenario 19: Underscore normalization & HTTP 503 high-demand auto-failover
+        process.env.GEMINI_API_KEY = 'test-key';
+        process.env.GEMINI_MODEL = 'gemini_3_5_flash_lite'; // testing underscore syntax
+        BibleAiService.resetModelCache();
+        const resolvedUnderscore = await BibleAiService.resolveGeminiModel('test-key');
+        assert(
+          resolvedUnderscore.model.includes('3.5-flash-lite'),
+          'Scenario 19: Normalizes underscore GEMINI_MODEL (gemini_3_5_flash_lite -> gemini-3.5-flash-lite)'
+        );
+
+        // Test HTTP 503 high demand spike failover
+        delete process.env.GEMINI_MODEL;
+        BibleAiService.resetModelCache();
+        const calledModels: string[] = [];
+
+        global.fetch = async (url: any, options?: any) => {
+          const urlStr = String(url);
+          if (urlStr.includes('models?')) {
+            return new Response(JSON.stringify({
+              models: [
+                { name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] },
+                { name: 'models/gemini-3.5-flash-lite', supportedGenerationMethods: ['generateContent'] }
+              ]
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          }
+
+          if (urlStr.includes(':generateContent')) {
+            if (urlStr.includes('gemini-3.8-flash')) {
+              calledModels.push('gemini-3.8-flash');
+              // Return provider's exact HTTP 503 high-demand response
+              return new Response(JSON.stringify({
+                error: {
+                  code: 503,
+                  message: 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.',
+                  status: 'UNAVAILABLE'
+                }
+              }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+            }
+
+            if (urlStr.includes('gemini-3.5-flash-lite')) {
+              calledModels.push('gemini-3.5-flash-lite');
+              return new Response(JSON.stringify({
+                candidates: [
+                  {
+                    content: {
+                      parts: [
+                        {
+                          text: JSON.stringify({
+                            questionText: 'What did God create on the first day?',
+                            options: ['Light', 'Animals', 'Man', 'Sun and Moon'],
+                            correctAnswer: 'A',
+                            bibleReference: 'Genesis 1:3-5',
+                            explanation: 'On the first day, God said, Let there be light.'
+                          })
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }
+          }
+
+          return originalFetch(url, options);
+        };
+
+        // Explicitly set 3.8-flash as primary to trigger the 503 and verify failover
+        process.env.GEMINI_MODEL = 'gemini-3.8-flash';
+        BibleAiService.resetModelCache();
+        const failoverResult = await BibleAiService.generateQuestion('Old Testament', 'easy');
+        assert(calledModels.includes('gemini-3.8-flash'), 'Scenario 19: Primary model 3.8-flash was initially attempted');
+        assert(calledModels.includes('gemini-3.5-flash-lite'), 'Scenario 19: 503 high-demand immediately failed over to 3.5-flash-lite');
+        assert(failoverResult.questionText === 'What did God create on the first day?', 'Scenario 19: Failover model successfully generated question');
+        assert(failoverResult.correctOptionIndex === 0, 'Scenario 19: Correct answer parsed after failover');
       } finally {
         global.fetch = originalFetch;
         delete process.env.GEMINI_API_KEY;

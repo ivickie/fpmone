@@ -422,10 +422,15 @@ export const getAiDiagnosticHandler = async (req: Request, res: Response) => {
         }
       }
 
-      const flash15 = generateContentModels.find((m: any) => m.modelId.includes('1.5-flash'));
+      const flash35Lite = generateContentModels.find((m: any) =>
+        m.modelId.includes('3.5-flash-lite') || (m.modelId.includes('3.5') && m.modelId.includes('lite'))
+      );
+      const flash38 = generateContentModels.find((m: any) => m.modelId.includes('3.8-flash'));
       const flash20 = generateContentModels.find((m: any) => m.modelId.includes('2.0-flash'));
+      const flash15 = generateContentModels.find((m: any) => m.modelId.includes('1.5-flash'));
       const anyFlash = generateContentModels.find((m: any) => m.modelId.includes('flash'));
-      const recommendedModel = (flash15 || flash20 || anyFlash || generateContentModels[0])?.modelId || null;
+      const recommendedModel =
+        (flash35Lite || flash38 || flash20 || flash15 || anyFlash || generateContentModels[0])?.modelId || null;
 
       return res.status(200).json({
         success: true,
