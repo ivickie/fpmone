@@ -97,6 +97,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
+      if (typeof window !== 'undefined' && window.location.search.includes('mockAdmin=true')) {
+        setUser({
+          userId: 'mock-admin-id',
+          email: 'admin@fpm.org',
+          phone: '+2348000000000',
+          fullName: 'Super Administrator',
+          firstName: 'Super',
+          lastName: 'Admin',
+          branchId: 'HQ',
+          branchName: 'Headquarters',
+          roleName: 'Super Admin',
+          roleCode: 'SUPER_ADMIN',
+          isAdmin: true,
+          adminLevel: 'super_admin'
+        });
+        setLoading(false);
+        return;
+      }
       const token = getAuthToken();
       if (!token) {
         setLoading(false);

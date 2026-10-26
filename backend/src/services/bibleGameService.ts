@@ -1684,17 +1684,42 @@ export class BibleGameService {
     };
   }
 
-  public static async getSettings(): Promise<BibleGameSettings> {
-    return db.bibleSettings;
+  public static async getSettings(): Promise<BibleGameSettings & { badges: BibleBadge[] }> {
+    return {
+      ...db.bibleSettings,
+      badges: db.bibleBadges
+    };
   }
 
-  public static async updateSettings(settings: Partial<BibleGameSettings>): Promise<BibleGameSettings> {
+  public static async updateSettings(settings: Partial<BibleGameSettings> & { badges?: any[] }): Promise<BibleGameSettings & { badges: BibleBadge[] }> {
+    const { badges: incomingBadges, ...restSettings } = settings;
     db.bibleSettings = {
       ...db.bibleSettings,
-      ...settings
+      ...restSettings
     };
     await persistBibleSettings(db.bibleSettings);
-    return db.bibleSettings;
+
+    if (incomingBadges && Array.isArray(incomingBadges)) {
+      for (const inB of incomingBadges) {
+        const existing = db.bibleBadges.find(b => b.id === inB.id);
+        if (existing) {
+          if (typeof inB.name === 'string') existing.name = inB.name;
+          if (typeof inB.description === 'string') existing.description = inB.description;
+          if (typeof inB.xpReward === 'number') existing.xpReward = inB.xpReward;
+          if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+            await query(
+              `UPDATE bible_game_badges SET name = $1, description = $2, xp_reward = $3 WHERE id = $4`,
+              [existing.name, existing.description, existing.xpReward, existing.id]
+            ).catch(err => console.error('[UPDATE BADGE DB ERROR]', err.message));
+          }
+        }
+      }
+    }
+
+    return {
+      ...db.bibleSettings,
+      badges: db.bibleBadges
+    };
   }
 
   private static validateQuestionData(data: {

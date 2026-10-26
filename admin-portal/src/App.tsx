@@ -41,7 +41,14 @@ const getInitialRoute = (): 'app' | 'privacy' | 'delete-account' | 'reset-passwo
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
   const [route, setRoute] = useState<'app' | 'privacy' | 'delete-account' | 'reset-password'>(getInitialRoute);
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam) return tabParam as NavTab;
+    }
+    return 'dashboard';
+  });
   const [branches, setBranches] = useState<any[]>([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [pendingTestimoniesCount, setPendingTestimoniesCount] = useState(0);
@@ -84,9 +91,9 @@ const AppContent: React.FC = () => {
             api.getApprovals(),
             api.getTestimoniesQueue()
           ]);
-          setBranches(brs || []);
-          setPendingApprovalsCount(apprs?.length || 0);
-          setPendingTestimoniesCount(tests?.filter((t: any) => t.status === 'pending_review')?.length || 0);
+          setBranches(Array.isArray(brs) ? brs : []);
+          setPendingApprovalsCount(Array.isArray(apprs) ? apprs.length : 0);
+          setPendingTestimoniesCount(Array.isArray(tests) ? tests.filter((t: any) => t.status === 'pending_review').length : 0);
         } catch (err) {
           console.error('Failed to load header metadata:', err);
         }
