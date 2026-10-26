@@ -325,7 +325,9 @@ data class ServiceHighlightItem(
     val keyPoints: List<String> = emptyList(),
     val quote: String? = null,
     val photos: List<String> = emptyList(),
-    val videoUrl: String? = null
+    val videoUrl: String? = null,
+    val audioUrl: String? = null,
+    val audioActionLabel: String? = null
 )
 
 @Serializable

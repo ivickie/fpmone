@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Plus, Quote, BookOpen, User, CheckCircle2, Edit2, Trash2, Image as ImageIcon, X, Camera } from 'lucide-react';
+import { Sparkles, Plus, Quote, BookOpen, User, CheckCircle2, Edit2, Trash2, Image as ImageIcon, X, Camera, Headphones, ExternalLink } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -29,6 +29,9 @@ export const HighlightsPage: React.FC = () => {
   const [quote, setQuote] = useState('');
   const [keyPointsText, setKeyPointsText] = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [audioUrl, setAudioUrl] = useState('');
+  const [audioActionLabel, setAudioActionLabel] = useState('Listen to Sermon');
+  const [audioUrlError, setAudioUrlError] = useState('');
 
   const resolveMediaUrl = (url?: string): string => {
     if (!url) return '';
@@ -74,6 +77,16 @@ export const HighlightsPage: React.FC = () => {
     return () => window.removeEventListener('fpm:data-mutation', handleMutation);
   }, []);
 
+  const isValidHttpUrl = (str: string) => {
+    if (!str.trim()) return true;
+    try {
+      const parsed = new URL(str.trim());
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   const openCreateModal = () => {
     setTitle('');
     setSpeaker('');
@@ -82,6 +95,9 @@ export const HighlightsPage: React.FC = () => {
     setQuote('');
     setKeyPointsText('');
     setMediaUrls([]);
+    setAudioUrl('');
+    setAudioActionLabel('Listen to Sermon');
+    setAudioUrlError('');
     setModalOpen(true);
   };
 
@@ -93,6 +109,9 @@ export const HighlightsPage: React.FC = () => {
     setScripture(h.scripture || '');
     setQuote(h.quote || '');
     setKeyPointsText((h.keyPoints || []).join('\n'));
+    setAudioUrl(h.audioUrl || '');
+    setAudioActionLabel(h.audioActionLabel || 'Listen to Sermon');
+    setAudioUrlError('');
     const initialMedia = (h.photos && Array.isArray(h.photos) && h.photos.length > 0)
       ? [...h.photos]
       : [h.photoUrl, h.videoUrl].filter(Boolean);
@@ -142,6 +161,11 @@ export const HighlightsPage: React.FC = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (audioUrl.trim() && !isValidHttpUrl(audioUrl)) {
+      setAudioUrlError('Audio URL must be a valid link starting with http:// or https://');
+      toast.error('Audio URL must be a valid HTTP or HTTPS link');
+      return;
+    }
     setActionLoading(true);
     try {
       const keyPoints = keyPointsText.split('\n').map(s => s.trim()).filter(Boolean);
@@ -156,6 +180,8 @@ export const HighlightsPage: React.FC = () => {
         keyPoints,
         photos,
         videoUrl: videoItem || undefined,
+        audioUrl: audioUrl.trim() || undefined,
+        audioActionLabel: audioUrl.trim() ? (audioActionLabel.trim() || 'Listen to Sermon') : undefined,
         branchId: selectedBranchId || undefined
       });
       setModalOpen(false);
@@ -175,6 +201,11 @@ export const HighlightsPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedHighlight) return;
+    if (audioUrl.trim() && !isValidHttpUrl(audioUrl)) {
+      setAudioUrlError('Audio URL must be a valid link starting with http:// or https://');
+      toast.error('Audio URL must be a valid HTTP or HTTPS link');
+      return;
+    }
     const targetId = selectedHighlight.id;
     setActionLoading(true);
     try {
@@ -189,7 +220,9 @@ export const HighlightsPage: React.FC = () => {
         quote,
         keyPoints,
         photos,
-        videoUrl: videoItem || undefined
+        videoUrl: videoItem || undefined,
+        audioUrl: audioUrl.trim() || null,
+        audioActionLabel: audioUrl.trim() ? (audioActionLabel.trim() || 'Listen to Sermon') : null
       });
       setEditModalOpen(false);
       setSelectedHighlight(null);
@@ -462,6 +495,24 @@ export const HighlightsPage: React.FC = () => {
                     <p className="text-xs font-serif italic text-blue-100">"{h.quote}"</p>
                   </div>
                 )}
+
+                {h.audioUrl && (
+                  <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-200/70 rounded-xl text-xs">
+                    <div className="flex items-center gap-2 text-blue-900 font-semibold truncate mr-2">
+                      <Headphones className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span className="truncate">{h.audioActionLabel || 'Listen to Sermon'}</span>
+                    </div>
+                    <a
+                      href={h.audioUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] shrink-0 transition flex items-center gap-1 shadow-xs"
+                    >
+                      <span>Open Link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -637,6 +688,69 @@ export const HighlightsPage: React.FC = () => {
                   placeholder="When faith speaks, natural laws submit to divine authority."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl italic"
                 />
+              </div>
+
+              {/* External Sermon Audio (Optional) */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Headphones className="w-3.5 h-3.5 text-blue-600" />
+                    External Sermon Audio (Optional)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">Third-party hosted</span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Paste an external link to stream or download audio (e.g. Mixlr, SoundCloud, Google Drive, Spotify, YouTube). Audio files are not uploaded directly to FPM storage.
+                </p>
+                <div>
+                  <input
+                    type="url"
+                    value={audioUrl}
+                    onChange={e => {
+                      setAudioUrl(e.target.value);
+                      if (audioUrlError) setAudioUrlError('');
+                    }}
+                    placeholder="https://mixlr.com/... or https://soundcloud.com/..."
+                    className={`w-full p-2.5 bg-white border ${audioUrlError ? 'border-red-400 focus:ring-red-200' : 'border-slate-200'} rounded-xl text-xs`}
+                  />
+                  {audioUrlError && (
+                    <p className="text-[11px] text-red-600 mt-1 font-medium">{audioUrlError}</p>
+                  )}
+                </div>
+
+                {audioUrl.trim() && (
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
+                      Link Action Button Label
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={['Listen to Sermon', 'Download Sermon', 'Listen to Audio', 'Stream Recording'].includes(audioActionLabel) ? audioActionLabel : 'custom'}
+                        onChange={e => {
+                          if (e.target.value !== 'custom') {
+                            setAudioActionLabel(e.target.value);
+                          }
+                        }}
+                        className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-medium"
+                      >
+                        <option value="Listen to Sermon">Listen to Sermon</option>
+                        <option value="Download Sermon">Download Sermon</option>
+                        <option value="Listen to Audio">Listen to Audio</option>
+                        <option value="Stream Recording">Stream Recording</option>
+                        <option value="custom">Custom Label...</option>
+                      </select>
+                      {!['Listen to Sermon', 'Download Sermon', 'Listen to Audio', 'Stream Recording'].includes(audioActionLabel) && (
+                        <input
+                          type="text"
+                          value={audioActionLabel}
+                          onChange={e => setAudioActionLabel(e.target.value)}
+                          placeholder="e.g. Listen on Mixlr"
+                          className="flex-1 p-2 bg-white border border-slate-200 rounded-xl text-xs"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
@@ -821,6 +935,69 @@ export const HighlightsPage: React.FC = () => {
                   onChange={e => setQuote(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl italic"
                 />
+              </div>
+
+              {/* External Sermon Audio (Optional) */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Headphones className="w-3.5 h-3.5 text-blue-600" />
+                    External Sermon Audio (Optional)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">Third-party hosted</span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Paste an external link to stream or download audio (e.g. Mixlr, SoundCloud, Google Drive, Spotify, YouTube). Audio files are not uploaded directly to FPM storage.
+                </p>
+                <div>
+                  <input
+                    type="url"
+                    value={audioUrl}
+                    onChange={e => {
+                      setAudioUrl(e.target.value);
+                      if (audioUrlError) setAudioUrlError('');
+                    }}
+                    placeholder="https://mixlr.com/... or https://soundcloud.com/..."
+                    className={`w-full p-2.5 bg-white border ${audioUrlError ? 'border-red-400 focus:ring-red-200' : 'border-slate-200'} rounded-xl text-xs`}
+                  />
+                  {audioUrlError && (
+                    <p className="text-[11px] text-red-600 mt-1 font-medium">{audioUrlError}</p>
+                  )}
+                </div>
+
+                {audioUrl.trim() && (
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
+                      Link Action Button Label
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={['Listen to Sermon', 'Download Sermon', 'Listen to Audio', 'Stream Recording'].includes(audioActionLabel) ? audioActionLabel : 'custom'}
+                        onChange={e => {
+                          if (e.target.value !== 'custom') {
+                            setAudioActionLabel(e.target.value);
+                          }
+                        }}
+                        className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-medium"
+                      >
+                        <option value="Listen to Sermon">Listen to Sermon</option>
+                        <option value="Download Sermon">Download Sermon</option>
+                        <option value="Listen to Audio">Listen to Audio</option>
+                        <option value="Stream Recording">Stream Recording</option>
+                        <option value="custom">Custom Label...</option>
+                      </select>
+                      {!['Listen to Sermon', 'Download Sermon', 'Listen to Audio', 'Stream Recording'].includes(audioActionLabel) && (
+                        <input
+                          type="text"
+                          value={audioActionLabel}
+                          onChange={e => setAudioActionLabel(e.target.value)}
+                          placeholder="e.g. Listen on Mixlr"
+                          className="flex-1 p-2 bg-white border border-slate-200 rounded-xl text-xs"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">

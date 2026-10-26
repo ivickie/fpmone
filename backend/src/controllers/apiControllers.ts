@@ -2657,13 +2657,25 @@ export const commentOnPostHandler = (req: Request, res: Response) => {
 // =============================================================================
 // SERVICE HIGHLIGHTS CONTROLLER
 // =============================================================================
+function isValidSafeAudioUrl(urlStr: string): boolean {
+  if (typeof urlStr !== 'string') return false;
+  const trimmed = urlStr.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export const getHighlightsHandler = (req: Request, res: Response) => {
   return res.json(db.serviceHighlights.filter(h => h.isPublished));
 };
 
 export const createHighlightHandler = async (req: Request, res: Response) => {
   try {
-    const { branchId, title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl } = req.body;
+    const { branchId, title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl, audioUrl, audioActionLabel } = req.body;
     const finalSpeaker = speaker || req.body.preacher;
     const finalSummary = summary || req.body.summaryNotes;
     const finalScripture = scripture || req.body.keyScripture;
@@ -2676,6 +2688,22 @@ export const createHighlightHandler = async (req: Request, res: Response) => {
     if (!title || !finalSpeaker || !finalSummary) {
       return res.status(400).json({ error: 'Title, speaker, and summary are required.' });
     }
+
+    let finalAudioUrl: string | undefined = undefined;
+    let finalAudioActionLabel: string | undefined = undefined;
+    if (audioUrl !== undefined && audioUrl !== null) {
+      if (typeof audioUrl === 'string' && audioUrl.trim().length > 0) {
+        const trimmedAudio = audioUrl.trim();
+        if (!isValidSafeAudioUrl(trimmedAudio)) {
+          return res.status(400).json({ error: 'Audio URL must be a valid HTTP or HTTPS link.' });
+        }
+        finalAudioUrl = trimmedAudio;
+        finalAudioActionLabel = (typeof audioActionLabel === 'string' && audioActionLabel.trim().length > 0)
+          ? audioActionLabel.trim()
+          : 'Listen to Sermon';
+      }
+    }
+
     const newHighlight = {
       id: uuidv4(),
       branchId: branchId || IDS.BRANCH_HQ,
@@ -2688,6 +2716,8 @@ export const createHighlightHandler = async (req: Request, res: Response) => {
       quote,
       photos: finalPhotos,
       videoUrl: typeof videoUrl === 'string' ? videoUrl : undefined,
+      audioUrl: finalAudioUrl,
+      audioActionLabel: finalAudioActionLabel,
       isPublished: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -2724,7 +2754,7 @@ export const updateHighlightHandler = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Branch isolation violation: Cannot modify highlights of other branches.' });
     }
 
-    const { title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl, isPublished } = req.body;
+    const { title, speaker, summary, scripture, keyPoints, quote, photos, videoUrl, audioUrl, audioActionLabel, isPublished } = req.body;
     const finalSpeaker = speaker || req.body.preacher;
     const finalSummary = summary || req.body.summaryNotes;
     const finalScripture = scripture !== undefined ? scripture : req.body.keyScripture;
@@ -2744,6 +2774,25 @@ export const updateHighlightHandler = async (req: Request, res: Response) => {
       highlight.photos = parsedPhotos.slice(0, 5);
     }
     if (videoUrl !== undefined) highlight.videoUrl = typeof videoUrl === 'string' ? videoUrl : undefined;
+    if (audioUrl !== undefined) {
+      if (audioUrl === null || (typeof audioUrl === 'string' && audioUrl.trim().length === 0)) {
+        highlight.audioUrl = undefined;
+        highlight.audioActionLabel = undefined;
+      } else if (typeof audioUrl === 'string' && audioUrl.trim().length > 0) {
+        const trimmedAudio = audioUrl.trim();
+        if (!isValidSafeAudioUrl(trimmedAudio)) {
+          return res.status(400).json({ error: 'Audio URL must be a valid HTTP or HTTPS link.' });
+        }
+        highlight.audioUrl = trimmedAudio;
+        highlight.audioActionLabel = (typeof audioActionLabel === 'string' && audioActionLabel.trim().length > 0)
+          ? audioActionLabel.trim()
+          : (highlight.audioActionLabel || 'Listen to Sermon');
+      }
+    } else if (audioActionLabel !== undefined && highlight.audioUrl) {
+      highlight.audioActionLabel = (typeof audioActionLabel === 'string' && audioActionLabel.trim().length > 0)
+        ? audioActionLabel.trim()
+        : 'Listen to Sermon';
+    }
     if (isPublished !== undefined) highlight.isPublished = !!isPublished;
     highlight.updatedAt = new Date().toISOString();
     await persistServiceHighlight(highlight).catch(err => console.warn('[PERSIST HIGHLIGHT ERROR]', err.message));

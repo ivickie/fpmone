@@ -2,6 +2,7 @@ package org.fpm.one.presentation.services
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -501,6 +502,60 @@ fun ServicesScreen(viewModel: ServicesViewModel) {
                           color = if (FpmTheme.isDark) FpmGoldLight else FpmNavyDark,
                           modifier = Modifier.padding(10.dp)
                         )
+                      }
+                    }
+
+                    // Audio Recording Action Button (if configured)
+                    if (!h.audioUrl.isNullOrBlank()) {
+                      val audioLabel = h.audioActionLabel?.ifBlank { null } ?: "Listen to Sermon"
+                      val isDownload = audioLabel.contains("download", ignoreCase = true)
+                      Spacer(modifier = Modifier.height(8.dp))
+                      Surface(
+                        modifier = Modifier
+                          .fillMaxWidth()
+                          .clip(RoundedCornerShape(8.dp))
+                          .clickable {
+                            try {
+                              val safeUri = Uri.parse(h.audioUrl)
+                              val scheme = safeUri.scheme?.lowercase()
+                              if (scheme == "http" || scheme == "https") {
+                                val intent = Intent(Intent.ACTION_VIEW, safeUri)
+                                context.startActivity(intent)
+                              } else {
+                                Toast.makeText(context, "Invalid audio link", Toast.LENGTH_SHORT).show()
+                              }
+                            } catch (e: Exception) {
+                              Toast.makeText(context, "Could not open sermon link", Toast.LENGTH_SHORT).show()
+                            }
+                          },
+                        color = if (FpmTheme.isDark) FpmSurfaceTonalDark else FpmRoyalBlue.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.3f) else FpmRoyalBlue.copy(alpha = 0.2f))
+                      ) {
+                        Row(
+                          modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                          Icon(
+                            if (isDownload) Icons.Default.Download else Icons.Default.Headphones,
+                            contentDescription = null,
+                            tint = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
+                            modifier = Modifier.size(18.dp)
+                          )
+                          Text(
+                            text = audioLabel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
+                            modifier = Modifier.weight(1f)
+                          )
+                          Icon(
+                            Icons.Default.OpenInNew,
+                            contentDescription = null,
+                            tint = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
+                            modifier = Modifier.size(14.dp)
+                          )
+                        }
                       }
                     }
 

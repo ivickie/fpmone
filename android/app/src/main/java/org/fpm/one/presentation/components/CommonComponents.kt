@@ -1091,6 +1091,65 @@ fun SermonRecapDetailDialog(
                     }
                 }
 
+                // External Sermon Audio Section
+                if (!highlight.audioUrl.isNullOrBlank()) {
+                    val label = highlight.audioActionLabel?.ifBlank { null } ?: "Listen to Sermon"
+                    val isDownload = label.contains("download", ignoreCase = true)
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                try {
+                                    val safeUri = Uri.parse(highlight.audioUrl)
+                                    val scheme = safeUri.scheme?.lowercase()
+                                    if (scheme == "http" || scheme == "https") {
+                                        val intent = Intent(Intent.ACTION_VIEW, safeUri)
+                                        context.startActivity(intent)
+                                    } else {
+                                        Toast.makeText(context, "Invalid audio link", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Could not open sermon link", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        color = if (FpmTheme.isDark) FpmNavyDeep else FpmRoyalBlue.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, if (FpmTheme.isDark) FpmGold.copy(alpha = 0.4f) else FpmRoyalBlue.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                if (isDownload) Icons.Default.Download else Icons.Default.Headphones,
+                                contentDescription = null,
+                                tint = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = label,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FpmTheme.textPrimary
+                                )
+                                Text(
+                                    text = "Stream or download sermon audio recording",
+                                    fontSize = 11.sp,
+                                    color = FpmTheme.textSecondary
+                                )
+                            }
+                            Icon(
+                                Icons.Default.OpenInNew,
+                                contentDescription = null,
+                                tint = if (FpmTheme.isDark) FpmGoldLight else FpmRoyalBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Video Section
                 if (!highlight.videoUrl.isNullOrBlank()) {
                     Surface(

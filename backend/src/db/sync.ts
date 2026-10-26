@@ -53,6 +53,9 @@ export async function runSchemaMigrationsOnce(): Promise<void> {
         ALTER TABLE branches ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
         ALTER TABLE branches ADD COLUMN IF NOT EXISTS image_url TEXT;
 
+        ALTER TABLE service_highlights ADD COLUMN IF NOT EXISTS audio_url TEXT;
+        ALTER TABLE service_highlights ADD COLUMN IF NOT EXISTS audio_action_label VARCHAR(100);
+
         CREATE TABLE IF NOT EXISTS sunday_moments (
           id UUID PRIMARY KEY,
           branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
@@ -727,6 +730,8 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         quote: r.quote || undefined,
         photos: (Array.isArray(r.photos) ? r.photos : (typeof r.photos === 'string' ? JSON.parse(r.photos) : [])).map((u: string) => sanitizeMediaUrl(u) || u),
         videoUrl: sanitizeMediaUrl(r.video_url),
+        audioUrl: sanitizeMediaUrl(r.audio_url),
+        audioActionLabel: r.audio_action_label || undefined,
         isPublished: !!r.is_published,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
@@ -1712,8 +1717,8 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
   const serviceId = isUuid(highlight.serviceId) ? highlight.serviceId : null;
   try {
     await query(`
-      INSERT INTO service_highlights (id, service_id, branch_id, highlight_date, title, speaker, summary, scripture, key_points, quote, photos, video_url, is_published, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO service_highlights (id, service_id, branch_id, highlight_date, title, speaker, summary, scripture, key_points, quote, photos, video_url, audio_url, audio_action_label, is_published, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
         service_id = EXCLUDED.service_id,
         branch_id = EXCLUDED.branch_id,
@@ -1725,6 +1730,8 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
         quote = EXCLUDED.quote,
         photos = EXCLUDED.photos,
         video_url = EXCLUDED.video_url,
+        audio_url = EXCLUDED.audio_url,
+        audio_action_label = EXCLUDED.audio_action_label,
         is_published = EXCLUDED.is_published,
         updated_at = EXCLUDED.updated_at
     `, [
@@ -1733,6 +1740,7 @@ export async function persistServiceHighlight(highlight: ServiceHighlightItem): 
       highlight.summary, highlight.scripture || null,
       JSON.stringify(highlight.keyPoints || []), highlight.quote || null,
       JSON.stringify(highlight.photos || []), highlight.videoUrl || null,
+      highlight.audioUrl || null, highlight.audioActionLabel || null,
       highlight.isPublished, highlight.createdAt, highlight.updatedAt
     ]);
     await recordSystemMutation('service_highlights');

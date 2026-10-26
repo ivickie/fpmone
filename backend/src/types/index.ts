@@ -271,6 +271,8 @@ export interface ServiceHighlightItem {
   quote?: string;
   photos: string[];
   videoUrl?: string;
+  audioUrl?: string;
+  audioActionLabel?: string;
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;

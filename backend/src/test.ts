@@ -51,7 +51,11 @@ import {
   getSettingsHandler,
   getSystemHealthHandler,
   registerDeviceTokenHandler,
-  unregisterDeviceTokenHandler
+  unregisterDeviceTokenHandler,
+  getHighlightsHandler,
+  createHighlightHandler,
+  updateHighlightHandler,
+  deleteHighlightHandler
 } from './controllers/apiControllers';
 import { FcmService } from './services/fcmService';
 import { SettingsService } from './services/settingsService';
@@ -5245,6 +5249,224 @@ async function runTests() {
       db.bibleQuestions = db.bibleQuestions.filter(q => q.id !== validNewQuestion.id);
       db.bibleUserBadges = db.bibleUserBadges.filter(b => b.userId !== testUser.id);
       db.bibleUserStats = db.bibleUserStats.filter(s => s.userId !== testUser.id);
+
+      // =========================================================================
+      // Section Z: Service Highlights Feature & Audio URL Validation Tests
+      // =========================================================================
+      console.log('\n--- Section Z: Service Highlights & Audio Link Tests ---');
+
+      // 1. Create highlight without audioUrl (backward compatibility)
+      let hlRes1Data: any = null;
+      let hlRes1Status = 200;
+      const hlReq1: any = {
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          title: 'Sunday Victory Service',
+          speaker: 'Pastor David Adeleke',
+          summary: 'Powerful service about walking in dominion through faith.',
+          scripture: '1 John 5:4',
+          keyPoints: ['Faith overcomes the world', 'Speak what God says'],
+          quote: 'Victory is in your mouth.',
+          photos: ['https://example.com/photo1.jpg']
+        }
+      };
+      const hlMockRes1: any = {
+        status: (code: number) => { hlRes1Status = code; return hlMockRes1; },
+        json: (d: any) => { hlRes1Data = d; return hlMockRes1; }
+      };
+      await createHighlightHandler(hlReq1, hlMockRes1);
+      assert(hlRes1Status === 201, 'Highlight created without audioUrl returns HTTP 201');
+      assert(hlRes1Data && hlRes1Data.title === 'Sunday Victory Service', 'Created highlight has matching title');
+      assert(hlRes1Data && hlRes1Data.audioUrl === undefined, 'Created highlight without audio has undefined audioUrl');
+      assert(hlRes1Data && hlRes1Data.audioActionLabel === undefined, 'Created highlight without audio has undefined audioActionLabel');
+
+      const createdHighlightId1 = hlRes1Data.id;
+
+      // 2. Create highlight with valid external audio URL and default label
+      let hlRes2Data: any = null;
+      let hlRes2Status = 200;
+      const hlReq2: any = {
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          title: 'Midweek Miracle Communion',
+          speaker: 'Pastor David Adeleke',
+          summary: 'A divine atmosphere for healing and supernatural breakthrough.',
+          audioUrl: 'https://mixlr.com/fpmchurch/show/miracle-service-audio',
+          audioActionLabel: ''
+        }
+      };
+      const hlMockRes2: any = {
+        status: (code: number) => { hlRes2Status = code; return hlMockRes2; },
+        json: (d: any) => { hlRes2Data = d; return hlMockRes2; }
+      };
+      await createHighlightHandler(hlReq2, hlMockRes2);
+      assert(hlRes2Status === 201, 'Highlight created with valid HTTPS audioUrl returns HTTP 201');
+      assert(hlRes2Data && hlRes2Data.audioUrl === 'https://mixlr.com/fpmchurch/show/miracle-service-audio', 'Highlight stores valid audioUrl');
+      assert(hlRes2Data && hlRes2Data.audioActionLabel === 'Listen to Sermon', 'Highlight defaults audioActionLabel to "Listen to Sermon"');
+
+      const createdHighlightId2 = hlRes2Data.id;
+
+      // 3. Create highlight with custom link action label ("Download Sermon")
+      let hlRes3Data: any = null;
+      let hlRes3Status = 200;
+      const hlReq3: any = {
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          title: 'Special Anointing Night',
+          speaker: 'Rev. Emmanuel Okafor',
+          summary: 'The mysteries of the Holy Spirit unveiled.',
+          audioUrl: 'https://drive.google.com/file/d/12345/view',
+          audioActionLabel: 'Download Sermon'
+        }
+      };
+      const hlMockRes3: any = {
+        status: (code: number) => { hlRes3Status = code; return hlMockRes3; },
+        json: (d: any) => { hlRes3Data = d; return hlMockRes3; }
+      };
+      await createHighlightHandler(hlReq3, hlMockRes3);
+      assert(hlRes3Status === 201, 'Highlight created with custom audio label returns HTTP 201');
+      assert(hlRes3Data && hlRes3Data.audioActionLabel === 'Download Sermon', 'Highlight stores custom audioActionLabel');
+
+      const createdHighlightId3 = hlRes3Data.id;
+
+      // 4. Reject unsafe audio URLs: javascript:
+      let hlErrJsStatus = 200;
+      let hlErrJsData: any = null;
+      const hlReqJs: any = {
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          title: 'Malicious Highlight',
+          speaker: 'Attacker',
+          summary: 'Attempting XSS injection',
+          audioUrl: 'javascript:alert(document.cookie)'
+        }
+      };
+      const hlMockResJs: any = {
+        status: (code: number) => { hlErrJsStatus = code; return hlMockResJs; },
+        json: (d: any) => { hlErrJsData = d; return hlMockResJs; }
+      };
+      await createHighlightHandler(hlReqJs, hlMockResJs);
+      assert(hlErrJsStatus === 400, 'javascript: audioUrl is rejected with HTTP 400');
+      assert(hlErrJsData && hlErrJsData.error && hlErrJsData.error.includes('valid HTTP or HTTPS link'), 'Rejection error message guides the user to safe HTTP/HTTPS');
+
+      // 5. Reject unsafe audio URLs: file: and non-URL strings
+      let hlErrFileStatus = 200;
+      const hlReqFile: any = {
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          title: 'File Protocol Highlight',
+          speaker: 'Attacker',
+          summary: 'Attempting local file disclosure',
+          audioUrl: 'file:///etc/passwd'
+        }
+      };
+      const hlMockResFile: any = {
+        status: (code: number) => { hlErrFileStatus = code; return hlMockResFile; },
+        json: () => hlMockResFile
+      };
+      await createHighlightHandler(hlReqFile, hlMockResFile);
+      assert(hlErrFileStatus === 400, 'file:/// audioUrl is rejected with HTTP 400');
+
+      let hlErrMalformedStatus = 200;
+      const hlReqMalformed: any = {
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          title: 'Malformed Highlight',
+          speaker: 'Attacker',
+          summary: 'Invalid URL string',
+          audioUrl: 'just a random text string'
+        }
+      };
+      const hlMockResMalformed: any = {
+        status: (code: number) => { hlErrMalformedStatus = code; return hlMockResMalformed; },
+        json: () => hlMockResMalformed
+      };
+      await createHighlightHandler(hlReqMalformed, hlMockResMalformed);
+      assert(hlErrMalformedStatus === 400, 'Malformed text audioUrl is rejected with HTTP 400');
+
+      // 6. Update highlight: add audioUrl to existing highlight
+      let hlUpdate1Status = 200;
+      let hlUpdate1Data: any = null;
+      const hlUpdateReq1: any = {
+        params: { id: createdHighlightId1 },
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          audioUrl: 'https://soundcloud.com/fpmchurch/sunday-victory-sermon',
+          audioActionLabel: 'Listen to Audio'
+        }
+      };
+      const hlUpdateMockRes1: any = {
+        status: (code: number) => { hlUpdate1Status = code; return hlUpdateMockRes1; },
+        json: (d: any) => { hlUpdate1Data = d; return hlUpdateMockRes1; }
+      };
+      await updateHighlightHandler(hlUpdateReq1, hlUpdateMockRes1);
+      assert(hlUpdate1Status === 200, 'Update highlight returns HTTP 200');
+      assert(hlUpdate1Data && hlUpdate1Data.audioUrl === 'https://soundcloud.com/fpmchurch/sunday-victory-sermon', 'Updated highlight has new audioUrl');
+      assert(hlUpdate1Data && hlUpdate1Data.audioActionLabel === 'Listen to Audio', 'Updated highlight has new audioActionLabel');
+
+      // 7. Update highlight: reject unsafe URL in update
+      let hlUpdateBadStatus = 200;
+      const hlUpdateBadReq: any = {
+        params: { id: createdHighlightId1 },
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          audioUrl: 'data:audio/mp3;base64,AAAA'
+        }
+      };
+      const hlUpdateBadRes: any = {
+        status: (code: number) => { hlUpdateBadStatus = code; return hlUpdateBadRes; },
+        json: () => hlUpdateBadRes
+      };
+      await updateHighlightHandler(hlUpdateBadReq, hlUpdateBadRes);
+      assert(hlUpdateBadStatus === 400, 'Unsafe URL in update is rejected with HTTP 400');
+
+      // 8. Update highlight: clear audioUrl
+      let hlUpdateClearStatus = 200;
+      let hlUpdateClearData: any = null;
+      const hlUpdateClearReq: any = {
+        params: { id: createdHighlightId1 },
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ },
+        body: {
+          audioUrl: ''
+        }
+      };
+      const hlUpdateClearRes: any = {
+        status: (code: number) => { hlUpdateClearStatus = code; return hlUpdateClearRes; },
+        json: (d: any) => { hlUpdateClearData = d; return hlUpdateClearRes; }
+      };
+      await updateHighlightHandler(hlUpdateClearReq, hlUpdateClearRes);
+      assert(hlUpdateClearStatus === 200, 'Clearing audioUrl returns HTTP 200');
+      assert(hlUpdateClearData && hlUpdateClearData.audioUrl === undefined, 'audioUrl is cleared to undefined');
+      assert(hlUpdateClearData && hlUpdateClearData.audioActionLabel === undefined, 'audioActionLabel is cleared to undefined');
+
+      // 9. Fetch highlights via getHighlightsHandler
+      let hlGetAllData: any[] = [];
+      const hlGetAllReq: any = {};
+      const hlGetAllRes: any = {
+        json: (d: any) => { hlGetAllData = d; return hlGetAllRes; }
+      };
+      getHighlightsHandler(hlGetAllReq, hlGetAllRes);
+      const fetchedHl2 = hlGetAllData.find((h: any) => h.id === createdHighlightId2);
+      assert(!!fetchedHl2, 'getHighlightsHandler returns created highlight with audio');
+      assert(fetchedHl2?.audioUrl === 'https://mixlr.com/fpmchurch/show/miracle-service-audio', 'Fetched highlight contains audioUrl');
+      assert(fetchedHl2?.audioActionLabel === 'Listen to Sermon', 'Fetched highlight contains audioActionLabel');
+
+      // 10. Delete highlight
+      let hlDelStatus = 200;
+      const hlDelReq: any = {
+        params: { id: createdHighlightId3 },
+        user: { fullName: 'Admin User', roleName: 'admin', adminLevel: 'super_admin', userId: 'admin-1', branchId: IDS.BRANCH_HQ }
+      };
+      const hlDelRes: any = {
+        status: (code: number) => { hlDelStatus = code; return hlDelRes; },
+        json: () => hlDelRes
+      };
+      await deleteHighlightHandler(hlDelReq, hlDelRes);
+      assert(hlDelStatus === 200, 'deleteHighlightHandler returns HTTP 200');
+      assert(!db.serviceHighlights.some(h => h.id === createdHighlightId3), 'Deleted highlight was removed from database store');
+
+      // Clean up remaining test highlights
+      db.serviceHighlights = db.serviceHighlights.filter(h => h.id !== createdHighlightId1 && h.id !== createdHighlightId2);
 
     } finally {
       testServer.close();
