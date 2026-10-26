@@ -634,7 +634,7 @@ export const HighlightsPage: React.FC = () => {
                         ? `Add up to ${5 - photoCount} photo${5 - photoCount > 1 ? 's' : ''}`
                         : `Add 1 highlight video`
                     }
-                    placeholder="Click to attach photos or video"
+                    placeholder="Click to attach photos"
                   />
                 ) : (
                   <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg text-center font-medium border border-amber-200">
@@ -819,7 +819,7 @@ export const HighlightsPage: React.FC = () => {
                   <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
                     Service Media ({photoCount}/5 photos, {videoCount}/1 video)
                   </label>
-                  <span className="text-[10px] text-slate-500 font-medium">Max 5 pictures & 1 video</span>
+                  <span className="text-[10px] text-slate-500 font-medium">Max 5 pictures</span>
                 </div>
 
                 {mediaUrls.length > 0 && (
@@ -885,7 +885,7 @@ export const HighlightsPage: React.FC = () => {
                         ? `Add up to ${5 - photoCount} photo${5 - photoCount > 1 ? 's' : ''}`
                         : `Add 1 highlight video`
                     }
-                    placeholder="Click to attach photos or video"
+                    placeholder="Click to attach photos"
                   />
                 ) : (
                   <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg text-center font-medium border border-amber-200">

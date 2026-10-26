@@ -21,8 +21,8 @@ android {
         applicationId = "org.fpm.one"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
 
         buildConfigField("String", "API_BASE_URL", "\"https://www.fpmglobal.online/api\"")
     }
