@@ -129,9 +129,16 @@ class BibleGameRepository {
         }
     }
 
-    suspend fun getLeaderboard(branchId: String? = null): Result<BibleLeaderboardData> = withContext(Dispatchers.IO) {
+    suspend fun getLeaderboard(
+        branchId: String? = null,
+        scope: String = "weekly"
+    ): Result<BibleLeaderboardData> = withContext(Dispatchers.IO) {
         try {
-            val endpoint = if (branchId != null) "/bible-game/leaderboard?branchId=$branchId" else "/bible-game/leaderboard"
+            val params = mutableListOf<String>()
+            if (branchId != null) params.add("branchId=$branchId")
+            if (scope.isNotEmpty()) params.add("scope=$scope")
+            val queryString = if (params.isNotEmpty()) "?" + params.joinToString("&") else ""
+            val endpoint = "/bible-game/leaderboard$queryString"
             val responseText = ApiClient.get(endpoint)
             val parsed = ApiClient.json.decodeFromString<BibleApiResponse<BibleLeaderboardData>>(responseText)
             if (parsed.success && parsed.data != null) {

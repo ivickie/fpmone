@@ -420,6 +420,7 @@ data class BibleReviewedQuestion(
     val selectedIndex: Int? = null,
     val correctOptionIndex: Int,
     val isCorrect: Boolean,
+    val status: String? = null,
     val explanation: String,
     val bibleReference: String,
     val responseTimeMs: Long? = null,
@@ -435,6 +436,7 @@ data class BibleTodayOverview(
     val totalQuestions: Int = 5,
     val isCompleted: Boolean = false,
     val score: Int = 0,
+    val totalXp: Double = 0.0,
     val currentQuestionIndex: Int = 0,
     val stats: BibleUserStats,
     val badges: List<BibleBadgeItem> = emptyList(),
@@ -456,6 +458,7 @@ data class BibleAnsweredQuestion(
     val questionId: String,
     val selectedIndex: Int? = null,
     val isCorrect: Boolean,
+    val status: String? = null,
     val correctOptionIndex: Int,
     val explanation: String,
     val bibleReference: String,
@@ -482,6 +485,7 @@ data class BibleGameSession(
 @Serializable
 data class BibleAnswerFeedback(
     val isCorrect: Boolean,
+    val status: String? = null,
     val correctOptionIndex: Int,
     val explanation: String,
     val bibleReference: String,
@@ -500,6 +504,7 @@ data class BibleChallengeCompletion(
     val score: Int,
     val totalQuestions: Int = 5,
     val xpAwarded: Double,
+    val totalXpEarned: Double = 0.0,
     val alreadyCompleted: Boolean,
     val stats: BibleUserStats,
     val newlyUnlockedBadges: List<BibleBadgeItem> = emptyList(),
@@ -532,5 +537,6 @@ data class BibleWeekRange(
 data class BibleLeaderboardData(
     val entries: List<BibleLeaderboardItem> = emptyList(),
     val userRank: BibleLeaderboardItem? = null,
+    val scope: String = "weekly",
     val weekRange: BibleWeekRange? = null
 )

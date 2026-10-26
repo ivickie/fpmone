@@ -118,8 +118,9 @@ export const getProgressHandler = async (req: Request, res: Response) => {
 export const getLeaderboardHandler = async (req: Request, res: Response) => {
   try {
     const branchId = typeof req.query.branchId === 'string' ? req.query.branchId : undefined;
+    const scope = req.query.scope === 'all_time' ? 'all_time' : 'weekly';
     const currentMemberId = req.user?.memberId;
-    const leaderboard = await BibleGameService.getLeaderboard(currentMemberId, branchId);
+    const leaderboard = await BibleGameService.getLeaderboard(currentMemberId, branchId, scope);
     return res.status(200).json({ success: true, data: leaderboard });
   } catch (err: any) {
     console.error('[BIBLE GAME ERROR] getLeaderboardHandler:', err.message);

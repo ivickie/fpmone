@@ -22,7 +22,8 @@ enum class BibleGameView {
     QUIZ,
     RESULTS,
     PROGRESS,
-    LEADERBOARD
+    LEADERBOARD,
+    RULES
 }
 
 data class BibleGameState(
@@ -44,7 +45,9 @@ data class BibleGameState(
     val completionResult: BibleChallengeCompletion? = null,
     val progressHistory: BibleProgressHistory? = null,
     val leaderboard: BibleLeaderboardData? = null,
-    val branchFilterId: String? = null
+    val branchFilterId: String? = null,
+    val leaderboardScope: String = "weekly",
+    val newlyUnlockedBadgeToast: BibleBadgeItem? = null
 )
 
 class BibleGameViewModel(
@@ -260,6 +263,43 @@ class BibleGameViewModel(
         }
     }
 
+    fun retrySubmitAnswer() {
+        val currentState = _state.value
+        val selectedIndex = currentState.selectedOptionIndex ?: return
+        if (currentState.lastAnswerFeedback != null || currentState.isSubmittingAnswer) {
+            return
+        }
+        val session = currentState.session ?: return
+        val questionIndex = session.currentQuestionIndex
+
+        viewModelScope.launch {
+            _state.update { it.copy(isSubmittingAnswer = true, errorMessage = null) }
+            val result = repository.submitAnswer(
+                questionIndex = questionIndex,
+                selectedOptionIndex = selectedIndex,
+                isTimeout = false
+            )
+            result.fold(
+                onSuccess = { feedback ->
+                    _state.update {
+                        it.copy(
+                            isSubmittingAnswer = false,
+                            lastAnswerFeedback = feedback
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    _state.update {
+                        it.copy(
+                            isSubmittingAnswer = false,
+                            errorMessage = err.message ?: "Failed to submit answer. Please try again."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     private fun handleTimeoutSubmission(questionIndex: Int) {
         val currentState = _state.value
         if (currentState.lastAnswerFeedback != null || currentState.isSubmittingAnswer) return
@@ -351,11 +391,13 @@ class BibleGameViewModel(
             val result = repository.completeChallenge()
             result.fold(
                 onSuccess = { completion ->
+                    val newlyUnlocked = completion.newlyUnlockedBadges.firstOrNull()
                     _state.update {
                         it.copy(
                             isCompletingRound = false,
                             completionResult = completion,
-                            currentView = BibleGameView.RESULTS
+                            currentView = BibleGameView.RESULTS,
+                            newlyUnlockedBadgeToast = newlyUnlocked
                         )
                     }
                     loadTodayOverview()
@@ -372,14 +414,20 @@ class BibleGameViewModel(
         }
     }
 
+    fun dismissBadgeToast() {
+        _state.update { it.copy(newlyUnlockedBadgeToast = null) }
+    }
+
     fun reviewCompletedChallenge() {
         val overview = _state.value.todayOverview ?: return
         if (overview.isCompleted && overview.reviewedQuestions != null) {
+            val roundXp = overview.totalXp
             val syntheticCompletion = BibleChallengeCompletion(
                 challengeDate = overview.challengeDate,
                 score = overview.score,
                 totalQuestions = overview.totalQuestions,
-                xpAwarded = 0.0,
+                xpAwarded = roundXp,
+                totalXpEarned = roundXp,
                 alreadyCompleted = true,
                 stats = overview.stats,
                 newlyUnlockedBadges = emptyList(),
@@ -420,10 +468,13 @@ class BibleGameViewModel(
         }
     }
 
-    fun loadLeaderboard(branchId: String? = null) {
+    fun loadLeaderboard(
+        branchId: String? = _state.value.branchFilterId,
+        scope: String = _state.value.leaderboardScope
+    ) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null, branchFilterId = branchId) }
-            val result = repository.getLeaderboard(branchId)
+            _state.update { it.copy(isLoading = true, errorMessage = null, branchFilterId = branchId, leaderboardScope = scope) }
+            val result = repository.getLeaderboard(branchId, scope)
             result.fold(
                 onSuccess = { lb ->
                     _state.update {
@@ -444,6 +495,11 @@ class BibleGameViewModel(
                 }
             )
         }
+    }
+
+    fun setLeaderboardScope(scope: String) {
+        _state.update { it.copy(leaderboardScope = scope) }
+        loadLeaderboard(branchId = _state.value.branchFilterId, scope = scope)
     }
 
     fun navigateTo(view: BibleGameView) {

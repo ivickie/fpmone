@@ -1058,6 +1058,24 @@ export async function hydrateStoreFromPostgres(store: any): Promise<boolean> {
         xpReward: r.xp_reward,
         displayOrder: r.display_order
       }));
+    } else if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+      try {
+        for (const b of store.bibleBadges) {
+          await query(
+            `INSERT INTO bible_game_badges (id, name, description, icon, xp_reward, display_order)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (id) DO UPDATE SET
+               name = EXCLUDED.name,
+               description = EXCLUDED.description,
+               icon = EXCLUDED.icon,
+               xp_reward = EXCLUDED.xp_reward,
+               display_order = EXCLUDED.display_order`,
+            [b.id, b.name, b.description, b.icon, b.xpReward, b.displayOrder]
+          );
+        }
+      } catch (err: any) {
+        console.error('[SYNC ERROR: auto-seed bible_game_badges]', err.message);
+      }
     }
 
     if (bibleUserBadgesRes && Array.isArray(bibleUserBadgesRes.rows)) {

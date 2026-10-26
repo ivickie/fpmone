@@ -660,6 +660,7 @@ export interface BibleUserAnswer {
   remainingTimeMs: number;
   questionXp: number;
   isTimeout?: boolean;
+  status?: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED';
 }
 
 export interface BibleUserProgress {

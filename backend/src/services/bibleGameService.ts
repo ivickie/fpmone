@@ -14,7 +14,8 @@ import {
   BibleQuestionDifficulty,
   BibleQuestionStatus,
   BibleGameSettings,
-  BibleQuestionTiming
+  BibleQuestionTiming,
+  BibleUserAnswer
 } from '../types';
 import {
   persistBibleQuestion,
@@ -286,6 +287,27 @@ export class BibleGameService {
   }
 
   private static challengeCreationLocks = new Map<string, Promise<{ challenge: BibleDailyChallenge; questions: BibleQuestion[] }>>();
+  private static userSubmissionLocks = new Map<string, Promise<any>>();
+
+  /**
+   * Concurrency-safe per-user mutex lock to serialize question start, answer submission,
+   * and challenge completion operations, preventing race conditions between user actions and timers.
+   */
+  private static async withUserSubmissionLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+    const prev = BibleGameService.userSubmissionLocks.get(userId) || Promise.resolve();
+    let resolveNext: () => void;
+    const nextPromise = new Promise<void>(res => { resolveNext = res; });
+    BibleGameService.userSubmissionLocks.set(userId, nextPromise);
+    try {
+      await prev;
+      return await fn();
+    } finally {
+      resolveNext!();
+      if (BibleGameService.userSubmissionLocks.get(userId) === nextPromise) {
+        BibleGameService.userSubmissionLocks.delete(userId);
+      }
+    }
+  }
 
   /**
    * Deterministically retrieves or creates today's 5-question daily challenge for Africa/Lagos.
@@ -515,6 +537,7 @@ export class BibleGameService {
           selectedIndex: ans ? ans.selectedIndex : -1,
           correctOptionIndex: q.correctOptionIndex,
           isCorrect: Boolean(ans?.isCorrect),
+          status: ans?.status || (ans?.isTimeout ? 'TIME_EXPIRED' : (ans?.isCorrect ? 'CORRECT' : 'INCORRECT')),
           explanation: q.explanation,
           bibleReference: q.bibleReference,
           responseTimeMs: ans?.responseTimeMs || 0,
@@ -558,6 +581,7 @@ export class BibleGameService {
       questionId: string;
       selectedIndex: number;
       isCorrect: boolean;
+      status: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED';
       correctOptionIndex: number;
       explanation: string;
       bibleReference: string;
@@ -578,10 +602,13 @@ export class BibleGameService {
     if (progress && progress.isCompleted) {
       const answeredQuestions = progress.answers.map(ans => {
         const q = questions.find(qItem => qItem.id === ans.questionId);
+        const computedStatus: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED' =
+          ans.status || (ans.isTimeout ? 'TIME_EXPIRED' : (ans.isCorrect ? 'CORRECT' : 'INCORRECT'));
         return {
           questionId: ans.questionId,
           selectedIndex: ans.selectedIndex,
           isCorrect: ans.isCorrect,
+          status: computedStatus,
           correctOptionIndex: q ? q.correctOptionIndex : 0,
           explanation: q ? q.explanation : '',
           bibleReference: q ? q.bibleReference : '',
@@ -629,10 +656,13 @@ export class BibleGameService {
 
     const answeredQuestions = progress.answers.map(ans => {
       const q = questions.find(qItem => qItem.id === ans.questionId);
+      const computedStatus: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED' =
+        ans.status || (ans.isTimeout ? 'TIME_EXPIRED' : (ans.isCorrect ? 'CORRECT' : 'INCORRECT'));
       return {
         questionId: ans.questionId,
         selectedIndex: ans.selectedIndex,
         isCorrect: ans.isCorrect,
+        status: computedStatus,
         correctOptionIndex: q ? q.correctOptionIndex : 0,
         explanation: q ? q.explanation : '',
         bibleReference: q ? q.bibleReference : '',
@@ -694,86 +724,97 @@ export class BibleGameService {
     questionIndex: number,
     challengeDate?: string
   ): Promise<BibleQuestionTiming> {
-    const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
-    const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
+    return BibleGameService.withUserSubmissionLock(userId, async () => {
+      const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
+      const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
+      let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
-    if (!progress) {
-      await BibleGameService.startOrResumeSession(userId, memberId, targetDate);
-      progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
-    }
+      if (!progress) {
+        await BibleGameService.startOrResumeSession(userId, memberId, targetDate);
+        progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
+      }
 
-    if (!progress) {
-      throw new Error('Failed to initialize session for today.');
-    }
+      if (!progress) {
+        throw new Error('Failed to initialize session for today.');
+      }
 
-    if (progress.isCompleted) {
-      throw new Error('This daily challenge has already been completed.');
-    }
+      if (progress.isCompleted) {
+        throw new Error('This daily challenge has already been completed.');
+      }
 
-    if (questionIndex !== progress.currentQuestionIndex) {
-      throw new Error(`Invalid question start sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
-    }
+      if (questionIndex !== progress.currentQuestionIndex) {
+        throw new Error(`Invalid question start sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
+      }
 
-    if (questionIndex < 0 || questionIndex >= questions.length) {
-      throw new Error('Question index is out of bounds.');
-    }
+      if (questionIndex < 0 || questionIndex >= questions.length) {
+        throw new Error('Question index is out of bounds.');
+      }
 
-    const currentQuestion = questions[questionIndex];
-    const now = Date.now();
-    const timeLimitMs = BibleGameService.QUESTION_TIME_LIMIT_MS;
-    const timeLimitSeconds = BibleGameService.QUESTION_TIME_LIMIT_SECONDS;
+      const currentQuestion = questions[questionIndex];
+      const now = Date.now();
+      const timeLimitMs = BibleGameService.QUESTION_TIME_LIMIT_MS;
+      const timeLimitSeconds = BibleGameService.QUESTION_TIME_LIMIT_SECONDS;
 
-    // If timer already started for this active question, return existing deadline (anti-reset guard)
-    if (
-      progress.activeQuestionIndex === questionIndex &&
-      progress.activeQuestionStartedAt &&
-      progress.activeQuestionDeadlineAt
-    ) {
+      // If timer already started for this active question, return existing deadline (anti-reset guard)
+      if (
+        progress.activeQuestionIndex === questionIndex &&
+        progress.activeQuestionStartedAt &&
+        progress.activeQuestionDeadlineAt
+      ) {
+        return {
+          questionIndex,
+          questionId: currentQuestion.id,
+          startedAt: progress.activeQuestionStartedAt,
+          deadlineAt: progress.activeQuestionDeadlineAt,
+          serverTime: new Date(now).toISOString(),
+          timeLimitSeconds,
+          timeLimitMs
+        };
+      }
+
+      const startedAt = new Date(now).toISOString();
+      const deadlineAt = new Date(now + timeLimitMs).toISOString();
+
+      progress.activeQuestionIndex = questionIndex;
+      progress.activeQuestionStartedAt = startedAt;
+      progress.activeQuestionDeadlineAt = deadlineAt;
+      progress.updatedAt = startedAt;
+
+      await persistBibleUserProgress(progress);
+
       return {
         questionIndex,
         questionId: currentQuestion.id,
-        startedAt: progress.activeQuestionStartedAt,
-        deadlineAt: progress.activeQuestionDeadlineAt,
+        startedAt,
+        deadlineAt,
         serverTime: new Date(now).toISOString(),
         timeLimitSeconds,
         timeLimitMs
       };
-    }
-
-    const startedAt = new Date(now).toISOString();
-    const deadlineAt = new Date(now + timeLimitMs).toISOString();
-
-    progress.activeQuestionIndex = questionIndex;
-    progress.activeQuestionStartedAt = startedAt;
-    progress.activeQuestionDeadlineAt = deadlineAt;
-    progress.updatedAt = startedAt;
-
-    await persistBibleUserProgress(progress);
-
-    return {
-      questionIndex,
-      questionId: currentQuestion.id,
-      startedAt,
-      deadlineAt,
-      serverTime: new Date(now).toISOString(),
-      timeLimitSeconds,
-      timeLimitMs
-    };
+    });
   }
 
   /**
    * Submits an answer or handles timeout for the active question index.
-   * Strictly enforces server-authoritative 15-second deadline with documented 1.0s network transit tolerance.
+   * Strictly enforces server-authoritative 15-second deadline.
    * Calculates speed-based XP:
    *   Question XP = round(10 * remaining time / 15, 1)
    * Examples:
-   *   3s elapsed (12s remaining) -> 8.0 XP
-   *   7.5s elapsed (7.5s remaining) -> 5.0 XP
-   *   13s elapsed (2s remaining) -> 1.3 XP
-   *   Deadline expired / Incorrect / Timeout -> 0.0 XP
-   * Idempotent: protects against concurrent submissions racing against timeout or network retries.
+   *   15s remaining -> 10.0 XP
+   *   12s remaining -> 8.0 XP
+   *   7.5s remaining -> 5.0 XP
+   *   4.1s remaining -> 2.7 XP
+   *   Incorrect -> 0.0 XP
+   *   Timeout / Late arrival -> 0.0 XP
+   *
+   * Answer statuses:
+   *   CORRECT: selected answer was correct and accepted strictly before deadline.
+   *   INCORRECT: selected answer was wrong and accepted strictly before deadline.
+   *   TIME_EXPIRED: no answer was accepted before deadline (timeout or late request).
+   *
+   * Concurrency-safe: serialized per user to prevent timeout/submission race conditions.
+   * Idempotent: once a question is finalized, subsequent calls return identical immutable outcome.
    */
   public static async submitAnswer(
     userId: string,
@@ -796,155 +837,162 @@ export class BibleGameService {
     responseTimeMs: number;
     remainingTimeMs: number;
     isTimeout: boolean;
+    status: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED';
   }> {
-    const isTimeout = Boolean(options?.isTimeout || selectedOptionIndex === null || selectedOptionIndex === -1);
+    return BibleGameService.withUserSubmissionLock(userId, async () => {
+      const isTimeout = Boolean(options?.isTimeout || selectedOptionIndex === null || selectedOptionIndex === -1);
 
-    if (!isTimeout) {
-      if (!Number.isInteger(selectedOptionIndex) || selectedOptionIndex! < 0 || selectedOptionIndex! > 3) {
-        throw new Error('Invalid option index. Must be between 0 and 3.');
+      if (!isTimeout) {
+        if (!Number.isInteger(selectedOptionIndex) || selectedOptionIndex! < 0 || selectedOptionIndex! > 3) {
+          throw new Error('Invalid option index. Must be between 0 and 3.');
+        }
       }
-    }
 
-    const targetDate = options?.challengeDate || BibleGameService.getTodayLagosDate();
-    const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
+      const targetDate = options?.challengeDate || BibleGameService.getTodayLagosDate();
+      const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
+      let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
-    if (!progress) {
-      throw new Error('Session not started. Please call /api/bible-game/start first.');
-    }
+      if (!progress) {
+        throw new Error('Session not started. Please call /api/bible-game/start first.');
+      }
 
-    if (progress.isCompleted) {
-      throw new Error('This daily challenge has already been completed.');
-    }
+      if (progress.isCompleted) {
+        throw new Error('This daily challenge has already been completed.');
+      }
 
-    if (questionIndex < 0 || questionIndex >= questions.length) {
-      throw new Error('Question index is out of bounds.');
-    }
+      if (questionIndex < 0 || questionIndex >= questions.length) {
+        throw new Error('Question index is out of bounds.');
+      }
 
-    const currentQuestion = questions[questionIndex];
+      const currentQuestion = questions[questionIndex];
 
-    // Idempotency: check if this question was already answered (e.g. answer raced with timeout)
-    const existingAnswer = progress.answers.find(a => a.questionId === currentQuestion.id);
-    if (existingAnswer) {
+      // Idempotency: check if this question was already answered (e.g. answer raced with timeout)
+      const existingAnswer = progress.answers.find(a => a.questionId === currentQuestion.id);
+      if (existingAnswer) {
+        const computedStatus: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED' =
+          existingAnswer.status || (existingAnswer.isTimeout ? 'TIME_EXPIRED' : (existingAnswer.isCorrect ? 'CORRECT' : 'INCORRECT'));
+        return {
+          isCorrect: existingAnswer.isCorrect,
+          correctOptionIndex: currentQuestion.correctOptionIndex,
+          explanation: currentQuestion.explanation,
+          bibleReference: currentQuestion.bibleReference,
+          score: progress.score,
+          currentQuestionIndex: progress.currentQuestionIndex,
+          isRoundFinished: progress.currentQuestionIndex >= 5,
+          questionXp: existingAnswer.questionXp,
+          responseTimeMs: existingAnswer.responseTimeMs,
+          remainingTimeMs: existingAnswer.remainingTimeMs,
+          isTimeout: Boolean(existingAnswer.isTimeout),
+          status: computedStatus
+        };
+      }
+
+      if (questionIndex !== progress.currentQuestionIndex) {
+        throw new Error(`Invalid question submission sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
+      }
+
+      const receivedAt = Date.now();
+      const timeLimitMs = BibleGameService.QUESTION_TIME_LIMIT_MS;
+
+      let startedAtMs = receivedAt - timeLimitMs;
+      let deadlineAtMs = receivedAt;
+
+      if (
+        progress.activeQuestionIndex === questionIndex &&
+        progress.activeQuestionStartedAt
+      ) {
+        startedAtMs = new Date(progress.activeQuestionStartedAt).getTime();
+        deadlineAtMs = progress.activeQuestionDeadlineAt
+          ? new Date(progress.activeQuestionDeadlineAt).getTime()
+          : startedAtMs + timeLimitMs;
+      } else {
+        startedAtMs = progress.updatedAt ? new Date(progress.updatedAt).getTime() : receivedAt - timeLimitMs;
+        deadlineAtMs = startedAtMs + timeLimitMs;
+      }
+
+      let selectedIndex = -1;
+      let isCorrect = false;
+      let responseTimeMs = timeLimitMs;
+      let remainingTimeMs = 0;
+      let questionXp = 0.0;
+      let isTimeoutResult = false;
+      let status: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED';
+
+      // Authoritative boundary rule:
+      // If request arrived at or after deadline, or explicit timeout was requested:
+      // No answer was accepted before deadline -> strictly TIME_EXPIRED, 0.0 XP.
+      if (isTimeout || receivedAt >= deadlineAtMs) {
+        selectedIndex = (selectedOptionIndex !== null && selectedOptionIndex !== undefined) ? selectedOptionIndex : -1;
+        isCorrect = false;
+        responseTimeMs = timeLimitMs;
+        remainingTimeMs = 0;
+        questionXp = 0.0;
+        isTimeoutResult = true;
+        status = 'TIME_EXPIRED';
+      } else {
+        // Received strictly before deadline (receivedAt < deadlineAtMs)
+        const remainingMs = Math.max(0, Math.min(timeLimitMs, deadlineAtMs - receivedAt));
+        const respTimeMs = Math.max(0, Math.min(timeLimitMs, timeLimitMs - remainingMs));
+        const answerCorrect = selectedOptionIndex === currentQuestion.correctOptionIndex;
+
+        const qXp = BibleGameService.calculateQuestionXp(answerCorrect, remainingMs);
+
+        selectedIndex = selectedOptionIndex!;
+        isCorrect = answerCorrect;
+        responseTimeMs = respTimeMs;
+        remainingTimeMs = remainingMs;
+        questionXp = qXp;
+        isTimeoutResult = false;
+        status = answerCorrect ? 'CORRECT' : 'INCORRECT';
+      }
+
+      const answerRecord: BibleUserAnswer = {
+        questionId: currentQuestion.id,
+        selectedIndex,
+        isCorrect,
+        answeredAt: new Date(receivedAt).toISOString(),
+        startedAt: progress.activeQuestionStartedAt,
+        deadlineAt: progress.activeQuestionDeadlineAt,
+        responseTimeMs,
+        remainingTimeMs,
+        questionXp,
+        isTimeout: isTimeoutResult,
+        status
+      };
+
+      progress.answers.push(answerRecord);
+
+      if (isCorrect) {
+        progress.score += 1;
+        progress.totalResponseTimeMs = (progress.totalResponseTimeMs || 0) + responseTimeMs;
+      }
+
+      progress.currentQuestionIndex += 1;
+      progress.activeQuestionIndex = undefined;
+      progress.activeQuestionStartedAt = undefined;
+      progress.activeQuestionDeadlineAt = undefined;
+      progress.updatedAt = new Date(receivedAt).toISOString();
+
+      const isRoundFinished = progress.currentQuestionIndex >= 5;
+
+      await persistBibleUserProgress(progress);
+
       return {
-        isCorrect: existingAnswer.isCorrect,
+        isCorrect,
         correctOptionIndex: currentQuestion.correctOptionIndex,
         explanation: currentQuestion.explanation,
         bibleReference: currentQuestion.bibleReference,
         score: progress.score,
         currentQuestionIndex: progress.currentQuestionIndex,
-        isRoundFinished: progress.currentQuestionIndex >= 5,
-        questionXp: existingAnswer.questionXp,
-        responseTimeMs: existingAnswer.responseTimeMs,
-        remainingTimeMs: existingAnswer.remainingTimeMs,
-        isTimeout: Boolean(existingAnswer.isTimeout)
+        isRoundFinished,
+        questionXp,
+        responseTimeMs,
+        remainingTimeMs,
+        isTimeout: isTimeoutResult,
+        status
       };
-    }
-
-    if (questionIndex !== progress.currentQuestionIndex) {
-      throw new Error(`Invalid question submission sequence. Expected question ${progress.currentQuestionIndex + 1}, received ${questionIndex + 1}.`);
-    }
-
-    const receivedAt = Date.now();
-    const NETWORK_TOLERANCE_MS = 1000; // 1.0 second documented network transit tolerance
-    const timeLimitMs = BibleGameService.QUESTION_TIME_LIMIT_MS;
-
-    let startedAtMs = receivedAt - timeLimitMs;
-    let deadlineAtMs = receivedAt;
-
-    if (
-      progress.activeQuestionIndex === questionIndex &&
-      progress.activeQuestionStartedAt
-    ) {
-      startedAtMs = new Date(progress.activeQuestionStartedAt).getTime();
-      deadlineAtMs = progress.activeQuestionDeadlineAt
-        ? new Date(progress.activeQuestionDeadlineAt).getTime()
-        : startedAtMs + timeLimitMs;
-    }
-
-    let selectedIndex = -1;
-    let isCorrect = false;
-    let responseTimeMs = timeLimitMs;
-    let remainingTimeMs = 0;
-    let questionXp = 0.0;
-    let isTimeoutResult = false;
-
-    if (isTimeout) {
-      selectedIndex = -1;
-      isCorrect = false;
-      responseTimeMs = Math.min(timeLimitMs, Math.max(0, receivedAt - startedAtMs));
-      remainingTimeMs = 0;
-      questionXp = 0.0;
-      isTimeoutResult = true;
-    } else if (receivedAt > deadlineAtMs + NETWORK_TOLERANCE_MS) {
-      // Received strictly after deadline + network tolerance: locked as timeout/unanswered
-      selectedIndex = -1;
-      isCorrect = false;
-      responseTimeMs = timeLimitMs;
-      remainingTimeMs = 0;
-      questionXp = 0.0;
-      isTimeoutResult = true;
-    } else {
-      // Received within deadline window (or within 1.0s network transit tolerance)
-      const remainingMs = Math.max(0, Math.min(timeLimitMs, deadlineAtMs - receivedAt));
-      const respTimeMs = Math.max(0, Math.min(timeLimitMs, timeLimitMs - remainingMs));
-      const answerCorrect = selectedOptionIndex === currentQuestion.correctOptionIndex;
-
-      const qXp = BibleGameService.calculateQuestionXp(answerCorrect, remainingMs);
-
-      selectedIndex = selectedOptionIndex!;
-      isCorrect = answerCorrect;
-      responseTimeMs = respTimeMs;
-      remainingTimeMs = remainingMs;
-      questionXp = qXp;
-      isTimeoutResult = false;
-    }
-
-    const answerRecord = {
-      questionId: currentQuestion.id,
-      selectedIndex,
-      isCorrect,
-      answeredAt: new Date(receivedAt).toISOString(),
-      startedAt: progress.activeQuestionStartedAt,
-      deadlineAt: progress.activeQuestionDeadlineAt,
-      responseTimeMs,
-      remainingTimeMs,
-      questionXp,
-      isTimeout: isTimeoutResult
-    };
-
-    progress.answers.push(answerRecord);
-
-    if (isCorrect) {
-      progress.score += 1;
-      progress.totalResponseTimeMs = (progress.totalResponseTimeMs || 0) + responseTimeMs;
-    }
-
-    progress.currentQuestionIndex += 1;
-    // Clear active question countdown for next question
-    progress.activeQuestionIndex = undefined;
-    progress.activeQuestionStartedAt = undefined;
-    progress.activeQuestionDeadlineAt = undefined;
-    progress.updatedAt = new Date(receivedAt).toISOString();
-
-    const isRoundFinished = progress.currentQuestionIndex >= 5;
-
-    await persistBibleUserProgress(progress);
-
-    return {
-      isCorrect,
-      correctOptionIndex: currentQuestion.correctOptionIndex,
-      explanation: currentQuestion.explanation,
-      bibleReference: currentQuestion.bibleReference,
-      score: progress.score,
-      currentQuestionIndex: progress.currentQuestionIndex,
-      isRoundFinished,
-      questionXp,
-      responseTimeMs,
-      remainingTimeMs,
-      isTimeout: isTimeoutResult
-    };
+    });
   }
 
   /**
@@ -956,6 +1004,7 @@ export class BibleGameService {
     score: number;
     totalQuestions: number;
     xpAwarded: number;
+    totalXpEarned: number;
     alreadyCompleted: boolean;
     stats: BibleUserStats;
     newlyUnlockedBadges: BibleBadge[];
@@ -966,6 +1015,7 @@ export class BibleGameService {
       selectedIndex: number;
       correctOptionIndex: number;
       isCorrect: boolean;
+      status: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED';
       explanation: string;
       bibleReference: string;
       responseTimeMs: number;
@@ -974,218 +1024,225 @@ export class BibleGameService {
       isTimeout: boolean;
     }>;
   }> {
-    const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
-    const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
+    return BibleGameService.withUserSubmissionLock(userId, async () => {
+      const targetDate = challengeDate || BibleGameService.getTodayLagosDate();
+      const { challenge, questions } = await BibleGameService.getOrCreateDailyChallenge(targetDate);
 
-    let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
+      let progress = await BibleGameService.syncUserProgressFromDb(userId, targetDate);
 
-    if (!progress) {
-      throw new Error('No active challenge progress found for today.');
-    }
+      if (!progress) {
+        throw new Error('No active challenge progress found for today.');
+      }
 
-    if (progress.answers.length < 5) {
-      throw new Error(`Cannot complete challenge until all 5 questions are answered. Completed: ${progress.answers.length}/5.`);
-    }
+      if (progress.answers.length < 5) {
+        throw new Error(`Cannot complete challenge until all 5 questions are answered. Completed: ${progress.answers.length}/5.`);
+      }
 
-    let stats = await BibleGameService.getOrCreateUserStats(userId, memberId);
-    const newlyUnlockedBadges: BibleBadge[] = [];
+      let stats = await BibleGameService.getOrCreateUserStats(userId, memberId);
+      const newlyUnlockedBadges: BibleBadge[] = [];
 
-    // Helper to format reviewed questions with timing & decimal XP
-    const buildReviewedQuestions = () => {
-      return questions.map(q => {
-        const a = progress!.answers.find(ans => ans.questionId === q.id);
-        return {
-          id: q.id,
-          questionText: q.questionText,
-          options: q.options,
-          selectedIndex: a ? a.selectedIndex : -1,
-          correctOptionIndex: q.correctOptionIndex,
-          isCorrect: Boolean(a?.isCorrect),
-          explanation: q.explanation,
-          bibleReference: q.bibleReference,
-          responseTimeMs: a?.responseTimeMs || 0,
-          remainingTimeMs: a?.remainingTimeMs || 0,
-          questionXp: a?.questionXp || 0.0,
-          isTimeout: Boolean(a?.isTimeout)
-        };
-      });
-    };
-
-    // Idempotency: if already marked completed, never award XP or increment streaks again
-    if (progress.isCompleted) {
-      return {
-        challengeDate: targetDate,
-        score: progress.score,
-        totalQuestions: 5,
-        xpAwarded: 0.0,
-        alreadyCompleted: true,
-        stats,
-        newlyUnlockedBadges: [],
-        reviewedQuestions: buildReviewedQuestions()
+      // Helper to format reviewed questions with timing, status & decimal XP
+      const buildReviewedQuestions = () => {
+        return questions.map(q => {
+          const a = progress!.answers.find(ans => ans.questionId === q.id);
+          const status: 'CORRECT' | 'INCORRECT' | 'TIME_EXPIRED' = a?.status || (a?.isTimeout ? 'TIME_EXPIRED' : (a?.isCorrect ? 'CORRECT' : 'INCORRECT'));
+          return {
+            id: q.id,
+            questionText: q.questionText,
+            options: q.options,
+            selectedIndex: a ? a.selectedIndex : -1,
+            correctOptionIndex: q.correctOptionIndex,
+            isCorrect: Boolean(a?.isCorrect),
+            status,
+            explanation: q.explanation,
+            bibleReference: q.bibleReference,
+            responseTimeMs: a?.responseTimeMs || 0,
+            remainingTimeMs: a?.remainingTimeMs || 0,
+            questionXp: a?.questionXp || 0.0,
+            isTimeout: Boolean(a?.isTimeout)
+          };
+        });
       };
-    }
 
-    // First time completion for this daily challenge
-    // Sum exact integer tenths of question XP to guarantee precise decimal score
-    const totalTenths = progress.answers.reduce(
-      (sum, a) => sum + Math.round((a.questionXp || 0) * 10),
-      0
-    );
-    const roundXp = Math.min(50.0, Math.round(totalTenths) / 10);
-
-    // Atomic PostgreSQL check & update to prevent concurrent duplicate reward
-    if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
-      const updateRes = await query(`
-        UPDATE bible_game_user_progress
-        SET is_completed = true,
-            completed_at = NOW(),
-            score = $1,
-            xp_awarded = $2,
-            answers = $3,
-            updated_at = NOW()
-        WHERE user_id = $4 AND challenge_date = $5 AND is_completed = false
-        RETURNING *;
-      `, [
-        progress.score,
-        roundXp,
-        JSON.stringify(progress.answers),
-        userId,
-        targetDate
-      ]);
-
-      if (updateRes.rows.length === 0) {
-        // Already completed in DB by a concurrent request or previous call
-        progress.isCompleted = true;
-        const freshStats = await BibleGameService.syncUserStatsFromDb(userId, memberId);
+      // Idempotency: if already marked completed, never award XP or increment streaks again
+      if (progress.isCompleted) {
         return {
           challengeDate: targetDate,
           score: progress.score,
           totalQuestions: 5,
           xpAwarded: 0.0,
+          totalXpEarned: progress.xpAwarded || 0.0,
           alreadyCompleted: true,
-          stats: freshStats || stats,
+          stats,
           newlyUnlockedBadges: [],
           reviewedQuestions: buildReviewedQuestions()
         };
       }
-    }
 
-    progress.isCompleted = true;
-    progress.completedAt = new Date().toISOString();
-    progress.xpAwarded = roundXp;
-    progress.updatedAt = new Date().toISOString();
-    await persistBibleUserProgress(progress);
+      // First time completion for this daily challenge
+      // Sum exact integer tenths of question XP to guarantee precise decimal score
+      const totalTenths = progress.answers.reduce(
+        (sum, a) => sum + Math.round((a.questionXp || 0) * 10),
+        0
+      );
+      const roundXp = Math.min(50.0, Math.round(totalTenths) / 10);
 
-    // Update Streak logic in Africa/Lagos
-    const yesterday = BibleGameService.getYesterdayLagosDate(targetDate);
-    if (!stats.lastCompletedDate) {
-      // First ever challenge
-      stats.currentStreak = 1;
-      stats.bestStreak = Math.max(1, stats.bestStreak);
-    } else if (stats.lastCompletedDate === targetDate) {
-      // Already completed today earlier (safety guard)
-    } else if (stats.lastCompletedDate === yesterday) {
-      // Consecutive day!
-      stats.currentStreak += 1;
-      stats.bestStreak = Math.max(stats.bestStreak, stats.currentStreak);
-    } else {
-      // Broken streak, reset to 1
-      stats.currentStreak = 1;
-      stats.bestStreak = Math.max(stats.bestStreak, 1);
-    }
+      // Atomic PostgreSQL check & update to prevent concurrent duplicate reward
+      if (process.env.DATABASE_URL && process.env.IS_TEST_RUN !== 'true') {
+        const updateRes = await query(`
+          UPDATE bible_game_user_progress
+          SET is_completed = true,
+              completed_at = NOW(),
+              score = $1,
+              xp_awarded = $2,
+              answers = $3,
+              updated_at = NOW()
+          WHERE user_id = $4 AND challenge_date = $5 AND is_completed = false
+          RETURNING *;
+        `, [
+          progress.score,
+          roundXp,
+          JSON.stringify(progress.answers),
+          userId,
+          targetDate
+        ]);
 
-    stats.lastCompletedDate = targetDate;
-    stats.cumulativeXp = Math.round((stats.cumulativeXp + roundXp) * 10) / 10;
-    stats.totalChallengesCompleted += 1;
-    if (progress.score === 5) {
-      stats.perfectScoresCount += 1;
-    }
-
-    const updatedLevel = BibleGameService.calculateLevel(stats.cumulativeXp);
-    stats.level = updatedLevel.level;
-    stats.levelTitle = updatedLevel.levelTitle;
-    stats.xpInCurrentLevel = updatedLevel.xpInCurrentLevel;
-    stats.xpForNextLevel = updatedLevel.xpForNextLevel;
-    stats.updatedAt = new Date().toISOString();
-
-    // Check Badge unlock criteria
-    const awardBadgeIfEligible = async (badgeId: string) => {
-      const existing = db.bibleUserBadges.some(b => b.userId === userId && b.badgeId === badgeId);
-      if (!existing) {
-        const badgeDef = db.bibleBadges.find(b => b.id === badgeId);
-        if (badgeDef) {
-          const record: BibleUserBadgeRecord = {
-            id: uuidv4(),
-            userId,
-            memberId,
-            badgeId,
-            awardedAt: new Date().toISOString(),
-            challengeDate: targetDate
+        if (updateRes.rows.length === 0) {
+          // Already completed in DB by a concurrent request or previous call
+          progress.isCompleted = true;
+          const freshStats = await BibleGameService.syncUserStatsFromDb(userId, memberId);
+          return {
+            challengeDate: targetDate,
+            score: progress.score,
+            totalQuestions: 5,
+            xpAwarded: 0.0,
+            totalXpEarned: progress.xpAwarded || 0.0,
+            alreadyCompleted: true,
+            stats: freshStats || stats,
+            newlyUnlockedBadges: [],
+            reviewedQuestions: buildReviewedQuestions()
           };
-          db.bibleUserBadges.push(record);
-          await persistBibleUserBadge(record);
-
-          // If badge carries bonus XP
-          if (badgeDef.xpReward > 0) {
-            stats.cumulativeXp = Math.round((stats.cumulativeXp + badgeDef.xpReward) * 10) / 10;
-            const recheckLevel = BibleGameService.calculateLevel(stats.cumulativeXp);
-            stats.level = recheckLevel.level;
-            stats.levelTitle = recheckLevel.levelTitle;
-            stats.xpInCurrentLevel = recheckLevel.xpInCurrentLevel;
-            stats.xpForNextLevel = recheckLevel.xpForNextLevel;
-          }
-
-          newlyUnlockedBadges.push({
-            ...badgeDef,
-            earned: true,
-            awardedAt: record.awardedAt
-          });
         }
       }
-    };
 
-    // 1. FIRST_STEPS: Complete first challenge
-    if (stats.totalChallengesCompleted >= 1) {
-      await awardBadgeIfEligible('FIRST_STEPS');
-    }
+      progress.isCompleted = true;
+      progress.completedAt = new Date().toISOString();
+      progress.xpAwarded = roundXp;
+      progress.updatedAt = new Date().toISOString();
+      await persistBibleUserProgress(progress);
 
-    // 2. PERFECT_FIVE: 5 out of 5 in this round
-    if (progress.score === 5) {
-      await awardBadgeIfEligible('PERFECT_FIVE');
-    }
+      // Update Streak logic in Africa/Lagos
+      const yesterday = BibleGameService.getYesterdayLagosDate(targetDate);
+      if (!stats.lastCompletedDate) {
+        // First ever challenge
+        stats.currentStreak = 1;
+        stats.bestStreak = Math.max(1, stats.bestStreak);
+      } else if (stats.lastCompletedDate === targetDate) {
+        // Already completed today earlier (safety guard)
+      } else if (stats.lastCompletedDate === yesterday) {
+        // Consecutive day!
+        stats.currentStreak += 1;
+        stats.bestStreak = Math.max(stats.bestStreak, stats.currentStreak);
+      } else {
+        // Broken streak, reset to 1
+        stats.currentStreak = 1;
+        stats.bestStreak = Math.max(stats.bestStreak, 1);
+      }
 
-    // 3. STREAK_3: 3 consecutive days
-    if (stats.currentStreak >= 3) {
-      await awardBadgeIfEligible('STREAK_3');
-    }
+      stats.lastCompletedDate = targetDate;
+      stats.cumulativeXp = Math.round((stats.cumulativeXp + roundXp) * 10) / 10;
+      stats.totalChallengesCompleted += 1;
+      if (progress.score === 5) {
+        stats.perfectScoresCount += 1;
+      }
 
-    // 4. STREAK_7: 7 consecutive days
-    if (stats.currentStreak >= 7) {
-      await awardBadgeIfEligible('STREAK_7');
-    }
+      const updatedLevel = BibleGameService.calculateLevel(stats.cumulativeXp);
+      stats.level = updatedLevel.level;
+      stats.levelTitle = updatedLevel.levelTitle;
+      stats.xpInCurrentLevel = updatedLevel.xpInCurrentLevel;
+      stats.xpForNextLevel = updatedLevel.xpForNextLevel;
+      stats.updatedAt = new Date().toISOString();
 
-    // 5. BIBLE_EXPLORER: 25 completed challenges
-    if (stats.totalChallengesCompleted >= 25) {
-      await awardBadgeIfEligible('BIBLE_EXPLORER');
-    }
+      // Check Badge unlock criteria
+      const awardBadgeIfEligible = async (badgeId: string) => {
+        const existing = db.bibleUserBadges.some(b => b.userId === userId && b.badgeId === badgeId);
+        if (!existing) {
+          const badgeDef = db.bibleBadges.find(b => b.id === badgeId);
+          if (badgeDef) {
+            const record: BibleUserBadgeRecord = {
+              id: uuidv4(),
+              userId,
+              memberId,
+              badgeId,
+              awardedAt: new Date().toISOString(),
+              challengeDate: targetDate
+            };
+            db.bibleUserBadges.push(record);
+            await persistBibleUserBadge(record);
 
-    // 6. CENTURION_XP: 100+ cumulative XP
-    if (stats.cumulativeXp >= 100) {
-      await awardBadgeIfEligible('CENTURION_XP');
-    }
+            // If badge carries bonus XP
+            if (badgeDef.xpReward > 0) {
+              stats.cumulativeXp = Math.round((stats.cumulativeXp + badgeDef.xpReward) * 10) / 10;
+              const recheckLevel = BibleGameService.calculateLevel(stats.cumulativeXp);
+              stats.level = recheckLevel.level;
+              stats.levelTitle = recheckLevel.levelTitle;
+              stats.xpInCurrentLevel = recheckLevel.xpInCurrentLevel;
+              stats.xpForNextLevel = recheckLevel.xpForNextLevel;
+            }
 
-    await persistBibleUserStats(stats);
+            newlyUnlockedBadges.push({
+              ...badgeDef,
+              earned: true,
+              awardedAt: record.awardedAt
+            });
+          }
+        }
+      };
 
-    return {
-      challengeDate: targetDate,
-      score: progress.score,
-      totalQuestions: 5,
-      xpAwarded: roundXp,
-      alreadyCompleted: false,
-      stats,
-      newlyUnlockedBadges,
-      reviewedQuestions: buildReviewedQuestions()
-    };
+      // 1. FIRST_STEPS: Complete first challenge
+      if (stats.totalChallengesCompleted >= 1) {
+        await awardBadgeIfEligible('FIRST_STEPS');
+      }
+
+      // 2. PERFECT_FIVE: 5 out of 5 in this round
+      if (progress.score === 5) {
+        await awardBadgeIfEligible('PERFECT_FIVE');
+      }
+
+      // 3. STREAK_3: 3 consecutive days
+      if (stats.currentStreak >= 3) {
+        await awardBadgeIfEligible('STREAK_3');
+      }
+
+      // 4. STREAK_7: 7 consecutive days
+      if (stats.currentStreak >= 7) {
+        await awardBadgeIfEligible('STREAK_7');
+      }
+
+      // 5. BIBLE_EXPLORER: 25 completed challenges
+      if (stats.totalChallengesCompleted >= 25) {
+        await awardBadgeIfEligible('BIBLE_EXPLORER');
+      }
+
+      // 6. CENTURION_XP: 100+ cumulative XP
+      if (stats.cumulativeXp >= 100) {
+        await awardBadgeIfEligible('CENTURION_XP');
+      }
+
+      await persistBibleUserStats(stats);
+
+      return {
+        challengeDate: targetDate,
+        score: progress.score,
+        totalQuestions: 5,
+        xpAwarded: roundXp,
+        totalXpEarned: roundXp,
+        alreadyCompleted: false,
+        stats,
+        newlyUnlockedBadges,
+        reviewedQuestions: buildReviewedQuestions()
+      };
+    });
   }
 
   /**
@@ -1233,43 +1290,66 @@ export class BibleGameService {
   }
 
   /**
-   * Aggregates weekly XP leaderboard strictly within the current week in Africa/Lagos.
+   * Aggregates XP leaderboard for either 'weekly' or 'all_time' scope in Africa/Lagos.
    * Respects branch filtering when specified. Privacy-safe: hides email, phone, DOB.
-   * Multi-tier tie-breakers:
-   *   1. weeklyXp (descending)
-   *   2. totalCorrectAnswers (descending)
+   * Multi-tier deterministic tie-breakers:
+   *   1. XP in scope (descending)
+   *   2. totalCorrectAnswers in scope (descending)
    *   3. totalResponseTimeMs (ascending - lowest response time across correct answers)
-   *   4. earliestCompletion (ascending - earliest completion timestamp in week)
+   *   4. earliestCompletion (ascending - earliest completion timestamp in scope)
    *   5. displayName (alphabetical)
    */
   public static async getLeaderboard(
     currentUserMemberId?: string,
-    branchId?: string
+    branchId?: string,
+    scope: 'weekly' | 'all_time' = 'weekly'
   ): Promise<{
     entries: BibleLeaderboardEntry[];
     userRank?: BibleLeaderboardEntry;
-    weekRange: { start: string; end: string };
+    scope: 'weekly' | 'all_time';
+    weekRange?: { start: string; end: string };
   }> {
     const today = BibleGameService.getTodayLagosDate();
     const { startOfWeek, endOfWeek } = BibleGameService.getWeekRangeLagos(today);
 
-    // Find all completed challenges for days within the current week
-    const weeklyProgress = db.bibleUserProgress.filter(
-      p => p.isCompleted && p.challengeDate >= startOfWeek && p.challengeDate <= endOfWeek
-    );
+    // Filter completed challenges based on scope
+    const relevantProgress = db.bibleUserProgress.filter(p => {
+      if (!p.isCompleted) return false;
+      if (scope === 'weekly') {
+        return p.challengeDate >= startOfWeek && p.challengeDate <= endOfWeek;
+      }
+      return true;
+    });
+
+    // Also get weekly progress specifically for display
+    const weeklyProgress = scope === 'weekly'
+      ? relevantProgress
+      : db.bibleUserProgress.filter(
+          p => p.isCompleted && p.challengeDate >= startOfWeek && p.challengeDate <= endOfWeek
+        );
 
     // Group progress by member
     const memberProgressMap = new Map<string, BibleUserProgress[]>();
-    for (const prog of weeklyProgress) {
+    for (const prog of relevantProgress) {
       const list = memberProgressMap.get(prog.memberId) || [];
       list.push(prog);
       memberProgressMap.set(prog.memberId, list);
+    }
+
+    const memberWeeklyProgressMap = new Map<string, BibleUserProgress[]>();
+    for (const prog of weeklyProgress) {
+      const list = memberWeeklyProgressMap.get(prog.memberId) || [];
+      list.push(prog);
+      memberWeeklyProgressMap.set(prog.memberId, list);
     }
 
     const candidateMemberIds = new Set<string>([
       ...memberProgressMap.keys(),
       ...db.bibleUserStats.map(s => s.memberId)
     ]);
+    if (currentUserMemberId) {
+      candidateMemberIds.add(currentUserMemberId);
+    }
 
     const candidates: Array<{
       memberId: string;
@@ -1300,15 +1380,21 @@ export class BibleGameService {
       const level = stats?.level || 1;
 
       const progs = memberProgressMap.get(mId) || [];
+      const weeklyProgs = memberWeeklyProgressMap.get(mId) || [];
+
       let weeklyXp = 0;
+      for (const wp of weeklyProgs) {
+        weeklyXp += wp.xpAwarded;
+      }
+      weeklyXp = Math.round(weeklyXp * 10) / 10;
+
       let totalCorrectAnswers = 0;
       let totalResponseTimeMs = 0;
       let earliestCompletion = '9999-99-99T99:99:99.999Z';
 
       for (const p of progs) {
-        weeklyXp += p.xpAwarded;
         totalCorrectAnswers += p.score;
-        const correctTime = p.answers
+        const correctTime = (p.answers || [])
           .filter(a => a.isCorrect)
           .reduce((sum, a) => sum + (a.responseTimeMs || 0), 0);
         totalResponseTimeMs += correctTime;
@@ -1316,7 +1402,12 @@ export class BibleGameService {
           earliestCompletion = p.completedAt;
         }
       }
-      weeklyXp = Math.round(weeklyXp * 10) / 10;
+
+      let userTotalXp = Math.round(totalXp * 10) / 10;
+      if (userTotalXp === 0 && progs.length > 0 && scope === 'all_time') {
+        const sumAwarded = progs.reduce((sum, p) => sum + (p.xpAwarded || 0), 0);
+        userTotalXp = Math.round(sumAwarded * 10) / 10;
+      }
 
       candidates.push({
         memberId: member.id,
@@ -1326,7 +1417,7 @@ export class BibleGameService {
         branchId: member.primaryBranchId,
         branchName: branch?.name || 'FPM Global',
         weeklyXp,
-        totalXp: Math.round(totalXp * 10) / 10,
+        totalXp: userTotalXp,
         totalCorrectAnswers,
         totalResponseTimeMs,
         earliestCompletion,
@@ -1335,13 +1426,14 @@ export class BibleGameService {
     }
 
     // Sort order:
-    // 1) weeklyXp DESC
+    // 1) primary score DESC (weeklyXp for 'weekly', totalXp for 'all_time')
     // 2) totalCorrectAnswers DESC (tie-breaker 1)
     // 3) totalResponseTimeMs ASC (tie-breaker 2)
     // 4) earliestCompletion ASC (tie-breaker 3)
     // 5) displayName ASC
     candidates.sort((a, b) => {
-      if (b.weeklyXp !== a.weeklyXp) return b.weeklyXp - a.weeklyXp;
+      const primaryDiff = scope === 'all_time' ? b.totalXp - a.totalXp : b.weeklyXp - a.weeklyXp;
+      if (primaryDiff !== 0) return primaryDiff;
       if (b.totalCorrectAnswers !== a.totalCorrectAnswers) return b.totalCorrectAnswers - a.totalCorrectAnswers;
       if (a.totalResponseTimeMs !== b.totalResponseTimeMs) return a.totalResponseTimeMs - b.totalResponseTimeMs;
       if (a.earliestCompletion !== b.earliestCompletion) return a.earliestCompletion.localeCompare(b.earliestCompletion);
@@ -1352,8 +1444,10 @@ export class BibleGameService {
     const entries: BibleLeaderboardEntry[] = candidates.map((item, index) => {
       if (index > 0) {
         const prev = candidates[index - 1];
+        const prevPrimary = scope === 'all_time' ? prev.totalXp : prev.weeklyXp;
+        const itemPrimary = scope === 'all_time' ? item.totalXp : item.weeklyXp;
         if (
-          prev.weeklyXp !== item.weeklyXp ||
+          prevPrimary !== itemPrimary ||
           prev.totalCorrectAnswers !== item.totalCorrectAnswers ||
           prev.totalResponseTimeMs !== item.totalResponseTimeMs
         ) {
@@ -1382,7 +1476,8 @@ export class BibleGameService {
     return {
       entries,
       userRank,
-      weekRange: { start: startOfWeek, end: endOfWeek }
+      scope,
+      weekRange: scope === 'weekly' ? { start: startOfWeek, end: endOfWeek } : undefined
     };
   }
 

@@ -4000,25 +4000,29 @@ async function runTests() {
       );
       assert(boundaryAns0.questionXp === 0.1, `Answer at 0.15s remaining awards 0.1 XP (got ${boundaryAns0.questionXp})`);
 
-      // (b) Exactly at deadline: 0.0s remaining (15.0s elapsed) -> 0.0 XP
+      // (b) Exactly at or after deadline: 0.0s remaining (15.0s elapsed) -> TIME_EXPIRED, 0.0 XP
       await BibleGameService.startQuestion(testUser.id, testMember.id, 1, boundaryTestDate);
       boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 15000).toISOString();
       boundaryProg.activeQuestionDeadlineAt = new Date(Date.now()).toISOString();
       const boundaryAns1 = await BibleGameService.submitAnswer(
         testUser.id, testMember.id, 1, boundaryChallenge.questions[1].correctOptionIndex, { challengeDate: boundaryTestDate }
       );
-      assert(boundaryAns1.isCorrect === true, 'Answer exactly at deadline is accepted as correct');
+      assert(boundaryAns1.isTimeout === true, 'Answer exactly at deadline is marked as timeout/expired');
+      assert(boundaryAns1.isCorrect === false, 'Answer exactly at deadline is not marked correct');
       assert(boundaryAns1.questionXp === 0.0, 'Answer exactly at deadline awards 0.0 XP');
+      assert(boundaryAns1.status === 'TIME_EXPIRED', 'Answer exactly at deadline has TIME_EXPIRED status');
 
-      // (c) Within 1.0s network transit tolerance (15.5s elapsed): accepted, 0.0 XP
+      // (c) After deadline (15.5s elapsed): TIME_EXPIRED, 0.0 XP
       await BibleGameService.startQuestion(testUser.id, testMember.id, 2, boundaryTestDate);
       boundaryProg.activeQuestionStartedAt = new Date(Date.now() - 15500).toISOString();
       boundaryProg.activeQuestionDeadlineAt = new Date(Date.now() - 500).toISOString();
       const boundaryAns2 = await BibleGameService.submitAnswer(
         testUser.id, testMember.id, 2, boundaryChallenge.questions[2].correctOptionIndex, { challengeDate: boundaryTestDate }
       );
-      assert(boundaryAns2.isCorrect === true, 'Answer within 1.0s network transit tolerance accepted');
+      assert(boundaryAns2.isTimeout === true, 'Answer after deadline is marked as timeout/expired');
+      assert(boundaryAns2.isCorrect === false, 'Answer after deadline is not marked correct');
       assert(boundaryAns2.questionXp === 0.0, 'Answer past deadline awards 0.0 XP');
+      assert(boundaryAns2.status === 'TIME_EXPIRED', 'Answer past deadline has TIME_EXPIRED status');
 
       // (d) Strictly after deadline + network tolerance (17.0s elapsed): locked as timeout
       await BibleGameService.startQuestion(testUser.id, testMember.id, 3, boundaryTestDate);
@@ -4952,6 +4956,266 @@ async function runTests() {
         body: JSON.stringify({})
       });
       assert(unauthStart.status === 401, 'Scenario 6: Unauthenticated /bible-game/start returns HTTP 401');
+
+      // =========================================================================
+      // SECTION Y: RELIABILITY AUDIT & COMPREHENSIVE INTEGRITY TESTS (1–19)
+      // =========================================================================
+      console.log('\n--- Section Y: Comprehensive Reliability & Integrity Test Suite (1–19) ---');
+
+      // Scenario 1: Speed-based XP formula authoritatively calculated
+      const xp15 = BibleGameService.calculateQuestionXp(true, 15000);
+      assert(xp15 === 10.0, 'Scenario 1: 15s remaining yields exactly 10.0 XP');
+      const xp12 = BibleGameService.calculateQuestionXp(true, 12000);
+      assert(xp12 === 8.0, 'Scenario 1: 12s remaining yields exactly 8.0 XP');
+      const xp75 = BibleGameService.calculateQuestionXp(true, 7500);
+      assert(xp75 === 5.0, 'Scenario 1: 7.5s remaining yields exactly 5.0 XP');
+      const xp41 = BibleGameService.calculateQuestionXp(true, 4100);
+      assert(xp41 === 2.7, 'Scenario 1: 4.1s remaining yields exactly 2.7 XP');
+      const xp0 = BibleGameService.calculateQuestionXp(true, 0);
+      assert(xp0 === 0.0, 'Scenario 1: 0s remaining yields 0.0 XP');
+      const xpWrong = BibleGameService.calculateQuestionXp(false, 15000);
+      assert(xpWrong === 0.0, 'Scenario 1: Incorrect answer yields 0.0 XP regardless of remaining time');
+
+      // Scenario 2: Answer submitted at/after deadline receives 0.0 XP, status TIME_EXPIRED, isCorrect false
+      const testAuditUser1 = { id: uuidv4(), email: 'audit1@fpm.org' };
+      const testAuditMember1 = { id: uuidv4(), userId: testAuditUser1.id, firstName: 'Audit', lastName: 'Player1', primaryBranchId: IDS.BRANCH_HQ };
+      db.users.push({ id: testAuditUser1.id, email: testAuditUser1.email, phone: '+2348000000001', passwordHash: 'hash', isAdmin: false, adminLevel: 'none', emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), accountStatus: 'active' });
+      db.members.push({ id: testAuditMember1.id, userId: testAuditUser1.id, firstName: testAuditMember1.firstName, lastName: testAuditMember1.lastName, gender: 'Male', primaryBranchId: testAuditMember1.primaryBranchId, primaryRoleId: IDS.ROLE_MEMBER, isWorker: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+
+      const auditDate1 = '2026-11-20';
+      const sessionAudit1 = await BibleGameService.startOrResumeSession(testAuditUser1.id, testAuditMember1.id, auditDate1);
+      const timing1 = await BibleGameService.startQuestion(testAuditUser1.id, testAuditMember1.id, 0, auditDate1);
+      assert(timing1.timeLimitSeconds === 15, 'Scenario 2: Question timer initialized to 15 seconds');
+
+      // Fast-forward progress activeQuestionDeadlineAt to past deadline to simulate submission arriving at/after deadline
+      const progAudit1 = db.bibleUserProgress.find(p => p.userId === testAuditUser1.id && p.challengeDate === auditDate1);
+      if (progAudit1) {
+        progAudit1.activeQuestionDeadlineAt = new Date(Date.now() - 500).toISOString();
+      }
+
+      const q1Question = sessionAudit1.currentQuestion!;
+      const correctIdx1 = db.bibleQuestions.find(q => q.id === q1Question.id)!.correctOptionIndex;
+      const expiredAnsResult = await BibleGameService.submitAnswer(testAuditUser1.id, testAuditMember1.id, 0, correctIdx1, { challengeDate: auditDate1 });
+
+      assert(expiredAnsResult.isCorrect === false, 'Scenario 2: Submission arriving after deadline is marked isCorrect: false');
+      assert(expiredAnsResult.isTimeout === true, 'Scenario 2: Submission arriving after deadline is marked isTimeout: true');
+      assert(expiredAnsResult.questionXp === 0.0, 'Scenario 2: Submission arriving after deadline is awarded 0.0 XP');
+      assert(expiredAnsResult.status === 'TIME_EXPIRED', 'Scenario 2: Status is unambiguously TIME_EXPIRED');
+
+      // Scenario 3: Invariant check - No question record can have isCorrect: true and questionXp: 0.0
+      assert(
+        !(expiredAnsResult.isCorrect === true && expiredAnsResult.questionXp === 0.0),
+        'Scenario 3: Invariant satisfied: never isCorrect=true with 0.0 XP'
+      );
+
+      // Scenario 4: Total XP for round is exact sum of integer tenths, capped at 50.0 XP
+      const testAuditUser2 = { id: uuidv4(), email: 'audit2@fpm.org' };
+      const testAuditMember2 = { id: uuidv4(), userId: testAuditUser2.id, firstName: 'Audit', lastName: 'Player2', primaryBranchId: IDS.BRANCH_HQ };
+      db.users.push({ id: testAuditUser2.id, email: testAuditUser2.email, phone: '+2348000000002', passwordHash: 'hash', isAdmin: false, adminLevel: 'none', emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), accountStatus: 'active' });
+      db.members.push({ id: testAuditMember2.id, userId: testAuditUser2.id, firstName: testAuditMember2.firstName, lastName: testAuditMember2.lastName, gender: 'Male', primaryBranchId: testAuditMember2.primaryBranchId, primaryRoleId: IDS.ROLE_MEMBER, isWorker: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+
+      const auditDate2 = '2026-11-21';
+      await BibleGameService.startOrResumeSession(testAuditUser2.id, testAuditMember2.id, auditDate2);
+      const prog2 = db.bibleUserProgress.find(p => p.userId === testAuditUser2.id && p.challengeDate === auditDate2)!;
+
+      // Populate 5 answers with deliberate decimal tenths: 8.3, 7.2, 9.1, 8.4, 10.0 => sum = 43.0
+      const { questions: audit2Questions } = await BibleGameService.getOrCreateDailyChallenge(auditDate2);
+      prog2.answers = [
+        { questionId: audit2Questions[0].id, selectedIndex: 0, isCorrect: true, responseTimeMs: 2500, remainingTimeMs: 12500, questionXp: 8.3, answeredAt: new Date().toISOString() },
+        { questionId: audit2Questions[1].id, selectedIndex: 0, isCorrect: true, responseTimeMs: 4200, remainingTimeMs: 10800, questionXp: 7.2, answeredAt: new Date().toISOString() },
+        { questionId: audit2Questions[2].id, selectedIndex: 0, isCorrect: true, responseTimeMs: 1400, remainingTimeMs: 13600, questionXp: 9.1, answeredAt: new Date().toISOString() },
+        { questionId: audit2Questions[3].id, selectedIndex: 0, isCorrect: true, responseTimeMs: 2400, remainingTimeMs: 12600, questionXp: 8.4, answeredAt: new Date().toISOString() },
+        { questionId: audit2Questions[4].id, selectedIndex: 0, isCorrect: true, responseTimeMs: 0, remainingTimeMs: 15000, questionXp: 10.0, answeredAt: new Date().toISOString() }
+      ];
+      prog2.currentQuestionIndex = 5;
+      prog2.score = 5;
+
+      const completion2 = await BibleGameService.completeChallenge(testAuditUser2.id, testAuditMember2.id, auditDate2);
+      assert(completion2.xpAwarded === 43.0, 'Scenario 4: Round total XP calculated with exact integer tenths (43.0 XP)');
+      assert(completion2.totalXpEarned === 43.0, 'Scenario 4: totalXpEarned matches round total XP');
+      assert(completion2.score === 5, 'Scenario 4: Score is 5/5');
+
+      // Scenario 5: Reviewing already completed challenge returns alreadyCompleted: true, xpAwarded: 0.0, totalXpEarned: 43.0
+      const reviewCompletion2 = await BibleGameService.completeChallenge(testAuditUser2.id, testAuditMember2.id, auditDate2);
+      assert(reviewCompletion2.alreadyCompleted === true, 'Scenario 5: Review call returns alreadyCompleted: true');
+      assert(reviewCompletion2.xpAwarded === 0.0, 'Scenario 5: Review call awards 0.0 new XP (idempotency)');
+      assert(reviewCompletion2.totalXpEarned === 43.0, 'Scenario 5: Review call returns totalXpEarned equal to today score');
+
+      // Scenario 6: Per-user mutex serialization
+      let lockCounter = 0;
+      const pLock1 = (BibleGameService as any).withUserSubmissionLock('user-lock-test', async () => {
+        await new Promise(r => setTimeout(r, 50));
+        lockCounter += 1;
+        return lockCounter;
+      });
+      const pLock2 = (BibleGameService as any).withUserSubmissionLock('user-lock-test', async () => {
+        lockCounter += 10;
+        return lockCounter;
+      });
+      const [resL1, resL2] = await Promise.all([pLock1, pLock2]);
+      assert(resL1 === 1 && resL2 === 11, 'Scenario 6: Per-user operations execute sequentially under mutex lock');
+
+      // Scenario 7: Concurrent complete-challenge requests only award XP once
+      const testAuditUser3 = { id: uuidv4(), email: 'audit3@fpm.org' };
+      const testAuditMember3 = { id: uuidv4(), userId: testAuditUser3.id, firstName: 'Audit', lastName: 'Player3', primaryBranchId: IDS.BRANCH_HQ };
+      db.users.push({ id: testAuditUser3.id, email: testAuditUser3.email, phone: '+2348000000003', passwordHash: 'hash', isAdmin: false, adminLevel: 'none', emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), accountStatus: 'active' });
+      db.members.push({ id: testAuditMember3.id, userId: testAuditUser3.id, firstName: testAuditMember3.firstName, lastName: testAuditMember3.lastName, gender: 'Male', primaryBranchId: testAuditMember3.primaryBranchId, primaryRoleId: IDS.ROLE_MEMBER, isWorker: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+
+      const auditDate3 = '2026-11-22';
+      await BibleGameService.startOrResumeSession(testAuditUser3.id, testAuditMember3.id, auditDate3);
+      const prog3 = db.bibleUserProgress.find(p => p.userId === testAuditUser3.id && p.challengeDate === auditDate3)!;
+      prog3.answers = [
+        { questionId: 'bq-ot-001', selectedIndex: 0, isCorrect: true, responseTimeMs: 3000, remainingTimeMs: 12000, questionXp: 8.0, answeredAt: new Date().toISOString() },
+        { questionId: 'bq-nt-001', selectedIndex: 0, isCorrect: true, responseTimeMs: 3000, remainingTimeMs: 12000, questionXp: 8.0, answeredAt: new Date().toISOString() },
+        { questionId: 'bq-jesus-001', selectedIndex: 0, isCorrect: true, responseTimeMs: 3000, remainingTimeMs: 12000, questionXp: 8.0, answeredAt: new Date().toISOString() },
+        { questionId: 'bq-paul-001', selectedIndex: 0, isCorrect: true, responseTimeMs: 3000, remainingTimeMs: 12000, questionXp: 8.0, answeredAt: new Date().toISOString() },
+        { questionId: 'bq-books-001', selectedIndex: 0, isCorrect: true, responseTimeMs: 3000, remainingTimeMs: 12000, questionXp: 8.0, answeredAt: new Date().toISOString() }
+      ];
+      prog3.currentQuestionIndex = 5;
+      prog3.score = 5;
+
+      const [cRes1, cRes2] = await Promise.all([
+        BibleGameService.completeChallenge(testAuditUser3.id, testAuditMember3.id, auditDate3),
+        BibleGameService.completeChallenge(testAuditUser3.id, testAuditMember3.id, auditDate3)
+      ]);
+      const awardedXpList = [cRes1.xpAwarded, cRes2.xpAwarded];
+      assert(
+        (awardedXpList[0] === 40.0 && awardedXpList[1] === 0.0) || (awardedXpList[0] === 0.0 && awardedXpList[1] === 40.0),
+        'Scenario 7: Concurrent challenge completions award XP exactly once'
+      );
+
+      // Scenario 8: Active question cannot have its deadline reset or extended by re-calling startQuestion
+      const auditDate4 = '2026-11-23';
+      await BibleGameService.startOrResumeSession(testAuditUser1.id, testAuditMember1.id, auditDate4);
+      const qTimingA = await BibleGameService.startQuestion(testAuditUser1.id, testAuditMember1.id, 0, auditDate4);
+      await new Promise(r => setTimeout(r, 100));
+      const qTimingB = await BibleGameService.startQuestion(testAuditUser1.id, testAuditMember1.id, 0, auditDate4);
+      assert(qTimingA.deadlineAt === qTimingB.deadlineAt, 'Scenario 8: Re-calling startQuestion preserves existing deadline (anti-reset guard)');
+
+      // Scenario 9: Answer cannot be submitted for question index other than current activeQuestionIndex
+      let outOfOrderErr = false;
+      try {
+        await BibleGameService.submitAnswer(testAuditUser1.id, testAuditMember1.id, 2, 0, { challengeDate: auditDate4 });
+      } catch (e: any) {
+        outOfOrderErr = true;
+      }
+      assert(outOfOrderErr, 'Scenario 9: Submitting answer for out-of-order question index is rejected');
+
+      // Scenario 10: All 5 questions must be answered before completeChallenge succeeds
+      const auditDate5 = '2026-11-24';
+      await BibleGameService.startOrResumeSession(testAuditUser1.id, testAuditMember1.id, auditDate5);
+      let prematureCompleteErr = false;
+      try {
+        await BibleGameService.completeChallenge(testAuditUser1.id, testAuditMember1.id, auditDate5);
+      } catch (e: any) {
+        prematureCompleteErr = true;
+      }
+      assert(prematureCompleteErr, 'Scenario 10: completeChallenge throws error if fewer than 5 questions are answered');
+
+      // Scenario 11: Daily challenge questions are shared and identical across all members
+      const auditDate6 = '2026-11-25';
+      const m1Challenge = await BibleGameService.getOrCreateDailyChallenge(auditDate6);
+      const m2Challenge = await BibleGameService.getOrCreateDailyChallenge(auditDate6);
+      assert(m1Challenge.challenge.id === m2Challenge.challenge.id, 'Scenario 11: Shared daily challenge ID across members');
+      assert(
+        JSON.stringify(m1Challenge.questions.map(q => q.id)) === JSON.stringify(m2Challenge.questions.map(q => q.id)),
+        'Scenario 11: Questions and sequence are identical across members'
+      );
+
+      // Scenario 12: Sanitized question view hides correctOptionIndex, explanation, and bibleReference
+      const rawQuestion = m1Challenge.questions[0];
+      const clientViewSanitized = BibleGameService.toClientQuestionView(rawQuestion);
+      assert(typeof (clientViewSanitized as any).correctOptionIndex === 'undefined', 'Scenario 12: correctOptionIndex is stripped from client view');
+      assert(typeof (clientViewSanitized as any).explanation === 'undefined', 'Scenario 12: explanation is stripped from client view');
+      assert(typeof (clientViewSanitized as any).bibleReference === 'undefined', 'Scenario 12: bibleReference is stripped from client view');
+      assert(clientViewSanitized.options.length === 4, 'Scenario 12: All 4 options are preserved');
+
+      // Scenario 13 & 14: Weekly and All-Time leaderboards
+      const lbWeekly = await BibleGameService.getLeaderboard(testAuditMember2.id, undefined, 'weekly');
+      assert(lbWeekly.scope === 'weekly', 'Scenario 13: Weekly leaderboard returns scope: weekly');
+      assert(!!lbWeekly.weekRange, 'Scenario 13: Weekly leaderboard returns weekRange');
+
+      const lbAllTime = await BibleGameService.getLeaderboard(testAuditMember2.id, undefined, 'all_time');
+      assert(lbAllTime.scope === 'all_time', 'Scenario 14: All-Time leaderboard returns scope: all_time');
+
+      // Scenario 15: Deterministic multi-tier tie-breakers
+      // Member A: 40 XP, 4 correct, 5000ms response time, display "Aaron"
+      // Member B: 40 XP, 4 correct, 6000ms response time, display "Beth"
+      // Member A should rank above Member B
+      const tieUserA = { id: uuidv4(), email: 'tieA@fpm.org' };
+      const tieMemberA = { id: uuidv4(), userId: tieUserA.id, firstName: 'Aaron', lastName: 'Tie', primaryBranchId: IDS.BRANCH_HQ };
+      const tieUserB = { id: uuidv4(), email: 'tieB@fpm.org' };
+      const tieMemberB = { id: uuidv4(), userId: tieUserB.id, firstName: 'Beth', lastName: 'Tie', primaryBranchId: IDS.BRANCH_HQ };
+      db.users.push(
+        { id: tieUserA.id, email: tieUserA.email, phone: '+2348000000004', passwordHash: 'hash', isAdmin: false, adminLevel: 'none', emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), accountStatus: 'active' },
+        { id: tieUserB.id, email: tieUserB.email, phone: '+2348000000005', passwordHash: 'hash', isAdmin: false, adminLevel: 'none', emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), accountStatus: 'active' }
+      );
+      db.members.push(
+        { id: tieMemberA.id, userId: tieUserA.id, firstName: tieMemberA.firstName, lastName: tieMemberA.lastName, gender: 'Male', primaryBranchId: tieMemberA.primaryBranchId, primaryRoleId: IDS.ROLE_MEMBER, isWorker: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: tieMemberB.id, userId: tieUserB.id, firstName: tieMemberB.firstName, lastName: tieMemberB.lastName, gender: 'Female', primaryBranchId: tieMemberB.primaryBranchId, primaryRoleId: IDS.ROLE_MEMBER, isWorker: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      );
+      const tieToday = BibleGameService.getTodayLagosDate();
+      db.bibleUserProgress.push(
+        {
+          id: uuidv4(), userId: tieUserA.id, memberId: tieMemberA.id, challengeDate: tieToday, challengeId: uuidv4(),
+          currentQuestionIndex: 5, answers: [{ questionId: 'q1', selectedIndex: 0, isCorrect: true, responseTimeMs: 5000, remainingTimeMs: 10000, questionXp: 6.7, answeredAt: new Date().toISOString() }],
+          score: 1, totalResponseTimeMs: 5000, xpAwarded: 6.7, isCompleted: true, startedAt: new Date().toISOString(), completedAt: '2026-10-26T12:00:00Z', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        },
+        {
+          id: uuidv4(), userId: tieUserB.id, memberId: tieMemberB.id, challengeDate: tieToday, challengeId: uuidv4(),
+          currentQuestionIndex: 5, answers: [{ questionId: 'q1', selectedIndex: 0, isCorrect: true, responseTimeMs: 8000, remainingTimeMs: 7000, questionXp: 6.7, answeredAt: new Date().toISOString() }],
+          score: 1, totalResponseTimeMs: 8000, xpAwarded: 6.7, isCompleted: true, startedAt: new Date().toISOString(), completedAt: '2026-10-26T12:00:00Z', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        }
+      );
+
+      const lbTie = await BibleGameService.getLeaderboard(tieMemberA.id, undefined, 'weekly');
+      const rankA = lbTie.entries.find(e => e.memberId === tieMemberA.id)!.rank;
+      const rankB = lbTie.entries.find(e => e.memberId === tieMemberB.id)!.rank;
+      assert(rankA < rankB, 'Scenario 15: Lower response time breaks tie in favor of faster player');
+
+      // Scenario 16: User rank is always returned in leaderboard response
+      assert(!!lbTie.userRank, 'Scenario 16: userRank is present in leaderboard response');
+      assert(lbTie.userRank?.memberId === tieMemberA.id, 'Scenario 16: userRank correctly matches requested user memberId');
+
+      // Scenario 17: Branch filter correctly restricts leaderboard entries
+      const lbBranch = await BibleGameService.getLeaderboard(tieMemberA.id, IDS.BRANCH_HQ, 'weekly');
+      assert(lbBranch.entries.every(e => e.branchId === IDS.BRANCH_HQ), 'Scenario 17: Branch filter restricts entries to matching branch');
+
+      // Scenario 18: Badge award criteria & bonus XP
+      const badgeTestUser = { id: uuidv4(), email: 'badge@fpm.org' };
+      const badgeTestMember = { id: uuidv4(), userId: badgeTestUser.id, firstName: 'Badge', lastName: 'User', primaryBranchId: IDS.BRANCH_HQ };
+      db.users.push({ id: badgeTestUser.id, email: badgeTestUser.email, phone: '+2348000000006', passwordHash: 'hash', isAdmin: false, adminLevel: 'none', emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), accountStatus: 'active' });
+      db.members.push({ id: badgeTestMember.id, userId: badgeTestUser.id, firstName: badgeTestMember.firstName, lastName: badgeTestMember.lastName, gender: 'Male', primaryBranchId: badgeTestMember.primaryBranchId, primaryRoleId: IDS.ROLE_MEMBER, isWorker: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+
+      const badgeDate = '2026-11-26';
+      const { questions: badgeQuestions } = await BibleGameService.getOrCreateDailyChallenge(badgeDate);
+      await BibleGameService.startOrResumeSession(badgeTestUser.id, badgeTestMember.id, badgeDate);
+      const bProg = db.bibleUserProgress.find(p => p.userId === badgeTestUser.id && p.challengeDate === badgeDate)!;
+      bProg.answers = [
+        { questionId: badgeQuestions[0].id, selectedIndex: badgeQuestions[0].correctOptionIndex, isCorrect: true, responseTimeMs: 2000, remainingTimeMs: 13000, questionXp: 8.7, status: 'CORRECT', answeredAt: new Date().toISOString() },
+        { questionId: badgeQuestions[1].id, selectedIndex: badgeQuestions[1].correctOptionIndex, isCorrect: true, responseTimeMs: 2000, remainingTimeMs: 13000, questionXp: 8.7, status: 'CORRECT', answeredAt: new Date().toISOString() },
+        { questionId: badgeQuestions[2].id, selectedIndex: badgeQuestions[2].correctOptionIndex, isCorrect: true, responseTimeMs: 2000, remainingTimeMs: 13000, questionXp: 8.7, status: 'CORRECT', answeredAt: new Date().toISOString() },
+        { questionId: badgeQuestions[3].id, selectedIndex: badgeQuestions[3].correctOptionIndex, isCorrect: true, responseTimeMs: 2000, remainingTimeMs: 13000, questionXp: 8.7, status: 'CORRECT', answeredAt: new Date().toISOString() },
+        { questionId: badgeQuestions[4].id, selectedIndex: badgeQuestions[4].correctOptionIndex, isCorrect: true, responseTimeMs: 2000, remainingTimeMs: 13000, questionXp: 8.7, status: 'CORRECT', answeredAt: new Date().toISOString() }
+      ];
+      bProg.currentQuestionIndex = 5;
+      bProg.score = 5;
+
+      const badgeCompletion = await BibleGameService.completeChallenge(badgeTestUser.id, badgeTestMember.id, badgeDate);
+      const unlockedIds = badgeCompletion.newlyUnlockedBadges.map(b => b.id);
+      assert(unlockedIds.includes('FIRST_STEPS'), 'Scenario 18: FIRST_STEPS badge unlocked on first challenge completion');
+      assert(unlockedIds.includes('PERFECT_FIVE'), 'Scenario 18: PERFECT_FIVE badge unlocked on 5/5 score');
+
+      // Subsequent call does NOT unlock duplicates
+      const dupBadgeCheck = await BibleGameService.completeChallenge(badgeTestUser.id, badgeTestMember.id, badgeDate);
+      assert(dupBadgeCheck.newlyUnlockedBadges.length === 0, 'Scenario 18: No duplicate badges awarded on subsequent call');
+
+      // Scenario 19: Today Overview returns reviewed questions with actual totalXp for completed challenge
+      const todayOverviewRes = await BibleGameService.getTodayOverview(badgeTestUser.id, badgeTestMember.id, badgeDate);
+      assert(todayOverviewRes.isCompleted === true, 'Scenario 19: Today overview is marked isCompleted: true');
+      assert(todayOverviewRes.totalXp > 0.0, 'Scenario 19: Today overview totalXp reflects actual score today (not 0.0)');
+      assert(todayOverviewRes.reviewedQuestions?.length === 5, 'Scenario 19: Today overview returns 5 reviewed questions');
+      assert(Boolean(todayOverviewRes.reviewedQuestions?.every(q => (q as any).status === 'CORRECT')), 'Scenario 19: All reviewed questions have valid status');
 
       // Clean up Section X test data
       const datesToClean = [testRepairDate, corruptedDate, userPreserveDate, concurrentDate];

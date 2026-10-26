@@ -62,7 +62,8 @@ fun BibleGameScreen(
                                 BibleGameView.QUIZ -> "Today's Challenge"
                                 BibleGameView.RESULTS -> "Challenge Results"
                                 BibleGameView.PROGRESS -> "Your Progress & Badges"
-                                BibleGameView.LEADERBOARD -> "Weekly Leaderboard"
+                                BibleGameView.LEADERBOARD -> if (state.leaderboardScope == "all_time") "All-Time Leaderboard" else "Weekly Leaderboard"
+                                BibleGameView.RULES -> "Game Info & Rules"
                             },
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -94,6 +95,13 @@ fun BibleGameScreen(
                 },
                 actions = {
                     if (state.currentView == BibleGameView.HOME) {
+                        IconButton(onClick = { viewModel.navigateTo(BibleGameView.RULES) }) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Game Rules",
+                                tint = FpmGoldLight
+                            )
+                        }
                         IconButton(onClick = { viewModel.navigateTo(BibleGameView.PROGRESS) }) {
                             Icon(
                                 imageVector = Icons.Default.EmojiEvents,
@@ -129,11 +137,13 @@ fun BibleGameScreen(
                     onPlayClick = { viewModel.startChallenge() },
                     onReviewClick = { viewModel.reviewCompletedChallenge() },
                     onViewProgress = { viewModel.navigateTo(BibleGameView.PROGRESS) },
-                    onViewLeaderboard = { viewModel.navigateTo(BibleGameView.LEADERBOARD) }
+                    onViewLeaderboard = { viewModel.navigateTo(BibleGameView.LEADERBOARD) },
+                    onViewRules = { viewModel.navigateTo(BibleGameView.RULES) }
                 )
                 BibleGameView.QUIZ -> BibleQuizScreen(
                     state = state,
                     onSelectOption = { viewModel.selectOption(it) },
+                    onRetry = { viewModel.retrySubmitAnswer() },
                     onContinue = { viewModel.continueToNextQuestion() }
                 )
                 BibleGameView.RESULTS -> BibleResultsScreen(
@@ -146,8 +156,74 @@ fun BibleGameScreen(
                 )
                 BibleGameView.LEADERBOARD -> BibleLeaderboardScreen(
                     state = state,
-                    onFilterBranch = { viewModel.loadLeaderboard(it) }
+                    onScopeChange = { viewModel.setLeaderboardScope(it) },
+                    onFilterBranch = { viewModel.loadLeaderboard(branchId = it) }
                 )
+                BibleGameView.RULES -> BibleGameRulesScreen(
+                    onBack = { viewModel.navigateTo(BibleGameView.HOME) }
+                )
+            }
+
+            // Non-intrusive in-app Badge Unlock Toast/Banner
+            state.newlyUnlockedBadgeToast?.let { badge ->
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = FpmTheme.cardBackground),
+                    border = BorderStroke(1.5.dp, FpmGold),
+                    shape = RoundedCornerShape(14.dp),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = null,
+                                    tint = FpmGoldDark,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🏆 NEW BADGE UNLOCKED! (+${badge.xpReward} XP)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FpmGoldDark
+                            )
+                            Text(
+                                text = badge.name,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FpmTheme.textPrimary
+                            )
+                            Text(
+                                text = badge.description,
+                                fontSize = 11.sp,
+                                color = FpmTheme.textSecondary
+                            )
+                        }
+                        IconButton(onClick = { viewModel.dismissBadgeToast() }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = FpmTheme.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             // Global Loading Indicator
@@ -201,7 +277,8 @@ fun BibleGameHomeScreen(
     onPlayClick: () -> Unit,
     onReviewClick: () -> Unit,
     onViewProgress: () -> Unit,
-    onViewLeaderboard: () -> Unit
+    onViewLeaderboard: () -> Unit,
+    onViewRules: () -> Unit
 ) {
     val overview = state.todayOverview
     val stats = overview?.stats
@@ -740,6 +817,63 @@ fun BibleGameHomeScreen(
                 }
             }
         }
+
+        // Game Rules Button Card
+        item {
+            OutlinedCard(
+                onClick = onViewRules,
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, FpmTheme.cardBorder),
+                colors = CardDefaults.outlinedCardColors(containerColor = FpmTheme.cardBackground),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = FpmGold.copy(alpha = 0.15f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = FpmGoldDark,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "Game Info & Scoring Rules",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FpmTheme.textPrimary
+                            )
+                            Text(
+                                text = "15s timer, speed XP formula, daily streaks & badges",
+                                fontSize = 11.sp,
+                                color = FpmTheme.textMuted
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = FpmTheme.textMuted
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -751,6 +885,7 @@ fun BibleGameHomeScreen(
 fun BibleQuizScreen(
     state: BibleGameState,
     onSelectOption: (Int) -> Unit,
+    onRetry: () -> Unit,
     onContinue: () -> Unit
 ) {
     val session = state.session ?: return
@@ -825,7 +960,7 @@ fun BibleQuizScreen(
                         text = question.category.uppercase(),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = FpmNavyDark,
+                        color = if (FpmTheme.isDark) FpmGoldLight else FpmNavyDark,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -872,22 +1007,22 @@ fun BibleQuizScreen(
             val isChosenIncorrect = hasAnswered && isSelected && !isCorrect
 
             val containerColor = when {
-                isCorrect -> FpmSuccessBg
-                isChosenIncorrect -> FpmErrorBg
+                isCorrect -> if (FpmTheme.isDark) Color(0xFF0F3820) else FpmSuccessBg
+                isChosenIncorrect -> if (FpmTheme.isDark) Color(0xFF3B1212) else FpmErrorBg
                 isSelected -> if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle
                 else -> FpmTheme.cardBackground
             }
 
             val borderColor = when {
-                isCorrect -> FpmSuccess
-                isChosenIncorrect -> FpmError
+                isCorrect -> if (FpmTheme.isDark) Color(0xFF22C55E) else FpmSuccess
+                isChosenIncorrect -> if (FpmTheme.isDark) Color(0xFFEF4444) else FpmError
                 isSelected -> FpmGold
                 else -> FpmTheme.cardBorder
             }
 
             val textColor = when {
-                isCorrect -> FpmSuccess
-                isChosenIncorrect -> FpmError
+                isCorrect -> if (FpmTheme.isDark) Color(0xFF4ADE80) else FpmSuccess
+                isChosenIncorrect -> if (FpmTheme.isDark) Color(0xFFF87171) else FpmError
                 isSelected -> if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark
                 else -> FpmTheme.textPrimary
             }
@@ -943,14 +1078,14 @@ fun BibleQuizScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Correct",
-                            tint = FpmSuccess,
+                            tint = if (FpmTheme.isDark) Color(0xFF4ADE80) else FpmSuccess,
                             modifier = Modifier.size(20.dp)
                         )
                     } else if (isChosenIncorrect) {
                         Icon(
                             imageVector = Icons.Default.Cancel,
                             contentDescription = "Incorrect",
-                            tint = FpmError,
+                            tint = if (FpmTheme.isDark) Color(0xFFF87171) else FpmError,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -981,17 +1116,17 @@ fun BibleQuizScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = when {
-                        feedback.isCorrect -> FpmSuccessBg
-                        isTimeout -> FpmErrorBg
-                        else -> FpmGoldSubtle
+                        feedback.isCorrect -> if (FpmTheme.isDark) Color(0xFF0F3820) else FpmSuccessBg
+                        isTimeout -> if (FpmTheme.isDark) Color(0xFF3B1212) else FpmErrorBg
+                        else -> if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle
                     }
                 ),
                 border = BorderStroke(
                     1.dp,
                     when {
-                        feedback.isCorrect -> FpmSuccess.copy(alpha = 0.4f)
-                        isTimeout -> FpmError.copy(alpha = 0.4f)
-                        else -> FpmGoldMuted
+                        feedback.isCorrect -> if (FpmTheme.isDark) Color(0xFF22C55E).copy(alpha = 0.5f) else FpmSuccess.copy(alpha = 0.4f)
+                        isTimeout -> if (FpmTheme.isDark) Color(0xFFEF4444).copy(alpha = 0.5f) else FpmError.copy(alpha = 0.4f)
+                        else -> if (FpmTheme.isDark) FpmGoldDark.copy(alpha = 0.5f) else FpmGoldMuted
                     }
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -1008,9 +1143,9 @@ fun BibleQuizScreen(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = when {
-                                    feedback.isCorrect -> FpmSuccess
-                                    isTimeout -> FpmError
-                                    else -> FpmGoldDark
+                                    feedback.isCorrect -> if (FpmTheme.isDark) Color(0xFF4ADE80) else FpmSuccess
+                                    isTimeout -> if (FpmTheme.isDark) Color(0xFFF87171) else FpmError
+                                    else -> if (FpmTheme.isDark) FpmGoldLight else FpmGoldDark
                                 }
                             )
                             speedSubtext?.let { sub ->
@@ -1026,7 +1161,7 @@ fun BibleQuizScreen(
                             text = feedback.bibleReference,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FpmNavyDark
+                            color = if (FpmTheme.isDark) FpmGoldLight else FpmNavyDark
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -1087,6 +1222,25 @@ fun BibleQuizScreen(
                 }
             }
         }
+
+        // Retry submission button if network failed while answer was locked
+        if (state.errorMessage != null && state.isQuestionLocked && !hasAnswered) {
+            Button(
+                onClick = onRetry,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = FpmAmber,
+                    contentColor = FpmNavyDark
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Retry Submitting Answer", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
@@ -1102,7 +1256,10 @@ fun BibleResultsScreen(
     val completion = state.completionResult
     val score = completion?.score ?: 0
     val total = completion?.totalQuestions ?: 5
-    val xpEarned = completion?.xpAwarded ?: 0.0
+    val xpEarned = completion?.totalXpEarned?.takeIf { it > 0.0 }
+        ?: state.todayOverview?.totalXp?.takeIf { it > 0.0 }
+        ?: completion?.xpAwarded
+        ?: 0.0
     val stats = completion?.stats
 
     var showReviewDetails by remember { mutableStateOf(false) }
@@ -1191,7 +1348,7 @@ fun BibleResultsScreen(
                                     color = FpmGoldLight
                                 )
                                 Text(
-                                    text = if (completion?.alreadyCompleted == true) "Already Earned Today" else "XP Earned Today",
+                                    text = if (completion?.alreadyCompleted == true) "Earned Earlier Today" else "XP Earned Today",
                                     fontSize = 10.sp,
                                     color = FpmTextMuted
                                 )
@@ -1307,15 +1464,16 @@ fun BibleResultsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val isExpired = q.status == "TIME_EXPIRED" || q.isTimeout
+                            val isCorrectAnswer = (q.status == "CORRECT" || q.isCorrect) && !isExpired && q.questionXp > 0.0
                             val statusLabel = when {
-                                q.isTimeout -> "⏱ Time Expired (0.0 XP)"
-                                q.isCorrect -> String.format(java.util.Locale.US, "✓ Correct (+%.1f XP)", q.questionXp)
+                                isExpired -> "⏱ Time Expired (0.0 XP)"
+                                isCorrectAnswer -> String.format(java.util.Locale.US, "✓ Correct (+%.1f XP)", q.questionXp)
                                 else -> "✗ Missed (0.0 XP)"
                             }
                             val statusColor = when {
-                                q.isCorrect -> FpmSuccess
-                                q.isTimeout -> FpmError
-                                else -> FpmError
+                                isCorrectAnswer -> if (FpmTheme.isDark) Color(0xFF4ADE80) else FpmSuccess
+                                else -> if (FpmTheme.isDark) Color(0xFFF87171) else FpmError
                             }
                             Text(
                                 text = statusLabel,
@@ -1357,7 +1515,7 @@ fun BibleResultsScreen(
                             text = "Answer: ${q.options[q.correctOptionIndex]}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = FpmSuccess
+                            color = if (FpmTheme.isDark) Color(0xFF4ADE80) else FpmSuccess
                         )
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1470,67 +1628,65 @@ fun BibleProgressScreen(
         }
 
         // Badges Section
-        item {
-            Text(
-                text = "Badges Earned",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = FpmTheme.textPrimary
-            )
-        }
-
         val badges = progress?.badges ?: state.todayOverview?.badges ?: emptyList()
-        items(badges) { badge ->
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (badge.earned) FpmGoldSubtle else FpmTheme.cardBackground
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    if (badge.earned) FpmGold else FpmTheme.cardBorder
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (badge.earned) FpmGold else FpmTheme.cardBorder.copy(alpha = 0.5f),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = when (badge.icon) {
-                                    "Footprints" -> Icons.Default.DirectionsWalk
-                                    "Award" -> Icons.Default.WorkspacePremium
-                                    "Flame" -> Icons.Default.LocalFireDepartment
-                                    "Zap" -> Icons.Default.Bolt
-                                    "Compass" -> Icons.Default.Explore
-                                    else -> Icons.Default.Shield
-                                },
-                                contentDescription = null,
-                                tint = if (badge.earned) FpmNavyDark else FpmTheme.textMuted,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
+        val (earnedBadges, lockedBadges) = badges.partition { it.earned }
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        if (earnedBadges.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Earned Badges (${earnedBadges.size})",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FpmTheme.textPrimary
+                )
+            }
+            items(earnedBadges) { badge ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle
+                    ),
+                    border = BorderStroke(1.dp, FpmGold),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = FpmGold,
+                            modifier = Modifier.size(42.dp)
                         ) {
-                            Text(
-                                text = badge.name,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = FpmTheme.textPrimary
-                            )
-                            if (badge.earned) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = when (badge.icon) {
+                                        "Footprints" -> Icons.Default.DirectionsWalk
+                                        "Award" -> Icons.Default.WorkspacePremium
+                                        "Flame" -> Icons.Default.LocalFireDepartment
+                                        "Zap" -> Icons.Default.Bolt
+                                        "Compass" -> Icons.Default.Explore
+                                        else -> Icons.Default.Shield
+                                    },
+                                    contentDescription = null,
+                                    tint = FpmNavyDark,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = badge.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FpmTheme.textPrimary
+                                )
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
                                     color = FpmSuccess.copy(alpha = 0.2f)
@@ -1539,25 +1695,106 @@ fun BibleProgressScreen(
                                         text = "EARNED",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = FpmSuccess,
+                                        color = if (FpmTheme.isDark) Color(0xFF4ADE80) else FpmSuccess,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
                                 }
                             }
+                            Text(
+                                text = badge.description,
+                                fontSize = 12.sp,
+                                color = FpmTheme.textSecondary
+                            )
                         }
+
                         Text(
-                            text = badge.description,
-                            fontSize = 12.sp,
-                            color = FpmTheme.textSecondary
+                            text = "+${badge.xpReward} XP",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FpmGoldDark
                         )
                     }
+                }
+            }
+        }
 
-                    Text(
-                        text = "+${badge.xpReward} XP",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = FpmGoldDark
-                    )
+        if (lockedBadges.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Locked Badges (${lockedBadges.size})",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FpmTheme.textSecondary
+                )
+            }
+            items(lockedBadges) { badge ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = FpmTheme.cardBackground.copy(alpha = 0.6f)
+                    ),
+                    border = BorderStroke(0.5.dp, FpmTheme.cardBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = FpmTheme.cardBorder.copy(alpha = 0.3f),
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Locked",
+                                    tint = FpmTheme.textMuted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = badge.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = FpmTheme.textSecondary
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = FpmTheme.cardBorder.copy(alpha = 0.4f)
+                                ) {
+                                    Text(
+                                        text = "LOCKED",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = FpmTheme.textMuted,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Requirement: ${badge.description}",
+                                fontSize = 12.sp,
+                                color = FpmTheme.textMuted
+                            )
+                        }
+
+                        Text(
+                            text = "+${badge.xpReward} XP",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = FpmTheme.textMuted
+                        )
+                    }
                 }
             }
         }
@@ -1565,15 +1802,17 @@ fun BibleProgressScreen(
 }
 
 // =============================================================================
-// SCREEN 5: WEEKLY LEADERBOARD
+// SCREEN 5: LEADERBOARD (WEEKLY & ALL-TIME)
 // =============================================================================
 
 @Composable
 fun BibleLeaderboardScreen(
     state: BibleGameState,
+    onScopeChange: (String) -> Unit,
     onFilterBranch: (String?) -> Unit
 ) {
     val leaderboard = state.leaderboard
+    val isWeekly = state.leaderboardScope == "weekly"
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1588,17 +1827,118 @@ fun BibleLeaderboardScreen(
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = "Global Scripture Leaderboard",
+                        text = if (isWeekly) "Weekly Scripture Leaderboard" else "All-Time Scripture Leaderboard",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,
                         color = FpmTextOnDark
                     )
                     Text(
-                        text = "Weekly XP earned from daily Bible Challenges. Resets every Monday in Africa/Lagos.",
+                        text = if (isWeekly)
+                            "Weekly XP earned from daily Bible Challenges. Resets every Monday in Africa/Lagos."
+                        else
+                            "Cumulative XP earned across all completed challenges and unlocked badges.",
                         fontSize = 12.sp,
                         color = FpmTextMuted,
                         lineHeight = 16.sp
                     )
+                }
+            }
+        }
+
+        // Scope Switcher Tabs (Weekly / All-Time)
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(FpmTheme.cardBackground)
+                    .border(0.5.dp, FpmTheme.cardBorder, RoundedCornerShape(12.dp))
+                    .padding(4.dp)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onScopeChange("weekly") },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isWeekly) FpmNavyDark else Color.Transparent
+                ) {
+                    Text(
+                        text = "Weekly",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isWeekly) FpmGoldLight else FpmTheme.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onScopeChange("all_time") },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (!isWeekly) FpmNavyDark else Color.Transparent
+                ) {
+                    Text(
+                        text = "All-Time",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (!isWeekly) FpmGoldLight else FpmTheme.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
+                }
+            }
+        }
+
+        // User's own rank card if available
+        leaderboard?.userRank?.let { userRank ->
+            item {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle
+                    ),
+                    border = BorderStroke(1.5.dp, FpmGold),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = FpmGold,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "${userRank.rank}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = FpmNavyDark
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Your Rank: #${userRank.rank}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = FpmGoldDark
+                                )
+                                Text(
+                                    text = if (isWeekly) "Weekly Score: ${String.format(java.util.Locale.US, "%.1f XP", userRank.weeklyXp)}" else "All-Time Score: ${String.format(java.util.Locale.US, "%.1f XP", userRank.totalXp)}",
+                                    fontSize = 11.sp,
+                                    color = FpmTheme.textSecondary
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1612,7 +1952,10 @@ fun BibleLeaderboardScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No players have completed this week's challenge yet. Be the first!",
+                        text = if (isWeekly)
+                            "No players have completed this week's challenge yet. Be the first!"
+                        else
+                            "No player records found yet.",
                         fontSize = 13.sp,
                         color = FpmTheme.textMuted,
                         textAlign = TextAlign.Center
@@ -1621,9 +1964,10 @@ fun BibleLeaderboardScreen(
             }
         } else {
             items(leaderboard!!.entries) { entry ->
+                val displayXp = if (isWeekly) entry.weeklyXp else entry.totalXp
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (entry.isCurrentUser) FpmGoldSubtle else FpmTheme.cardBackground,
+                    color = if (entry.isCurrentUser) (if (FpmTheme.isDark) FpmNavySurface else FpmGoldSubtle) else FpmTheme.cardBackground,
                     border = BorderStroke(
                         if (entry.isCurrentUser) 1.5.dp else 0.5.dp,
                         if (entry.isCurrentUser) FpmGold else FpmTheme.cardBorder
@@ -1679,13 +2023,179 @@ fun BibleLeaderboardScreen(
                         }
 
                         Text(
-                            text = String.format(java.util.Locale.US, "%.1f XP", entry.weeklyXp),
+                            text = String.format(java.util.Locale.US, "%.1f XP", displayXp),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Black,
                             color = FpmGoldDark
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// SCREEN 6: GAME INFO & RULES
+// =============================================================================
+
+@Composable
+fun BibleGameRulesScreen(
+    onBack: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = FpmNavyDark),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoStories,
+                            contentDescription = null,
+                            tint = FpmGoldLight,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "How to Play & Scoring Rules",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = FpmTextOnDark
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Everything you need to know about FPM Global Bible Challenge timing, speed scoring, streaks, and badges.",
+                        fontSize = 12.sp,
+                        color = FpmTextMuted,
+                        lineHeight = 17.sp
+                    )
+                }
+            }
+        }
+
+        item {
+            RuleCard(
+                icon = Icons.Default.CheckCircle,
+                iconTint = FpmGold,
+                title = "5 Questions Per Daily Challenge",
+                description = "Every day at midnight in Africa/Lagos, a fresh 5-question Scripture trivia round is published. All church members worldwide receive the exact same five questions."
+            )
+        }
+
+        item {
+            RuleCard(
+                icon = Icons.Default.Timer,
+                iconTint = FpmAmber,
+                title = "15-Second Timer & Immediate Lock",
+                description = "You have exactly 15 seconds per question. As soon as you tap an answer choice, it locks immediately and cannot be changed. If the 15-second countdown expires before an option is selected, the question times out with 0 XP."
+            )
+        }
+
+        item {
+            RuleCard(
+                icon = Icons.Default.Bolt,
+                iconTint = FpmSuccess,
+                title = "Speed-Based XP Scoring",
+                description = "Each correct answer awards up to 10.0 XP based on your speed:\n\nXP = round(10 × remaining_seconds / 15, 1)\n\n• 15s remaining: 10.0 XP\n• 12s remaining: 8.0 XP\n• 7.5s remaining: 5.0 XP\n• 2s remaining: 1.3 XP\n• Incorrect or timed-out: 0.0 XP\n\nThe maximum possible score for a perfect five-question round is 50.0 XP. The server authoritatively calculates timing and XP."
+            )
+        }
+
+        item {
+            RuleCard(
+                icon = Icons.Default.LocalFireDepartment,
+                iconTint = FpmAmber,
+                title = "Daily Streaks & Ranks",
+                description = "Play consecutively each day to build your Daily Devotion Streak. Earning XP advances your Scripture Knowledge Rank from Scripture Seeker (Level 1) up to Master of the Word (Level 10)."
+            )
+        }
+
+        item {
+            RuleCard(
+                icon = Icons.Default.EmojiEvents,
+                iconTint = FpmGold,
+                title = "Badges & Leaderboards",
+                description = "Earn milestone badges (First Steps, Perfect Round, 7-Day Streak, Centurion, etc.) to collect bonus XP. Compete with your branch and church members globally on the Weekly and All-Time Leaderboards."
+            )
+        }
+
+        item {
+            Button(
+                onClick = onBack,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = FpmNavyDark,
+                    contentColor = FpmTextOnDark
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text(
+                    text = "Back to Challenge",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuleCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    description: String
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = FpmTheme.cardBackground),
+        border = BorderStroke(0.5.dp, FpmTheme.cardBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = iconTint.copy(alpha = 0.15f),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FpmTheme.textPrimary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    fontSize = 12.sp,
+                    color = FpmTheme.textSecondary,
+                    lineHeight = 17.sp
+                )
             }
         }
     }
