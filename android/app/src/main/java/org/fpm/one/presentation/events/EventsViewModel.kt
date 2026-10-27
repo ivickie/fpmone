@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.fpm.one.core.network.ApiClient
 import org.fpm.one.data.model.EventItem
 import org.fpm.one.data.repository.ChurchRepository
 
@@ -35,7 +36,10 @@ class EventsViewModel(private val repository: ChurchRepository) : ViewModel() {
           _state.value = _state.value.copy(isLoading = false, events = filtered)
         },
         onFailure = { ex ->
-          _state.value = _state.value.copy(isLoading = false, error = ex.message)
+          _state.value = _state.value.copy(
+            isLoading = false,
+            error = ApiClient.formatErrorMessage(ex, fallback = "Failed to load events")
+          )
         }
       )
     }

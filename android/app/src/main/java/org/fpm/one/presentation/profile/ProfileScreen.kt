@@ -323,10 +323,12 @@ fun ProfileHeaderCard(user: UserSession?) {
             }
             android.widget.Toast.makeText(context, "Profile photo updated successfully!", android.widget.Toast.LENGTH_SHORT).show()
           }.onFailure { err ->
-            android.widget.Toast.makeText(context, "Failed to update profile photo: ${err.message}", android.widget.Toast.LENGTH_LONG).show()
+            val errorText = org.fpm.one.core.network.ApiClient.formatErrorMessage(err, fallback = "Failed to update profile photo")
+            android.widget.Toast.makeText(context, errorText, android.widget.Toast.LENGTH_LONG).show()
           }
         } catch (e: Exception) {
-          android.widget.Toast.makeText(context, "Error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+          val errorText = org.fpm.one.core.network.ApiClient.formatErrorMessage(e, fallback = "Error updating profile photo")
+          android.widget.Toast.makeText(context, errorText, android.widget.Toast.LENGTH_LONG).show()
         } finally {
           isUploading = false
         }

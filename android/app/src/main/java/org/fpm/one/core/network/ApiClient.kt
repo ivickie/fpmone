@@ -12,7 +12,22 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
+import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.PortUnreachableException
+import java.net.ProtocolException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+
+const val NO_INTERNET_ERROR_MESSAGE = "No Internet Connection\nPlease check your network settings and try again."
+
+class NoConnectivityException(
+  message: String = NO_INTERNET_ERROR_MESSAGE,
+  cause: Throwable? = null
+) : IOException(message, cause)
 
 open class ApiException(val statusCode: Int, message: String) : Exception(message)
 class AuthenticationException(message: String) : ApiException(401, message)
@@ -33,6 +48,70 @@ object ApiClient {
     ignoreUnknownKeys = true
     isLenient = true
     encodeDefaults = true
+  }
+
+  fun isNetworkOrConnectivityException(throwable: Throwable?): Boolean {
+    var current: Throwable? = throwable
+    while (current != null) {
+      if (current is NoConnectivityException) return true
+      if (current is UnknownHostException) return true
+      if (current is ConnectException) return true
+      if (current is SocketTimeoutException) return true
+      if (current is NoRouteToHostException) return true
+      if (current is PortUnreachableException) return true
+      if (current is ProtocolException) return true
+      if (current is SocketException) return true
+
+      val msg = current.message?.lowercase() ?: ""
+      if (msg.contains("unable to resolve host") ||
+        msg.contains("no address associated with hostname") ||
+        msg.contains("failed to connect") ||
+        msg.contains("network is unreachable") ||
+        msg.contains("route to host") ||
+        msg.contains("connection refused") ||
+        msg.contains("connection reset") ||
+        msg.contains("connection abort") ||
+        msg.contains("broken pipe") ||
+        msg.contains("connect timed out") ||
+        msg.contains("timeout") ||
+        msg.contains("no internet") ||
+        msg.contains("offline")
+      ) {
+        return true
+      }
+      current = current.cause
+    }
+    return false
+  }
+
+  fun formatErrorMessage(throwable: Throwable?, fallback: String = "An unexpected error occurred. Please try again."): String {
+    if (throwable == null) return fallback
+    if (isNetworkOrConnectivityException(throwable)) {
+      return NO_INTERNET_ERROR_MESSAGE
+    }
+    val raw = throwable.message
+    if (raw.isNullOrBlank()) return fallback
+
+    return try {
+      val jsonElement = json.parseToJsonElement(raw)
+      val obj = jsonElement.jsonObject
+      obj["error"]?.jsonPrimitive?.contentOrNull
+        ?: obj["message"]?.jsonPrimitive?.contentOrNull
+        ?: raw
+    } catch (_: Exception) {
+      raw
+    }
+  }
+
+  inline fun <T> executeCall(block: () -> T): T {
+    return try {
+      block()
+    } catch (e: Throwable) {
+      if (isNetworkOrConnectivityException(e)) {
+        throw NoConnectivityException(cause = e)
+      }
+      throw e
+    }
   }
 
   private fun parseAndThrowError(response: okhttp3.Response): Nothing {
@@ -62,77 +141,92 @@ object ApiClient {
       .connectTimeout(15, TimeUnit.SECONDS)
       .readTimeout(15, TimeUnit.SECONDS)
       .addInterceptor { chain ->
-        val original = chain.request()
-        val requestBuilder = original.newBuilder()
-        if (original.header("Content-Type") == null) {
-          requestBuilder.header("Content-Type", "application/json")
+        try {
+          val original = chain.request()
+          val requestBuilder = original.newBuilder()
+          if (original.header("Content-Type") == null) {
+            requestBuilder.header("Content-Type", "application/json")
+          }
+          authToken?.let { token ->
+            requestBuilder.header("Authorization", "Bearer $token")
+          }
+          chain.proceed(requestBuilder.build())
+        } catch (e: IOException) {
+          if (isNetworkOrConnectivityException(e)) {
+            throw NoConnectivityException(cause = e)
+          }
+          throw e
         }
-        authToken?.let { token ->
-          requestBuilder.header("Authorization", "Bearer $token")
-        }
-        chain.proceed(requestBuilder.build())
       }
       .addInterceptor(logging)
       .build()
   }
 
   suspend fun get(endpoint: String): String = withContext(Dispatchers.IO) {
-    val request = Request.Builder()
-      .url("$baseUrl$endpoint")
-      .get()
-      .build()
+    executeCall {
+      val request = Request.Builder()
+        .url("$baseUrl$endpoint")
+        .get()
+        .build()
 
-    client.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) {
-        parseAndThrowError(response)
+      client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+          parseAndThrowError(response)
+        }
+        response.body?.string() ?: ""
       }
-      response.body?.string() ?: ""
     }
   }
 
   suspend fun post(endpoint: String, jsonBody: String): String = withContext(Dispatchers.IO) {
-    val mediaType = "application/json; charset=utf-8".toMediaType()
-    val requestBody = jsonBody.toRequestBody(mediaType)
-    val request = Request.Builder()
-      .url("$baseUrl$endpoint")
-      .post(requestBody)
-      .build()
+    executeCall {
+      val mediaType = "application/json; charset=utf-8".toMediaType()
+      val requestBody = jsonBody.toRequestBody(mediaType)
+      val request = Request.Builder()
+        .url("$baseUrl$endpoint")
+        .post(requestBody)
+        .build()
 
-    client.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) {
-        parseAndThrowError(response)
+      client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+          parseAndThrowError(response)
+        }
+        response.body?.string() ?: ""
       }
-      response.body?.string() ?: ""
     }
   }
 
   suspend fun put(endpoint: String, jsonBody: String): String = withContext(Dispatchers.IO) {
-    val mediaType = "application/json; charset=utf-8".toMediaType()
-    val requestBody = jsonBody.toRequestBody(mediaType)
-    val request = Request.Builder()
-      .url("$baseUrl$endpoint")
-      .put(requestBody)
-      .build()
+    executeCall {
+      val mediaType = "application/json; charset=utf-8".toMediaType()
+      val requestBody = jsonBody.toRequestBody(mediaType)
+      val request = Request.Builder()
+        .url("$baseUrl$endpoint")
+        .put(requestBody)
+        .build()
 
-    client.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) {
-        parseAndThrowError(response)
+      client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+          parseAndThrowError(response)
+        }
+        response.body?.string() ?: ""
       }
-      response.body?.string() ?: ""
     }
   }
 
   suspend fun delete(endpoint: String): String = withContext(Dispatchers.IO) {
-    val request = Request.Builder()
-      .url("$baseUrl$endpoint")
-      .delete()
-      .build()
+    executeCall {
+      val request = Request.Builder()
+        .url("$baseUrl$endpoint")
+        .delete()
+        .build()
 
-    client.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) {
-        parseAndThrowError(response)
+      client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+          parseAndThrowError(response)
+        }
+        response.body?.string() ?: ""
       }
-      response.body?.string() ?: ""
     }
   }
 
@@ -144,30 +238,32 @@ object ApiClient {
     branchId: String? = null,
     entityId: String? = null
   ): String = withContext(Dispatchers.IO) {
-    val requestBodyBuilder = okhttp3.MultipartBody.Builder()
-      .setType(okhttp3.MultipartBody.FORM)
-      .addFormDataPart("entityType", entityType)
+    executeCall {
+      val requestBodyBuilder = okhttp3.MultipartBody.Builder()
+        .setType(okhttp3.MultipartBody.FORM)
+        .addFormDataPart("entityType", entityType)
 
-    branchId?.let { requestBodyBuilder.addFormDataPart("branchId", it) }
-    entityId?.let { requestBodyBuilder.addFormDataPart("entityId", it) }
+      branchId?.let { requestBodyBuilder.addFormDataPart("branchId", it) }
+      entityId?.let { requestBodyBuilder.addFormDataPart("entityId", it) }
 
-    requestBodyBuilder.addFormDataPart(
-      "file",
-      filename,
-      bytes.toRequestBody(mimeType.toMediaType())
-    )
+      requestBodyBuilder.addFormDataPart(
+        "file",
+        filename,
+        bytes.toRequestBody(mimeType.toMediaType())
+      )
 
-    val request = Request.Builder()
-      .url("$baseUrl/media/upload")
-      .post(requestBodyBuilder.build())
-      .build()
+      val request = Request.Builder()
+        .url("$baseUrl/media/upload")
+        .post(requestBodyBuilder.build())
+        .build()
 
-    client.newCall(request).execute().use { response ->
-      val body = response.body?.string() ?: ""
-      if (!response.isSuccessful) {
-        throw Exception(body.ifBlank { "Media upload failed with HTTP ${response.code}" })
+      client.newCall(request).execute().use { response ->
+        val body = response.body?.string() ?: ""
+        if (!response.isSuccessful) {
+          throw Exception(body.ifBlank { "Media upload failed with HTTP ${response.code}" })
+        }
+        body
       }
-      body
     }
   }
 
@@ -176,25 +272,27 @@ object ApiClient {
     filename: String,
     mimeType: String
   ): String = withContext(Dispatchers.IO) {
-    val requestBodyBuilder = okhttp3.MultipartBody.Builder()
-      .setType(okhttp3.MultipartBody.FORM)
-      .addFormDataPart(
-        "file",
-        filename,
-        bytes.toRequestBody(mimeType.toMediaType())
-      )
+    executeCall {
+      val requestBodyBuilder = okhttp3.MultipartBody.Builder()
+        .setType(okhttp3.MultipartBody.FORM)
+        .addFormDataPart(
+          "file",
+          filename,
+          bytes.toRequestBody(mimeType.toMediaType())
+        )
 
-    val request = Request.Builder()
-      .url("$baseUrl/media/upload-avatar")
-      .post(requestBodyBuilder.build())
-      .build()
+      val request = Request.Builder()
+        .url("$baseUrl/media/upload-avatar")
+        .post(requestBodyBuilder.build())
+        .build()
 
-    client.newCall(request).execute().use { response ->
-      val body = response.body?.string() ?: ""
-      if (!response.isSuccessful) {
-        throw Exception(body.ifBlank { "Avatar upload failed with HTTP ${response.code}" })
+      client.newCall(request).execute().use { response ->
+        val body = response.body?.string() ?: ""
+        if (!response.isSuccessful) {
+          throw Exception(body.ifBlank { "Avatar upload failed with HTTP ${response.code}" })
+        }
+        body
       }
-      body
     }
   }
 

@@ -448,7 +448,10 @@ class RegistrationViewModel(
           onSuccess(res.requiresEmailVerification, s.email.trim())
         },
         onFailure = { ex ->
-          _state.value = _state.value.copy(isLoading = false, error = ex.message ?: "Submission failed")
+          _state.value = _state.value.copy(
+            isLoading = false,
+            error = ApiClient.formatErrorMessage(ex, fallback = "Submission failed")
+          )
         }
       )
     }

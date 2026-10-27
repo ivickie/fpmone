@@ -3,6 +3,7 @@ package org.fpm.one.data.repository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.fpm.one.core.network.ApiClient
+import org.fpm.one.core.network.NoConnectivityException
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.data.model.*
 import kotlinx.serialization.encodeToString
@@ -28,17 +29,16 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.failure(Exception(response.error ?: "Login failed"))
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      if (msg.contains("unverified_email") || msg.contains("verify your email", ignoreCase = true)) {
-        Result.failure(UnverifiedEmailException(emailOrPhone, "Please verify your email address before logging in."))
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
       } else {
-        val friendlyMsg = try {
-          val jsonElement = ApiClient.json.parseToJsonElement(msg)
-          jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-        } catch (_: Exception) {
-          msg
+        val msg = e.message ?: ""
+        if (msg.contains("unverified_email") || msg.contains("verify your email", ignoreCase = true)) {
+          Result.failure(UnverifiedEmailException(emailOrPhone, "Please verify your email address before logging in."))
+        } else {
+          val friendlyMsg = ApiClient.formatErrorMessage(e, fallback = "Login failed")
+          Result.failure(Exception(friendlyMsg))
         }
-        Result.failure(Exception(friendlyMsg))
       }
     }
   }
@@ -50,7 +50,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
       val response = ApiClient.json.decodeFromString<RegistrationResponse>(responseText)
       Result.success(response)
     } catch (e: Exception) {
-      Result.failure(e)
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Registration failed")))
+      }
     }
   }
 
@@ -65,14 +69,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.success(response)
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      val friendlyMsg = try {
-        val jsonElement = ApiClient.json.parseToJsonElement(msg)
-        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-      } catch (_: Exception) {
-        msg
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Verification failed")))
       }
-      Result.failure(Exception(friendlyMsg))
     }
   }
 
@@ -87,14 +88,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.success(response)
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      val friendlyMsg = try {
-        val jsonElement = ApiClient.json.parseToJsonElement(msg)
-        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-      } catch (_: Exception) {
-        msg
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Failed to resend code")))
       }
-      Result.failure(Exception(friendlyMsg))
     }
   }
 
@@ -109,14 +107,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.success(response)
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      val friendlyMsg = try {
-        val jsonElement = ApiClient.json.parseToJsonElement(msg)
-        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-      } catch (_: Exception) {
-        msg
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Failed to request password reset")))
       }
-      Result.failure(Exception(friendlyMsg))
     }
   }
 
@@ -131,14 +126,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.success(response)
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      val friendlyMsg = try {
-        val jsonElement = ApiClient.json.parseToJsonElement(msg)
-        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-      } catch (_: Exception) {
-        msg
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Invalid verification code")))
       }
-      Result.failure(Exception(friendlyMsg))
     }
   }
 
@@ -153,14 +145,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.success(response)
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      val friendlyMsg = try {
-        val jsonElement = ApiClient.json.parseToJsonElement(msg)
-        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-      } catch (_: Exception) {
-        msg
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Failed to resend reset code")))
       }
-      Result.failure(Exception(friendlyMsg))
     }
   }
 
@@ -175,14 +164,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
         Result.success(response)
       }
     } catch (e: Exception) {
-      val msg = e.message ?: ""
-      val friendlyMsg = try {
-        val jsonElement = ApiClient.json.parseToJsonElement(msg)
-        jsonElement.jsonObject["error"]?.jsonPrimitive?.contentOrNull ?: msg
-      } catch (_: Exception) {
-        msg
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(Exception(ApiClient.formatErrorMessage(e, fallback = "Failed to reset password")))
       }
-      Result.failure(Exception(friendlyMsg))
     }
   }
 
@@ -193,7 +179,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
       sessionManager.updateCachedUser(user)
       Result.success(user)
     } catch (e: Exception) {
-      Result.failure(e)
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(e)
+      }
     }
   }
 
@@ -209,7 +199,11 @@ class AuthRepository(private val sessionManager: SessionManager) {
       val responseText = ApiClient.uploadAvatar(bytes, filename, mimeType)
       Result.success(responseText)
     } catch (e: Exception) {
-      Result.failure(e)
+      if (ApiClient.isNetworkOrConnectivityException(e)) {
+        Result.failure(NoConnectivityException(cause = e))
+      } else {
+        Result.failure(e)
+      }
     }
   }
 }

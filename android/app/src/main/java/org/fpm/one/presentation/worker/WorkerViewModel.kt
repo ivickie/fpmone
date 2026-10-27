@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.fpm.one.core.network.ApiClient
 import org.fpm.one.core.security.SessionManager
 import org.fpm.one.data.model.AttendanceRecordItem
 import org.fpm.one.data.model.AttendanceSummary
@@ -68,7 +69,7 @@ class WorkerViewModel(
             isLoading = false,
             services = services,
             selectedService = services.firstOrNull(),
-            error = ex.message
+            error = ApiClient.formatErrorMessage(ex, fallback = "Failed to load worker hub")
           )
         }
       )
@@ -117,7 +118,10 @@ class WorkerViewModel(
           onSuccess()
         },
         onFailure = { ex ->
-          _state.value = _state.value.copy(isLoading = false, error = ex.message)
+          _state.value = _state.value.copy(
+            isLoading = false,
+            error = ApiClient.formatErrorMessage(ex, fallback = "Clock-in failed")
+          )
         }
       )
     }
@@ -145,7 +149,10 @@ class WorkerViewModel(
           onSuccess()
         },
         onFailure = { ex ->
-          _state.value = _state.value.copy(isLoading = false, error = ex.message)
+          _state.value = _state.value.copy(
+            isLoading = false,
+            error = ApiClient.formatErrorMessage(ex, fallback = "Clock-out failed")
+          )
         }
       )
     }

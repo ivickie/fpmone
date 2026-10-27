@@ -511,12 +511,12 @@ fun SubmitTestimonyDialog(
               isUploading = false
             },
             onFailure = { ex ->
-              error = "Failed to upload photo: ${ex.message}"
+              error = ApiClient.formatErrorMessage(ex, fallback = "Failed to upload photo")
               isUploading = false
             }
           )
         } catch (e: Exception) {
-          error = "Error reading photo: ${e.message}"
+          error = ApiClient.formatErrorMessage(e, fallback = "Error reading photo")
           isUploading = false
         }
       }

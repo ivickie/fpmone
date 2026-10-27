@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.fpm.one.core.network.ApiClient
 import org.fpm.one.data.model.TestimonyItem
 import org.fpm.one.data.repository.ChurchRepository
 
@@ -34,7 +35,10 @@ class TestimoniesViewModel(private val repository: ChurchRepository) : ViewModel
           _state.value = _state.value.copy(isLoading = false, testimonies = list)
         },
         onFailure = { ex ->
-          _state.value = _state.value.copy(isLoading = false, error = ex.message)
+          _state.value = _state.value.copy(
+            isLoading = false,
+            error = ApiClient.formatErrorMessage(ex, fallback = "Failed to load testimonies")
+          )
         }
       )
     }
@@ -66,7 +70,10 @@ class TestimoniesViewModel(private val repository: ChurchRepository) : ViewModel
           loadTestimonies()
         },
         onFailure = { ex ->
-          _state.value = _state.value.copy(isLoading = false, error = ex.message)
+          _state.value = _state.value.copy(
+            isLoading = false,
+            error = ApiClient.formatErrorMessage(ex, fallback = "Failed to submit testimony")
+          )
         }
       )
     }

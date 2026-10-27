@@ -48,6 +48,7 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
       if (postsRes.isSuccess || branchesRes.isSuccess) {
         _state.value = _state.value.copy(
           isLoading = false,
+          isOffline = false,
           posts = postsRes.getOrDefault(emptyList()),
           highlights = highlightsRes.getOrDefault(emptyList()),
           testimonies = testimoniesRes.getOrDefault(emptyList()),
@@ -56,10 +57,11 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
           sundayMoments = momentsRes.getOrDefault(emptyList())
         )
       } else {
+        val ex = postsRes.exceptionOrNull() ?: branchesRes.exceptionOrNull()
         _state.value = _state.value.copy(
           isLoading = false,
-          isOffline = true,
-          error = postsRes.exceptionOrNull()?.message ?: "Unable to fetch feed"
+          isOffline = ApiClient.isNetworkOrConnectivityException(ex),
+          error = ApiClient.formatErrorMessage(ex, fallback = "Unable to fetch feed")
         )
       }
     }
@@ -86,7 +88,7 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
       )
 
       if (mediaUploadRes.isFailure) {
-        val errMsg = mediaUploadRes.exceptionOrNull()?.message ?: "Failed to upload image"
+        val errMsg = ApiClient.formatErrorMessage(mediaUploadRes.exceptionOrNull(), fallback = "Failed to upload image")
         _state.value = _state.value.copy(isUploadingMoment = false, uploadMomentError = errMsg)
         onComplete(false, errMsg)
         return@launch
@@ -132,7 +134,7 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
         )
         onComplete(true, null)
       } else {
-        val errMsg = createMomentRes.exceptionOrNull()?.message ?: "Failed to record Sunday moment"
+        val errMsg = ApiClient.formatErrorMessage(createMomentRes.exceptionOrNull(), fallback = "Failed to record Sunday moment")
         _state.value = _state.value.copy(isUploadingMoment = false, uploadMomentError = errMsg)
         onComplete(false, errMsg)
       }
@@ -148,7 +150,7 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
         )
         onComplete(true, null)
       } else {
-        onComplete(false, res.exceptionOrNull()?.message ?: "Failed to delete moment")
+        onComplete(false, ApiClient.formatErrorMessage(res.exceptionOrNull(), fallback = "Failed to delete moment"))
       }
     }
   }
@@ -201,7 +203,7 @@ class HomeViewModel(private val repository: ChurchRepository) : ViewModel() {
         loadHomeData()
         onComplete(true, null)
       } else {
-        val errMsg = res.exceptionOrNull()?.message ?: "Failed to post comment"
+        val errMsg = ApiClient.formatErrorMessage(res.exceptionOrNull(), fallback = "Failed to post comment")
         onComplete(false, errMsg)
       }
     }

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.fpm.one.core.network.ApiClient
 import org.fpm.one.data.model.UserSession
 import org.fpm.one.data.repository.AuthRepository
 import org.fpm.one.data.repository.UnverifiedEmailException
@@ -75,7 +76,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
             onUnverified(ex.email)
             return@fold
           }
-          val msg = ex.message ?: "Authentication failed"
+          val msg = ApiClient.formatErrorMessage(ex, fallback = "Authentication failed")
           if (msg.contains("awaiting administrative approval") || msg.contains("pending")) {
             _uiState.value = _uiState.value.copy(isLoading = false, isPendingApproval = true, error = msg)
             onPending()
@@ -106,7 +107,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
             isVerifyingEmail = false,
-            verifyErrorMessage = ex.message ?: "Verification failed. Please check your code."
+            verifyErrorMessage = ApiClient.formatErrorMessage(ex, fallback = "Verification failed. Please check your code.")
           )
         }
       )
@@ -127,7 +128,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
             isResendingOtp = false,
-            verifyErrorMessage = ex.message ?: "Failed to resend code."
+            verifyErrorMessage = ApiClient.formatErrorMessage(ex, fallback = "Failed to resend code.")
           )
         }
       )
@@ -160,7 +161,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
             isForgotPasswordLoading = false,
-            forgotPasswordError = ex.message ?: "Failed to request password reset."
+            forgotPasswordError = ApiClient.formatErrorMessage(ex, fallback = "Failed to request password reset.")
           )
         }
       )
@@ -191,7 +192,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
             isVerifyingResetOtp = false,
-            resetOtpError = ex.message ?: "Invalid verification code. Please try again."
+            resetOtpError = ApiClient.formatErrorMessage(ex, fallback = "Invalid verification code. Please try again.")
           )
         }
       )
@@ -216,7 +217,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
             isResendingResetOtp = false,
-            resetOtpError = ex.message ?: "Failed to resend code."
+            resetOtpError = ApiClient.formatErrorMessage(ex, fallback = "Failed to resend code.")
           )
         }
       )
@@ -247,7 +248,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         onFailure = { ex ->
           _uiState.value = _uiState.value.copy(
             isResettingPassword = false,
-            resetPasswordError = ex.message ?: "Failed to reset password."
+            resetPasswordError = ApiClient.formatErrorMessage(ex, fallback = "Failed to reset password.")
           )
         }
       )

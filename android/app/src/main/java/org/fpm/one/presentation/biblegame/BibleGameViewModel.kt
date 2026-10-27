@@ -107,7 +107,7 @@ class BibleGameViewModel(
                             errorMessage = if (isAuthErr) {
                                 "Session expired or authentication required. Please sign in again."
                             } else {
-                                err.message ?: "Failed to load today's Bible Challenge."
+                                ApiClient.formatErrorMessage(err, fallback = "Failed to load today's Bible Challenge.")
                             }
                         )
                     }
@@ -160,7 +160,7 @@ class BibleGameViewModel(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = err.message ?: "Failed to start challenge."
+                            errorMessage = ApiClient.formatErrorMessage(err, fallback = "Failed to start challenge.")
                         )
                     }
                 }
@@ -255,7 +255,7 @@ class BibleGameViewModel(
                     _state.update {
                         it.copy(
                             isSubmittingAnswer = false,
-                            errorMessage = err.message ?: "Failed to submit answer. Please try again."
+                            errorMessage = ApiClient.formatErrorMessage(err, fallback = "Failed to submit answer. Please try again.")
                         )
                     }
                 }
@@ -292,7 +292,7 @@ class BibleGameViewModel(
                     _state.update {
                         it.copy(
                             isSubmittingAnswer = false,
-                            errorMessage = err.message ?: "Failed to submit answer. Please try again."
+                            errorMessage = ApiClient.formatErrorMessage(err, fallback = "Failed to submit answer. Please try again.")
                         )
                     }
                 }
@@ -460,7 +460,7 @@ class BibleGameViewModel(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = err.message ?: "Failed to load progress."
+                            errorMessage = ApiClient.formatErrorMessage(err, fallback = "Failed to load progress.")
                         )
                     }
                 }
@@ -489,7 +489,7 @@ class BibleGameViewModel(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = err.message ?: "Failed to load leaderboard."
+                            errorMessage = ApiClient.formatErrorMessage(err, fallback = "Failed to load leaderboard.")
                         )
                     }
                 }
@@ -526,7 +526,6 @@ class BibleGameViewModel(
     }
 
     private fun isNetworkException(e: Throwable): Boolean {
-        val msg = e.message?.lowercase() ?: ""
-        return msg.contains("timeout") || msg.contains("connect") || msg.contains("host") || msg.contains("unreachable")
+        return ApiClient.isNetworkOrConnectivityException(e)
     }
 }
